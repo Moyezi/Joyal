@@ -55,7 +55,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   AlbumVisualPalette _visualPalette = AlbumVisualPalette.fallback;
   String? _paletteCoverArtId;
   bool _lyricsInitialized = false;
-  bool _lyricsReady = false;
   bool _allowRoutePop = false;
   bool _isSelecting = false;
   int _candidateIndex = 0;
@@ -111,9 +110,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   void _showLyrics() {
     _initializeLyrics();
-    _lyricsProgress.animateTo(1, curve: Curves.easeOutCubic).then((_) {
-      if (mounted && !_lyricsReady) setState(() => _lyricsReady = true);
-    });
+    _lyricsProgress.animateTo(1, curve: Curves.easeOutCubic);
   }
 
   void _hideLyrics() =>
@@ -208,9 +205,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _syncVisualPalette(visualSong);
     final playerPage = RepaintBoundary(child: _buildPlayerPage(context));
     final lyricsPage = _lyricsInitialized
-        ? RepaintBoundary(
-            child: LyricsScreen(onBack: _hideLyrics, loadContent: _lyricsReady),
-          )
+        ? RepaintBoundary(child: LyricsScreen(onBack: _hideLyrics))
         : const SizedBox.expand();
     return PopScope(
       canPop: _allowRoutePop,

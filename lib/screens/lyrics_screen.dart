@@ -14,9 +14,8 @@ import '../widgets/dynamic_album_background.dart';
 
 class LyricsScreen extends ConsumerStatefulWidget {
   final VoidCallback? onBack;
-  final bool loadContent;
 
-  const LyricsScreen({super.key, this.onBack, this.loadContent = true});
+  const LyricsScreen({super.key, this.onBack});
 
   @override
   ConsumerState<LyricsScreen> createState() => _LyricsScreenState();
@@ -71,15 +70,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
         coverArtId: song?.coverArt ?? '',
         coverUrl: coverUrl,
         child: SafeArea(
-          child: !widget.loadContent
-              ? Center(
-                  child: Icon(
-                    Icons.lyrics_outlined,
-                    size: 42,
-                    color: context.secondaryColor,
-                  ),
-                )
-              : song == null
+          child: song == null
               ? const Center(child: Text('暂无播放歌曲'))
               : FutureBuilder<LyricsData>(
                   future: _lyricsFor(song),
