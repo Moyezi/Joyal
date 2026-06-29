@@ -2,7 +2,7 @@ class AppConstants {
   AppConstants._();
 
   /// Application display name
-  static const String appName = 'Joyal Music';
+  static const String appName = 'Joyal';
 
   /// Subsonic API protocol version
   static const String subsonicVersion = '1.16.1';

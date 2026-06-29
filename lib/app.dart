@@ -37,7 +37,7 @@ class JoyalMusicApp extends ConsumerWidget {
     });
 
     return MaterialApp(
-      title: 'Joyal Music',
+      title: 'Joyal',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

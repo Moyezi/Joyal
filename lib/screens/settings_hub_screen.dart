@@ -114,14 +114,14 @@ class _SettingsHubScreenState extends ConsumerState<SettingsHubScreen> {
           const SizedBox(height: AppTheme.spacingMD),
           _SettingsHubItem(
             icon: Icons.info_outline,
-            title: '关于 Joyal Music',
-            subtitle: '版本 1.0.0',
+            title: '关于 Joyal',
+            subtitle: '版本 1.0.1',
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'Joyal Music',
-                applicationVersion: '1.0.0',
-                applicationLegalese: '© 2026 Joyal Music',
+                applicationName: 'Joyal',
+                applicationVersion: '1.0.1',
+                applicationLegalese: '© 2026 Joyal',
               );
             },
           ),

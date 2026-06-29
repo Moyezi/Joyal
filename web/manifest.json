@@ -1,6 +1,6 @@
 {
-    "name": "joyal_music",
-    "short_name": "joyal_music",
+    "name": "Joyal",
+    "short_name": "Joyal",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

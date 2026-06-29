@@ -21,7 +21,7 @@ class HomeSidebar extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Joyal Music', style: context.textHeadlineLarge),
+            Text('Joyal', style: context.textHeadlineLarge),
             const SizedBox(height: 6),
             Text('私人音乐空间', style: context.textBodyMedium),
             const SizedBox(height: 18),

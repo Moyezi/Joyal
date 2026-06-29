@@ -101,7 +101,7 @@ class MainActivity : FlutterActivity() {
     private fun enqueueDownload(args: Map<*, *>): Long {
         val request = DownloadManager.Request(Uri.parse(args["url"] as String)).apply {
             setTitle(args["title"] as String)
-            setDescription("Joyal Music 正在下载原始音频")
+            setDescription("Joyal 正在下载原始音频")
             setMimeType(args["mimeType"] as String)
             setAllowedOverMetered(true)
             setAllowedOverRoaming(true)
