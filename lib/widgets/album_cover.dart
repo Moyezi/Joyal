@@ -1,12 +1,12 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../config/theme.dart';
+import 'cached_disk_image.dart';
 
 /// Renders an album cover image with a soft diffuse shadow.
 ///
-/// Uses [CachedNetworkImage] with a stable [cacheKey] based on the
-/// coverArt ID to prevent redundant network requests on every rebuild.
+/// Uses [CachedDiskImage] with a stable [cacheKey] based on the coverArt ID
+/// to prevent redundant network requests on every rebuild.
 class AlbumCover extends StatelessWidget {
   /// The full authenticated URL for the cover art image.
   final String coverArtUrl;
@@ -50,13 +50,13 @@ class AlbumCover extends StatelessWidget {
       return _PlaceholderCover(borderRadius: borderRadius);
     }
 
-    return CachedNetworkImage(
+    return CachedDiskImage(
       imageUrl: coverArtUrl,
       cacheKey: cacheKey,
       fit: BoxFit.cover,
-      placeholder: (context, url) =>
+      placeholderBuilder: (context) =>
           _PlaceholderCover(borderRadius: borderRadius),
-      errorWidget: (context, url, error) =>
+      errorBuilder: (context, error) =>
           _PlaceholderCover(borderRadius: borderRadius),
       fadeInDuration: const Duration(milliseconds: 300),
       fadeOutDuration: const Duration(milliseconds: 200),

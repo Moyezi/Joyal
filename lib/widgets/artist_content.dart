@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +11,7 @@ import '../providers/player_provider.dart';
 import '../screens/album_detail_screen.dart';
 import '../services/subsonic_api.dart';
 import 'album_cover.dart';
+import 'cached_disk_image.dart';
 import 'song_actions_sheet.dart';
 import 'song_tile.dart';
 
@@ -64,9 +64,7 @@ class _ArtistContentState extends ConsumerState<ArtistContent>
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) {
         return [
-          SliverToBoxAdapter(
-            child: _buildHeader(artistName, avatarUrl),
-          ),
+          SliverToBoxAdapter(child: _buildHeader(artistName, avatarUrl)),
           SliverOverlapAbsorber(
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
             sliver: SliverPersistentHeader(
@@ -86,10 +84,7 @@ class _ArtistContentState extends ConsumerState<ArtistContent>
     );
   }
 
-  Widget _buildHeader(
-    String artistName,
-    String? avatarUrl,
-  ) {
+  Widget _buildHeader(String artistName, String? avatarUrl) {
     return Padding(
       padding: const EdgeInsets.only(top: 48),
       child: Column(
@@ -127,8 +122,11 @@ class _ArtistContentState extends ConsumerState<ArtistContent>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded,
-                size: 48, color: AppTheme.secondaryText),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: AppTheme.secondaryText,
+            ),
             const SizedBox(height: 12),
             const Text('加载失败，请重试', style: TextStyle()),
             const SizedBox(height: 16),
@@ -165,10 +163,7 @@ class _ArtistAvatar extends StatelessWidget {
   final String? avatarUrl;
   final String initial;
 
-  const _ArtistAvatar({
-    required this.avatarUrl,
-    required this.initial,
-  });
+  const _ArtistAvatar({required this.avatarUrl, required this.initial});
 
   @override
   Widget build(BuildContext context) {
@@ -179,13 +174,12 @@ class _ArtistAvatar extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: CachedNetworkImage(
+          child: CachedDiskImage(
             imageUrl: avatarUrl!,
-            cacheKey: 'artist_avatar_${avatarUrl.hashCode}',
+            cacheKey: stableImageCacheKey('artist_avatar', avatarUrl!),
             fit: BoxFit.cover,
-            placeholder: (ctx, url) => _buildInitial(initial, size, ctx),
-            errorWidget: (ctx, url, error) =>
-                _buildInitial(initial, size, ctx),
+            placeholderBuilder: (ctx) => _buildInitial(initial, size, ctx),
+            errorBuilder: (ctx, error) => _buildInitial(initial, size, ctx),
           ),
         ),
       );
@@ -295,9 +289,7 @@ class _AlbumsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (albums.isEmpty) {
-      return Center(
-        child: Text('暂无专辑', style: context.textBodyLarge),
-      );
+      return Center(child: Text('暂无专辑', style: context.textBodyLarge));
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -324,54 +316,50 @@ class _AlbumsTab extends StatelessWidget {
               crossAxisSpacing: spacing,
               childAspectRatio: itemWidth / itemHeight,
             ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final album = albums[index];
-                final coverUrl = api == null || album.coverArt.isEmpty
-                    ? ''
-                    : api!.getCoverArtUrl(album.coverArt);
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final album = albums[index];
+              final coverUrl = api == null || album.coverArt.isEmpty
+                  ? ''
+                  : api!.getCoverArtUrl(album.coverArt);
 
-                return GestureDetector(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => AlbumDetailScreen(album: album)),
+              return GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AlbumDetailScreen(album: album),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          child: AlbumCover(
-                            coverArtUrl: coverUrl,
-                            cacheKey: album.coverArt,
-                            size: itemWidth,
-                            borderRadius: AppTheme.radiusMedium,
-                            showShadow: true,
-                          ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
+                        child: AlbumCover(
+                          coverArtUrl: coverUrl,
+                          cacheKey: album.coverArt,
+                          size: itemWidth,
+                          borderRadius: AppTheme.radiusMedium,
+                          showShadow: true,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        album.name,
-                        style: context.textBodyMedium.copyWith(
-                          color: context.primaryColor,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      album.name,
+                      style: context.textBodyMedium.copyWith(
+                        color: context.primaryColor,
                       ),
-                      if (album.year != null)
-                        Text(
-                          '${album.year}',
-                          style: context.textCaption,
-                        ),
-                    ],
-                  ),
-                );
-              },
-              childCount: albums.length,
-            ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (album.year != null)
+                      Text('${album.year}', style: context.textCaption),
+                  ],
+                ),
+              );
+            }, childCount: albums.length),
           ),
         ),
       ],
@@ -389,9 +377,7 @@ class _SongsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (songs.isEmpty) {
-      return Center(
-        child: Text('暂无歌曲', style: context.textBodyLarge),
-      );
+      return Center(child: Text('暂无歌曲', style: context.textBodyLarge));
     }
 
     final playerState = ref.watch(playerProvider);
@@ -411,42 +397,39 @@ class _SongsTab extends ConsumerWidget {
         SliverPadding(
           padding: EdgeInsets.fromLTRB(8, 12, 8, bottomPadding),
           sliver: SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final song = songs[index];
-                final isCurrentSong = playerState.currentSong?.id == song.id;
-                final isStarred = starredIds.contains(song.id);
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final song = songs[index];
+              final isCurrentSong = playerState.currentSong?.id == song.id;
+              final isStarred = starredIds.contains(song.id);
 
-                return SongTile(
-                  song: song,
-                  index: index,
-                  isPlaying: isCurrentSong,
-                  onTap: () {
-                    ref
-                        .read(playerProvider.notifier)
-                        .playPlaylist(songs, startIndex: index);
+              return SongTile(
+                song: song,
+                index: index,
+                isPlaying: isCurrentSong,
+                onTap: () {
+                  ref
+                      .read(playerProvider.notifier)
+                      .playPlaylist(songs, startIndex: index);
+                },
+                onMore: () => SongActionsSheet.show(
+                  context,
+                  songTitle: song.title,
+                  songArtist: song.artist,
+                  isStarred: isStarred,
+                  onPlayNext: () {
+                    ref.read(playerProvider.notifier).playNext(song);
                   },
-                  onMore: () => SongActionsSheet.show(
-                    context,
-                    songTitle: song.title,
-                    songArtist: song.artist,
-                    isStarred: isStarred,
-                    onPlayNext: () {
-                      ref.read(playerProvider.notifier).playNext(song);
-                    },
-                    onToggleFavorite: () {
-                      ref
-                          .read(libraryProvider.notifier)
-                          .setSongStarred(song, starred: !isStarred);
-                    },
-                    downloadService: ref.read(downloadServiceProvider),
-                    songId: song.id,
-                    song: song,
-                  ),
-                );
-              },
-              childCount: songs.length,
-            ),
+                  onToggleFavorite: () {
+                    ref
+                        .read(libraryProvider.notifier)
+                        .setSongStarred(song, starred: !isStarred);
+                  },
+                  downloadService: ref.read(downloadServiceProvider),
+                  songId: song.id,
+                  song: song,
+                ),
+              );
+            }, childCount: songs.length),
           ),
         ),
       ],

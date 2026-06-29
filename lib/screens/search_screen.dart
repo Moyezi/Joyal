@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +11,7 @@ import '../providers/player_provider.dart';
 import '../services/cache_repository.dart';
 import '../screens/artist_detail_screen.dart';
 import '../widgets/album_cover.dart';
+import '../widgets/cached_disk_image.dart';
 import 'album_detail_screen.dart';
 import 'now_playing_screen.dart';
 
@@ -99,27 +99,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Map<String, dynamic> _serializeResults(Map<String, dynamic> results) => {
-        'artists': results['artists'],
-        'albums': (results['albums'] as List<dynamic>? ?? [])
-            .map((a) => (a as dynamic).toJson())
-            .toList(),
-        'songs': (results['songs'] as List<dynamic>? ?? [])
-            .map((s) => (s as dynamic).toJson())
-            .toList(),
-      };
+    'artists': results['artists'],
+    'albums': (results['albums'] as List<dynamic>? ?? [])
+        .map((a) => (a as dynamic).toJson())
+        .toList(),
+    'songs': (results['songs'] as List<dynamic>? ?? [])
+        .map((s) => (s as dynamic).toJson())
+        .toList(),
+  };
 
-  Map<String, dynamic> _deserializeSearchResult(
-    Map<String, dynamic> json,
-  ) =>
-      {
-        'artists': json['artists'] ?? [],
-        'albums': (json['albums'] as List<dynamic>? ?? [])
-            .map((j) => Album.fromJson(Map<String, dynamic>.from(j as Map)))
-            .toList(),
-        'songs': (json['songs'] as List<dynamic>? ?? [])
-            .map((j) => Song.fromJson(Map<String, dynamic>.from(j as Map)))
-            .toList(),
-      };
+  Map<String, dynamic> _deserializeSearchResult(Map<String, dynamic> json) => {
+    'artists': json['artists'] ?? [],
+    'albums': (json['albums'] as List<dynamic>? ?? [])
+        .map((j) => Album.fromJson(Map<String, dynamic>.from(j as Map)))
+        .toList(),
+    'songs': (json['songs'] as List<dynamic>? ?? [])
+        .map((j) => Song.fromJson(Map<String, dynamic>.from(j as Map)))
+        .toList(),
+  };
 
   void _useHistory(String query) {
     _controller.text = query;
@@ -317,9 +314,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       children: [
         if (artists.isNotEmpty) ...[
           const _SectionHeader(title: '艺人'),
-          ...artists.map(
-            (artist) => _ArtistResultRow(artist: artist),
-          ),
+          ...artists.map((artist) => _ArtistResultRow(artist: artist)),
           const SizedBox(height: 8),
         ],
         if (albums.isNotEmpty) ...[
@@ -461,6 +456,11 @@ class _ArtistResultRow extends ConsumerWidget {
       contentPadding: EdgeInsets.zero,
       leading: _SearchArtistAvatar(
         avatarUrl: avatarUrl,
+        cacheKey: coverArtId != null && coverArtId.isNotEmpty
+            ? 'artist_cover_$coverArtId'
+            : avatarUrl == null
+            ? null
+            : stableImageCacheKey('search_artist', avatarUrl),
         initial: initial,
         size: 50,
       ),
@@ -474,10 +474,7 @@ class _ArtistResultRow extends ConsumerWidget {
         if (id == null || id.isEmpty || name == '未知艺人') return;
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => ArtistDetailScreen(
-              artistId: id,
-              artistName: name,
-            ),
+            builder: (_) => ArtistDetailScreen(artistId: id, artistName: name),
           ),
         );
       },
@@ -487,11 +484,13 @@ class _ArtistResultRow extends ConsumerWidget {
 
 class _SearchArtistAvatar extends StatelessWidget {
   final String? avatarUrl;
+  final String? cacheKey;
   final String initial;
   final double size;
 
   const _SearchArtistAvatar({
     required this.avatarUrl,
+    required this.cacheKey,
     required this.initial,
     required this.size,
   });
@@ -503,12 +502,13 @@ class _SearchArtistAvatar extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: CachedNetworkImage(
+          child: CachedDiskImage(
             imageUrl: avatarUrl!,
-            cacheKey: 'search_artist_${avatarUrl.hashCode}',
+            cacheKey:
+                cacheKey ?? stableImageCacheKey('search_artist', avatarUrl!),
             fit: BoxFit.cover,
-            placeholder: (ctx, url) => _buildInitial(ctx),
-            errorWidget: (ctx, url, error) => _buildInitial(ctx),
+            placeholderBuilder: (ctx) => _buildInitial(ctx),
+            errorBuilder: (ctx, error) => _buildInitial(ctx),
           ),
         ),
       );

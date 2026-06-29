@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/cache_stats.dart';
+import '../services/app_cache_service.dart';
 import '../services/cache_repository.dart';
 import 'auth_provider.dart';
 import 'library_provider.dart';
@@ -11,6 +12,7 @@ import 'library_provider.dart';
 class CacheNotifier extends StateNotifier<CacheStats> {
   static const _limitKey = 'cache_max_limit_mb_v1';
   static const _autoCleanPrefix = 'cache_auto_clean_';
+  static const _settingsCacheName = 'cache_settings';
   static const _refreshThrottle = Duration(seconds: 5);
 
   final CacheRepository _repo;
@@ -59,6 +61,10 @@ class CacheNotifier extends StateNotifier<CacheStats> {
   Future<void> setMaxLimit(int maxLimitMb) async {
     state = state.copyWith(maxLimitMb: maxLimitMb);
     await _storage.write(key: _limitKey, value: '$maxLimitMb');
+    await AppCacheService.instance.writeJson(_settingsCacheName, {
+      'maxLimitMb': maxLimitMb,
+      'savedAt': DateTime.now().toUtc().toIso8601String(),
+    });
     await _enforceIfNeeded();
   }
 
@@ -87,8 +93,7 @@ class CacheNotifier extends StateNotifier<CacheStats> {
   // ── Internal ──
 
   Future<void> _loadAndRefresh() async {
-    final raw = await _storage.read(key: _limitKey);
-    final saved = int.tryParse(raw ?? '');
+    final saved = await _loadSavedLimit();
     if (saved != null && CacheStats.limitPresets.contains(saved)) {
       state = state.copyWith(maxLimitMb: saved);
     }
@@ -97,6 +102,19 @@ class CacheNotifier extends StateNotifier<CacheStats> {
       b.autoCleanEnabled = enabled;
     }
     await refresh(force: true);
+  }
+
+  Future<int?> _loadSavedLimit() async {
+    final raw = await _storage.read(key: _limitKey);
+    final secureValue = int.tryParse(raw ?? '');
+    if (secureValue != null) return secureValue;
+
+    final cached = await AppCacheService.instance.readJson(_settingsCacheName);
+    final cachedValue = (cached?['maxLimitMb'] as num?)?.toInt();
+    if (cachedValue != null) {
+      await _storage.write(key: _limitKey, value: '$cachedValue');
+    }
+    return cachedValue;
   }
 
   Future<void> _enforceIfNeeded() async {

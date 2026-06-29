@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Small JSON cache for slow-changing API data and derived visual metadata.
@@ -11,6 +11,9 @@ class AppCacheService {
   AppCacheService._();
 
   static final AppCacheService instance = AppCacheService._();
+
+  @visibleForTesting
+  static Directory? debugCacheDirectoryOverride;
 
   Future<void> _writeTail = Future.value();
 
@@ -25,7 +28,7 @@ class AppCacheService {
       final file = await _file(name);
       if (!await file.exists()) return null;
       final contents = await file.readAsString();
-      final decoded = await Isolate.run(() => jsonDecode(contents));
+      final decoded = jsonDecode(contents);
       return decoded is Map<String, dynamic> ? decoded : null;
     } catch (_) {
       return null;
@@ -36,12 +39,14 @@ class AppCacheService {
     final operation = _writeTail.then((_) async {
       final file = await _file(name);
       final temporary = File('${file.path}.tmp');
-      final encoded = await Isolate.run(() => jsonEncode(value));
+      final encoded = jsonEncode(value);
       await temporary.writeAsString(encoded, flush: true);
       if (await file.exists()) await file.delete();
       await temporary.rename(file.path);
     });
-    final safeOperation = operation.catchError((_) {});
+    final safeOperation = operation.catchError((Object error) {
+      debugPrint('[AppCacheService] write failed: $error');
+    });
     _writeTail = safeOperation;
     return safeOperation;
   }
@@ -79,6 +84,14 @@ class AppCacheService {
   }
 
   Future<File> _file(String name) async {
+    final override = debugCacheDirectoryOverride;
+    if (override != null) {
+      if (!await override.exists()) {
+        await override.create(recursive: true);
+      }
+      return File('${override.path}${Platform.pathSeparator}$name.json');
+    }
+
     final support = await getApplicationSupportDirectory();
     final directory = Directory(
       '${support.path}${Platform.pathSeparator}cache',

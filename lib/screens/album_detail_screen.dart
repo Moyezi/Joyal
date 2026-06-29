@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +8,7 @@ import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/artist_sheet.dart';
+import '../widgets/cached_disk_image.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 
@@ -165,7 +165,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             final index = entry.key;
             final song = entry.value;
             final isCurrentSong = playerState.currentSong?.id == song.id;
-            final isStarred = libraryState.starredSongs.any((s) => s.id == song.id);
+            final isStarred = libraryState.starredSongs.any(
+              (s) => s.id == song.id,
+            );
 
             return SongTile(
               song: song,
@@ -210,15 +212,15 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       );
     }
 
-    return CachedNetworkImage(
+    return CachedDiskImage(
       imageUrl: api.getCoverArtUrl(coverArtId),
       cacheKey: coverArtId,
       fit: BoxFit.cover,
-      placeholder: (ctx, url) => Container(
+      placeholderBuilder: (ctx) => Container(
         color: context.surfaceColor,
         child: Icon(Icons.album, size: 48, color: context.secondaryColor),
       ),
-      errorWidget: (ctx, url, error) => Container(
+      errorBuilder: (ctx, error) => Container(
         color: context.surfaceColor,
         child: Icon(Icons.album, size: 48, color: context.secondaryColor),
       ),

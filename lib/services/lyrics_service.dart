@@ -6,6 +6,10 @@ import 'app_cache_service.dart';
 import 'subsonic_api.dart';
 
 class LyricsService {
+  static const _freshCacheAge = Duration(days: 30);
+  static const _emptyCacheAge = Duration(days: 7);
+  static const _staleCacheAge = Duration(days: 90);
+
   final SubsonicApi api;
   final Dio dio;
 
@@ -16,40 +20,42 @@ class LyricsService {
     final cacheName =
         'lyrics_${cache.serverScope(api.baseUrl, '${api.username}|${song.id}')}';
     final saved = await cache.readJson(cacheName);
-    if (saved != null) {
-      final savedAt = DateTime.tryParse(saved['savedAt'] as String? ?? '');
-      if (savedAt != null &&
-          DateTime.now().toUtc().difference(savedAt) <
-              const Duration(days: 30)) {
-        try {
-          return LyricsData.fromJson(
-            Map<String, dynamic>.from(saved['data'] as Map),
-          );
-        } catch (_) {
-          // Fall through and replace malformed cache data from the server.
-        }
-      }
+    final cached = _readCached(saved);
+    if (cached != null && _isFresh(cached)) {
+      return cached.data;
     }
 
-    LyricsData result;
+    var structuredReturnedEmpty = false;
     try {
       final response = await dio.get(api.getLyricsBySongIdUrl(song.id));
       final parsed = _parseStructured(response.data);
       if (parsed != null && !parsed.isEmpty) {
-        result = parsed;
-        await _save(cache, cacheName, result);
-        return result;
+        await _save(cache, cacheName, parsed);
+        return parsed;
       }
+      structuredReturnedEmpty = _isSuccessfulResponse(response.data);
     } catch (_) {
       // Older Subsonic servers may not implement getLyricsBySongId.
     }
 
-    final response = await dio.get(
-      api.getLyricsUrl(artist: song.artist, title: song.title),
-    );
-    result = _parseLegacy(response.data);
-    if (!result.isEmpty) await _save(cache, cacheName, result);
-    return result;
+    try {
+      final response = await dio.get(
+        api.getLyricsUrl(artist: song.artist, title: song.title),
+      );
+      final result = _parseLegacy(response.data);
+      await _save(cache, cacheName, result);
+      return result;
+    } catch (_) {
+      if (structuredReturnedEmpty) {
+        const result = LyricsData(lines: [], synced: false);
+        await _save(cache, cacheName, result);
+        return result;
+      }
+      if (cached != null && _isUsableStale(cached)) {
+        return cached.data;
+      }
+      rethrow;
+    }
   }
 
   Future<void> _save(
@@ -59,6 +65,7 @@ class LyricsService {
   ) async {
     await cache.writeJson(name, {
       'savedAt': DateTime.now().toUtc().toIso8601String(),
+      'isEmpty': data.isEmpty,
       'data': data.toJson(),
     });
     await cache.prune(
@@ -66,6 +73,43 @@ class LyricsService {
       maxFiles: 300,
       maxAge: const Duration(days: 90),
     );
+  }
+
+  ({LyricsData data, DateTime savedAt, bool isEmpty})? _readCached(
+    Map<String, dynamic>? saved,
+  ) {
+    if (saved == null) return null;
+    final savedAt = DateTime.tryParse(saved['savedAt'] as String? ?? '');
+    if (savedAt == null) return null;
+    try {
+      final data = LyricsData.fromJson(
+        Map<String, dynamic>.from(saved['data'] as Map),
+      );
+      return (
+        data: data,
+        savedAt: savedAt,
+        isEmpty: saved['isEmpty'] == true || data.isEmpty,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isFresh(({LyricsData data, DateTime savedAt, bool isEmpty}) cached) {
+    final maxAge = cached.isEmpty ? _emptyCacheAge : _freshCacheAge;
+    return DateTime.now().toUtc().difference(cached.savedAt) < maxAge;
+  }
+
+  bool _isUsableStale(
+    ({LyricsData data, DateTime savedAt, bool isEmpty}) cached,
+  ) {
+    return DateTime.now().toUtc().difference(cached.savedAt) < _staleCacheAge;
+  }
+
+  bool _isSuccessfulResponse(dynamic data) {
+    if (data is! Map) return false;
+    final root = data['subsonic-response'];
+    return root is Map && root['status'] != 'failed';
   }
 
   LyricsData? _parseStructured(dynamic data) {

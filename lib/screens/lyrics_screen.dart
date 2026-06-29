@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/lyrics.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/app_cache_service.dart';
 import '../services/lyrics_service.dart';
 import '../widgets/dynamic_album_background.dart';
 
@@ -26,12 +26,20 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   static final Map<String, Future<LyricsData>> _lyricsCache = {};
 
   Future<LyricsData> _lyricsFor(Song song) {
-    return _lyricsCache.putIfAbsent(song.id, () {
-      final api = ref.read(subsonicApiProvider);
-      if (api == null) {
-        return Future.value(const LyricsData(lines: [], synced: false));
-      }
-      return LyricsService(api: api, dio: ref.read(dioProvider)).fetch(song);
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) {
+      return Future.value(const LyricsData(lines: [], synced: false));
+    }
+    final key =
+        '${AppCacheService.instance.serverScope(api.baseUrl, api.username)}_${song.id}';
+    return _lyricsCache.putIfAbsent(key, () {
+      return LyricsService(
+        api: api,
+        dio: ref.read(dioProvider),
+      ).fetch(song).catchError((Object error) {
+        _lyricsCache.remove(key);
+        throw error;
+      });
     });
   }
 
@@ -256,10 +264,7 @@ class _LyricsListState extends State<_LyricsList> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.title,
-                    style: context.textHeadlineLarge,
-                  ),
+                  Text(widget.title, style: context.textHeadlineLarge),
                   const SizedBox(height: 6),
                   Text(
                     widget.artist,

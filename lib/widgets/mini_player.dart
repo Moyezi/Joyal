@@ -1,9 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../providers/player_provider.dart';
+import 'cached_disk_image.dart';
 
 /// 悬浮胶囊式迷你播放器，显示在底部导航栏上方。
 ///
@@ -125,15 +125,15 @@ class MiniPlayer extends ConsumerWidget {
       );
     }
 
-    return CachedNetworkImage(
+    return CachedDiskImage(
       imageUrl: url,
       cacheKey: cacheKey,
       fit: BoxFit.cover,
-      placeholder: (context, url) => Container(
+      placeholderBuilder: (context) => Container(
         color: Colors.white.withValues(alpha: 0.1),
         child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
       ),
-      errorWidget: (context, url, error) => Container(
+      errorBuilder: (context, error) => Container(
         color: Colors.white.withValues(alpha: 0.1),
         child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
       ),

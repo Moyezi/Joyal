@@ -7,6 +7,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'config/theme.dart';
+import 'models/song.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
@@ -17,6 +18,7 @@ import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/settings_hub_screen.dart';
 import 'services/android_media_bridge.dart';
+import 'services/lyrics_service.dart';
 import 'widgets/bottom_nav.dart';
 import 'widgets/home_sidebar.dart';
 import 'widgets/mini_player.dart';
@@ -75,6 +77,8 @@ class _MainShellState extends ConsumerState<MainShell>
   bool _suppressNextDrawerTap = false;
   late final AnimationController _drawerController;
   double _lastDrawerWidth = 0;
+  String? _lastLyricsPrefetchSongId;
+  final Set<String> _lyricsPrefetchInFlight = {};
   final List<_VelocitySample> _velocitySamples = [];
   final List<Rect> _drawerExclusionRects = [];
 
@@ -301,10 +305,41 @@ class _MainShellState extends ConsumerState<MainShell>
     );
   }
 
+  void _prefetchLyrics(PlaybackState state) {
+    final song = state.currentSong;
+    final api = ref.read(subsonicApiProvider);
+    if (song == null || api == null) return;
+    if (_lastLyricsPrefetchSongId == song.id) return;
+    _lastLyricsPrefetchSongId = song.id;
+
+    final songs = <String, Song>{song.id: song};
+    final nextIndex = state.currentIndex + 1;
+    if (nextIndex >= 0 && nextIndex < state.playlist.length) {
+      final nextSong = state.playlist[nextIndex];
+      songs[nextSong.id] = nextSong;
+    }
+
+    final service = LyricsService(api: api, dio: ref.read(dioProvider));
+    for (final entry in songs.entries) {
+      if (!_lyricsPrefetchInFlight.add(entry.key)) continue;
+      unawaited(
+        service
+            .fetch(entry.value)
+            .then<void>((_) {}, onError: (_) {})
+            .whenComplete(() {
+              _lyricsPrefetchInFlight.remove(entry.key);
+            }),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<PlaybackState>(playerProvider, (previous, next) {
       unawaited(_androidMediaBridge?.sync(next));
+      if (previous?.currentSong?.id != next.currentSong?.id) {
+        _prefetchLyrics(next);
+      }
     });
 
     final hasSong = ref.watch(playerProvider.select((state) => state.hasSong));
