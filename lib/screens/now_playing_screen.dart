@@ -60,6 +60,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   bool _isSelecting = false;
   int _candidateIndex = 0;
   double _dismissDragOffset = 0;
+  Offset? _dismissPointerPosition;
+  DateTime? _dismissPointerTime;
   static const double _dismissDistanceThreshold = 96;
   static const double _dismissVelocityThreshold = 700;
   late final AnimationController _lyricsProgress = AnimationController(
@@ -148,24 +150,50 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     });
   }
 
-  void _onDismissDragStart(DragStartDetails details) {
+  void _onDismissPointerDown(PointerDownEvent event) {
     _dismissDragOffset = 0;
+    _dismissPointerPosition = event.position;
+    _dismissPointerTime = DateTime.now();
   }
 
-  void _onDismissDragUpdate(DragUpdateDetails details) {
-    _dismissDragOffset = (_dismissDragOffset + details.delta.dy).clamp(
+  void _onDismissPointerMove(PointerMoveEvent event) {
+    if (_isSelecting) return;
+    _dismissDragOffset = (_dismissDragOffset + event.delta.dy).clamp(
       0.0,
       double.infinity,
     );
   }
 
-  void _onDismissDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
+  void _onDismissPointerUp(PointerUpEvent event) {
+    if (_isSelecting) {
+      _resetDismissPointer();
+      return;
+    }
+    final velocity = _dismissVelocity(event.position);
     final shouldDismiss =
         _dismissDragOffset >= _dismissDistanceThreshold ||
         velocity >= _dismissVelocityThreshold;
-    _dismissDragOffset = 0;
+    _resetDismissPointer();
     if (shouldDismiss) _closePage();
+  }
+
+  void _onDismissPointerCancel(PointerCancelEvent event) {
+    _resetDismissPointer();
+  }
+
+  double _dismissVelocity(Offset endPosition) {
+    final startPosition = _dismissPointerPosition;
+    final startTime = _dismissPointerTime;
+    if (startPosition == null || startTime == null) return 0;
+    final elapsedMs = DateTime.now().difference(startTime).inMilliseconds;
+    if (elapsedMs <= 0) return 0;
+    return (endPosition.dy - startPosition.dy) / elapsedMs * 1000;
+  }
+
+  void _resetDismissPointer() {
+    _dismissDragOffset = 0;
+    _dismissPointerPosition = null;
+    _dismissPointerTime = null;
   }
 
   @override
@@ -192,70 +220,74 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       child: DynamicAlbumBackground(
         coverArtId: visualSong?.coverArt ?? '',
         coverUrl: _coverUrl(ref, visualSong),
-        child: LayoutBuilder(
-          builder: (context, constraints) => GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (!hasSong || _isSelecting)
-                ? null
-                : (_) => _initializeLyrics(),
-            onHorizontalDragUpdate: (!hasSong || _isSelecting)
-                ? null
-                : (details) {
-                    _lyricsProgress.value =
-                        (_lyricsProgress.value -
-                                details.delta.dx / constraints.maxWidth)
-                            .clamp(0.0, 1.0);
-                  },
-            onHorizontalDragEnd: (!hasSong || _isSelecting)
-                ? null
-                : (details) {
-                    final velocity = details.primaryVelocity ?? 0;
-                    if (_lyricsProgress.value >= 0.28 || velocity < -500) {
-                      _showLyrics();
-                    } else {
-                      _hideLyrics();
-                    }
-                  },
-            onVerticalDragStart: _onDismissDragStart,
-            onVerticalDragUpdate: _onDismissDragUpdate,
-            onVerticalDragEnd: _onDismissDragEnd,
-            child: AnimatedBuilder(
-              animation: _lyricsProgress,
-              builder: (context, _) {
-                final progress = Curves.easeOut.transform(
-                  _lyricsProgress.value,
-                );
-                final width = constraints.maxWidth;
-                return Stack(
-                  children: [
-                    Transform.translate(
-                      offset: Offset(-width * 0.1 * progress, 0),
-                      child: Transform.scale(
-                        scale: 1 - 0.055 * progress,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28 * progress),
-                          child: IgnorePointer(
-                            ignoring: _lyricsProgress.value > 0.01,
-                            child: playerPage,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _onDismissPointerDown,
+          onPointerMove: _onDismissPointerMove,
+          onPointerUp: _onDismissPointerUp,
+          onPointerCancel: _onDismissPointerCancel,
+          child: LayoutBuilder(
+            builder: (context, constraints) => GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (!hasSong || _isSelecting)
+                  ? null
+                  : (_) => _initializeLyrics(),
+              onHorizontalDragUpdate: (!hasSong || _isSelecting)
+                  ? null
+                  : (details) {
+                      _lyricsProgress.value =
+                          (_lyricsProgress.value -
+                                  details.delta.dx / constraints.maxWidth)
+                              .clamp(0.0, 1.0);
+                    },
+              onHorizontalDragEnd: (!hasSong || _isSelecting)
+                  ? null
+                  : (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (_lyricsProgress.value >= 0.28 || velocity < -500) {
+                        _showLyrics();
+                      } else {
+                        _hideLyrics();
+                      }
+                    },
+              child: AnimatedBuilder(
+                animation: _lyricsProgress,
+                builder: (context, _) {
+                  final progress = Curves.easeOut.transform(
+                    _lyricsProgress.value,
+                  );
+                  final width = constraints.maxWidth;
+                  return Stack(
+                    children: [
+                      Transform.translate(
+                        offset: Offset(-width * 0.1 * progress, 0),
+                        child: Transform.scale(
+                          scale: 1 - 0.055 * progress,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(28 * progress),
+                            child: IgnorePointer(
+                              ignoring: _lyricsProgress.value > 0.01,
+                              child: playerPage,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Transform.translate(
-                      offset: Offset(width * (1 - progress), 0),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          28 * (1 - progress),
-                        ),
-                        child: IgnorePointer(
-                          ignoring: _lyricsProgress.value < 0.99,
-                          child: lyricsPage,
+                      Transform.translate(
+                        offset: Offset(width * (1 - progress), 0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            28 * (1 - progress),
+                          ),
+                          child: IgnorePointer(
+                            ignoring: _lyricsProgress.value < 0.99,
+                            child: lyricsPage,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
