@@ -26,10 +26,11 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 主导航只有：首页、曲库、收藏；搜索从首页大搜索框或顶栏搜索图标进入。
 - 三个主页面使用固定毛玻璃顶栏 `GlassTopBar`，标题/按钮行用 `GlassTopBarTitleRow`。曲库“歌曲/专辑” TabBar 是额外下方区域，不影响标题和按钮位置。
-- 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock。
+- 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
+- 首页“全部专辑”只展示 4 行专辑（双列共 8 张）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
 - 侧边栏只放真实状态和明确标记为“预留”的占位内容；左下角设置按钮进入 `SettingsHubScreen`。
 

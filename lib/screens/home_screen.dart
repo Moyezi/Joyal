@@ -39,6 +39,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static const double _searchBarHeight = 54;
   static const double _searchBarTopPadding = 16;
   static const double _totalRange = _searchBarHeight + _searchBarTopPadding;
+  static const double _bottomSpacerBaseHeight = 28;
+  static const double _miniPlayerHeight = 104;
 
   // ━━━ Animation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   late final AnimationController _animController;
@@ -193,7 +195,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final recentAlbums = albums.take(6).toList();
     final dailySongs = _dailyRecommendedSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
-    final bottomSpacerHeight = hasSong ? 56.0 : 28.0;
+    final bottomSpacerHeight =
+        _bottomSpacerBaseHeight + (hasSong ? _miniPlayerHeight : 0);
 
     return RefreshIndicator(
       onRefresh: () => ref.read(libraryProvider.notifier).fetchAlbums(),
