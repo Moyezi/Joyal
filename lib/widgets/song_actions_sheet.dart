@@ -268,8 +268,9 @@ class _SongActionsSheetState extends State<SongActionsSheet> {
               icon: Icons.skip_next_rounded,
               label: '下一首播放',
               onTap: () {
-                Navigator.of(context).pop();
                 widget.onPlayNext?.call();
+                showAppToast(context, '已加入下一首播放');
+                Navigator.of(context).pop();
               },
             ),
             _ActionTile(

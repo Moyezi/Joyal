@@ -31,6 +31,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 迷你播放栏折叠/展开应保持固定高度轨道，封面作为共享元素从左侧非线性收缩到右侧悬浮按钮；不要用不同高度组件切换导致结束时竖向瞬移。Dock 外层藏青色背景与迷你播放栏主体要使用同一时长/曲线/淡出进度，避免底部导航左右上角色块提前消失或出现。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
+- 歌曲操作里的“下一首播放”应在加入队列后显示 toast 确认，不做无反馈的静默操作。
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
 - 首页“全部专辑”只展示 4 行专辑（双列共 8 张）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
@@ -43,6 +44,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 深色背景 `#121212` / `#1E1E1E`，正文 `#E0E0E0`，标题 `#FFFFFF`，辅助文字 `#9E9E9E`；避免纯黑 `#000000`。
 - `context.primaryColor` 是主文字色，不可做按钮、图标容器、圆形底等背景；深色模式应使用 `context.surfaceColor` 做底、`context.primaryColor` 做前景。
 - Toast 统一用 `lib/utils/app_toast.dart` 的 `showAppToast(...)`，不要散落 `ScaffoldMessenger.showSnackBar(...)`。
+- Toast 宽度应按文案自适应；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；静态渐变应停止动画控制器。
 

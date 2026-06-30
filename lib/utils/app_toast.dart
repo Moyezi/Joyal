@@ -103,13 +103,23 @@ class _AppToastOverlayState extends State<_AppToastOverlay> {
     final maxWidth = math.min(360.0, screenWidth - 48.0);
     final minWidth = math.min(96.0, maxWidth);
     final textMaxWidth = math.max(0.0, maxWidth - 32.0);
+    final allowMultipleLines = widget.message.runes.length >= 10;
+    final intrinsicTextPainter = TextPainter(
+      text: TextSpan(text: widget.message, style: textStyle),
+      maxLines: 1,
+      textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout(maxWidth: double.infinity);
     final textPainter = TextPainter(
       text: TextSpan(text: widget.message, style: textStyle),
-      maxLines: 2,
+      maxLines: allowMultipleLines ? 2 : 1,
       textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
       textScaler: MediaQuery.textScalerOf(context),
     )..layout(maxWidth: textMaxWidth);
-    final width = (textPainter.width + 32.0).clamp(minWidth, maxWidth);
+    final textWidth = allowMultipleLines
+        ? math.min(intrinsicTextPainter.width, textPainter.width)
+        : intrinsicTextPainter.width;
+    final width = (textWidth + 32.0).clamp(minWidth, maxWidth);
 
     return Positioned(
       left: 0,
@@ -145,7 +155,7 @@ class _AppToastOverlayState extends State<_AppToastOverlay> {
                   widget.message,
                   style: textStyle,
                   textAlign: TextAlign.center,
-                  maxLines: 2,
+                  maxLines: allowMultipleLines ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
