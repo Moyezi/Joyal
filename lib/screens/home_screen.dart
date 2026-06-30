@@ -1,13 +1,17 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/album.dart';
+import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/play_queue_sheet.dart';
 import 'album_detail_screen.dart';
 import 'search_screen.dart';
 
@@ -17,7 +21,12 @@ import 'search_screen.dart';
 /// 向下滚动时大搜索框缩小/上移/淡出，同时顶栏右侧搜索图标淡入放大。
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(Rect)? onExclusionZoneChanged;
-  const HomeScreen({super.key, this.onExclusionZoneChanged});
+  final VoidCallback? onShowAllAlbums;
+  const HomeScreen({
+    super.key,
+    this.onExclusionZoneChanged,
+    this.onShowAllAlbums,
+  });
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -40,10 +49,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      duration: Duration.zero,
-      vsync: this,
-    );
+    _animController = AnimationController(duration: Duration.zero, vsync: this);
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
   }
@@ -64,10 +70,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final box = ctx.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final globalOffset = box.localToGlobal(Offset.zero);
-    callback(Rect.fromLTWH(
-      globalOffset.dx, globalOffset.dy,
-      box.size.width, box.size.height,
-    ));
+    callback(
+      Rect.fromLTWH(
+        globalOffset.dx,
+        globalOffset.dy,
+        box.size.width,
+        box.size.height,
+      ),
+    );
   }
 
   void _onScroll() {
@@ -107,9 +117,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             GlassTopBar(
               height: _headerHeight,
               searchAnimation: _animController,
-              onSearchTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SearchScreen()),
-              ),
+              onSearchTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
               child: _buildHeader(),
             ),
           ],
@@ -150,9 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   scale: 1.0 - 0.15 * p,
                   child: _HomeSearchBar(
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SearchScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const SearchScreen()),
                     ),
                   ),
                 ),
@@ -181,7 +189,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     final albums = state.albums;
+    final visibleAlbums = albums.take(8).toList();
     final recentAlbums = albums.take(6).toList();
+    final dailySongs = _dailyRecommendedSongs(state.songs);
+    final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
+    final bottomSpacerHeight = hasSong ? 56.0 : 28.0;
 
     return RefreshIndicator(
       onRefresh: () => ref.read(libraryProvider.notifier).fetchAlbums(),
@@ -222,8 +234,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
 
+          if (dailySongs.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionTitle(
+                title: '每日推荐',
+                actionLabel: '查看更多',
+                onActionTap: () => _showDailyRecommendations(dailySongs),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _DailyRecommendationsPreview(songs: dailySongs),
+            ),
+          ],
+
           // ── 全部专辑（双列网格） ──
-          SliverToBoxAdapter(child: _SectionTitle(title: '全部专辑')),
+          SliverToBoxAdapter(
+            child: _SectionTitle(
+              title: '全部专辑',
+              actionLabel: '查看更多',
+              onActionTap: widget.onShowAllAlbums,
+            ),
+          ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
             sliver: SliverGrid(
@@ -234,17 +265,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 childAspectRatio: 0.82,
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
-                final a = albums[index];
+                final a = visibleAlbums[index];
                 return _AlbumGridCard(
                   album: a,
                   coverUrl: _coverUrl(a.coverArt),
                 );
-              }, childCount: albums.length),
+              }, childCount: visibleAlbums.length),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: Center(
+                child: Text(
+                  '----到底了----',
+                  style: context.textCaption.copyWith(
+                    color: context.secondaryColor,
+                  ),
+                ),
+              ),
             ),
           ),
 
-          // 底部留白
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          // 底部留白：避让 MiniPlayer + Dock 覆盖层。
+          SliverToBoxAdapter(child: SizedBox(height: bottomSpacerHeight)),
         ],
       ),
     );
@@ -259,11 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.cloud_off,
-                size: 48,
-                color: context.secondaryColor,
-              ),
+              Icon(Icons.cloud_off, size: 48, color: context.secondaryColor),
               const SizedBox(height: AppTheme.spacingMD),
               Text('无法连接到服务器', style: context.textTitleMedium),
               const SizedBox(height: AppTheme.spacingSM),
@@ -314,6 +354,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final api = ref.read(subsonicApiProvider);
     if (api == null || coverArtId.isEmpty) return '';
     return api.getCoverArtUrl(coverArtId);
+  }
+
+  List<Song> _dailyRecommendedSongs(List<Song> songs) {
+    if (songs.isEmpty) return const [];
+    final today = DateTime.now();
+    final seed = today.year * 10000 + today.month * 100 + today.day;
+    final recommended = [...songs]..shuffle(Random(seed));
+    return recommended.take(24).toList();
+  }
+
+  void _showDailyRecommendations(List<Song> songs) {
+    PlayQueueSheet.show(
+      context,
+      title: '每日推荐',
+      songs: songs,
+      onSongTap: (index) => ref
+          .read(playerProvider.notifier)
+          .playPlaylist(songs, startIndex: index),
+    );
+  }
+}
+
+class _DailyRecommendationsPreview extends ConsumerWidget {
+  final List<Song> songs;
+
+  const _DailyRecommendationsPreview({required this.songs});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final previewSongs = songs.take(3).toList();
+    final api = ref.watch(subsonicApiProvider);
+    final currentSongId = ref.watch(
+      playerProvider.select((value) => value.currentSong?.id),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        children: [
+          for (final entry in previewSongs.indexed)
+            QueueSongCard(
+              song: entry.$2,
+              index: entry.$1,
+              coverUrl: api == null || entry.$2.coverArt.isEmpty
+                  ? ''
+                  : api.getCoverArtUrl(entry.$2.coverArt),
+              isCurrent: entry.$2.id == currentSongId,
+              onTap: () => ref
+                  .read(playerProvider.notifier)
+                  .playPlaylist(songs, startIndex: entry.$1),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -452,7 +546,14 @@ class _AlbumGridCard extends ConsumerWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
-  const _SectionTitle({required this.title});
+  final String? actionLabel;
+  final VoidCallback? onActionTap;
+
+  const _SectionTitle({
+    required this.title,
+    this.actionLabel,
+    this.onActionTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -463,7 +564,22 @@ class _SectionTitle extends StatelessWidget {
         AppTheme.spacingLG,
         AppTheme.spacingSM,
       ),
-      child: Row(children: [Text(title, style: context.textTitleLarge)]),
+      child: Row(
+        children: [
+          Expanded(child: Text(title, style: context.textTitleLarge)),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onActionTap,
+              style: TextButton.styleFrom(
+                foregroundColor: context.secondaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(actionLabel!, style: context.textBodyMedium),
+            ),
+        ],
+      ),
     );
   }
 }

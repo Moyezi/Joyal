@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -14,7 +15,9 @@ import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
-  const LibraryScreen({super.key});
+  final ValueListenable<int>? tabRequest;
+
+  const LibraryScreen({super.key, this.tabRequest});
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -35,14 +38,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    widget.tabRequest?.addListener(_handleTabRequest);
+  }
+
+  @override
+  void didUpdateWidget(covariant LibraryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabRequest == widget.tabRequest) return;
+    oldWidget.tabRequest?.removeListener(_handleTabRequest);
+    widget.tabRequest?.addListener(_handleTabRequest);
   }
 
   @override
   void dispose() {
+    widget.tabRequest?.removeListener(_handleTabRequest);
     _tabController.dispose();
     _songsController.dispose();
     _albumsController.dispose();
     super.dispose();
+  }
+
+  void _handleTabRequest() {
+    final index = widget.tabRequest?.value;
+    if (index == null || index < 0 || index >= _tabController.length) return;
+    if (_tabController.index == index) return;
+    _tabController.animateTo(index);
   }
 
   Future<void> _locateCurrentSong() async {

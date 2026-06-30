@@ -3,21 +3,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../utils/scroll_utils.dart';
 import 'album_cover.dart';
 
 class PlayQueueSheet extends ConsumerStatefulWidget {
-  const PlayQueueSheet({super.key});
+  final String title;
+  final List<Song>? songs;
+  final int? initialIndex;
+  final Future<void> Function(int index)? onSongTap;
 
-  static Future<void> show(BuildContext context) {
+  const PlayQueueSheet({
+    super.key,
+    this.title = '播放队列',
+    this.songs,
+    this.initialIndex,
+    this.onSongTap,
+  });
+
+  static Future<void> show(
+    BuildContext context, {
+    String title = '播放队列',
+    List<Song>? songs,
+    int? initialIndex,
+    Future<void> Function(int index)? onSongTap,
+  }) {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withValues(alpha: .22),
-      builder: (_) => const PlayQueueSheet(),
+      builder: (_) => PlayQueueSheet(
+        title: title,
+        songs: songs,
+        initialIndex: initialIndex,
+        onSongTap: onSongTap,
+      ),
     );
   }
 
@@ -47,6 +70,14 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
   Widget build(BuildContext context) {
     final state = ref.watch(playerProvider);
     final api = ref.watch(subsonicApiProvider);
+    final songs = widget.songs ?? state.playlist;
+    final currentSongId = state.currentSong?.id;
+    final customCurrentIndex = currentSongId == null
+        ? -1
+        : songs.indexWhere((song) => song.id == currentSongId);
+    final activeIndex =
+        widget.initialIndex ??
+        (widget.songs == null ? state.currentIndex : customCurrentIndex);
 
     return Container(
       height: MediaQuery.sizeOf(context).height * .78,
@@ -70,13 +101,13 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text('播放队列', style: context.textHeadlineMedium),
+                  child: Text(widget.title, style: context.textHeadlineMedium),
                 ),
-                Text('${state.playlist.length} 首', style: context.textBodyMedium),
-                if (state.hasSong)
+                Text('${songs.length} 首', style: context.textBodyMedium),
+                if (activeIndex >= 0)
                   IconButton(
                     tooltip: '定位到当前歌曲',
-                    onPressed: () => _scrollToCurrent(state.currentIndex),
+                    onPressed: () => _scrollToCurrent(activeIndex),
                     icon: const Icon(Icons.my_location_rounded),
                   ),
                 IconButton(
@@ -106,102 +137,135 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: state.playlist.isEmpty
-                ? Center(
-                    child: Text('队列还是空的', style: context.textBodyMedium),
-                  )
+            child: songs.isEmpty
+                ? Center(child: Text('队列还是空的', style: context.textBodyMedium))
                 : ListView.builder(
                     controller: _scrollController,
                     itemExtent: _itemExtent,
                     padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-                    itemCount: state.playlist.length,
+                    itemCount: songs.length,
                     itemBuilder: (context, index) {
-                      final song = state.playlist[index];
-                      final isCurrent = index == state.currentIndex;
+                      final song = songs[index];
+                      final isCurrent = widget.songs == null
+                          ? index == state.currentIndex
+                          : song.id == currentSongId;
+                      final canTap = widget.songs != null || !isCurrent;
                       final coverUrl = api == null || song.coverArt.isEmpty
                           ? ''
                           : api.getCoverArtUrl(song.coverArt);
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Material(
-                          color: isCurrent
-                              ? context.surfaceColor
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(18),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: isCurrent
-                                ? null
-                                : () => ref
-                                      .read(playerProvider.notifier)
-                                      .playAtIndex(index),
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Row(
-                                children: [
-                                  ClipOval(
-                                    child: AlbumCover(
-                                      coverArtUrl: coverUrl,
-                                      cacheKey: song.coverArt,
-                                      size: 48,
-                                      borderRadius: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          song.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: context.textTitleMedium.copyWith(
-                                            fontWeight: isCurrent
-                                                ? FontWeight.w700
-                                                : FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '${song.artist} · ${song.album}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: context.textBodySmall,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  if (isCurrent)
-                                    SizedBox(
-                                      width: 34,
-                                      child: Icon(
-                                        Icons.graphic_eq_rounded,
-                                        color: context.primaryColor,
-                                      ),
-                                    )
-                                  else
-                                    SizedBox(
-                                      width: 34,
-                                      child: Text(
-                                        '${index + 1}',
-                                        textAlign: TextAlign.center,
-                                        style: context.textCaption,
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
+                      return QueueSongCard(
+                        song: song,
+                        index: index,
+                        coverUrl: coverUrl,
+                        isCurrent: isCurrent,
+                        onTap: !canTap
+                            ? null
+                            : () async {
+                                final onSongTap = widget.onSongTap;
+                                if (onSongTap != null) {
+                                  await onSongTap(index);
+                                  return;
+                                }
+                                await ref
+                                    .read(playerProvider.notifier)
+                                    .playAtIndex(index);
+                              },
                       );
                     },
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class QueueSongCard extends StatelessWidget {
+  final Song song;
+  final int index;
+  final String coverUrl;
+  final bool isCurrent;
+  final VoidCallback? onTap;
+
+  const QueueSongCard({
+    super.key,
+    required this.song,
+    required this.index,
+    required this.coverUrl,
+    this.isCurrent = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: isCurrent ? context.surfaceColor : Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                ClipOval(
+                  child: AlbumCover(
+                    coverArtUrl: coverUrl,
+                    cacheKey: song.coverArt,
+                    size: 48,
+                    borderRadius: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.textTitleMedium.copyWith(
+                          fontWeight: isCurrent
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${song.artist} · ${song.album}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.textBodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (isCurrent)
+                  SizedBox(
+                    width: 34,
+                    child: Icon(
+                      Icons.graphic_eq_rounded,
+                      color: context.primaryColor,
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: 34,
+                    child: Text(
+                      '${index + 1}',
+                      textAlign: TextAlign.center,
+                      style: context.textCaption,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -17,7 +17,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`。
 - 曲库/搜索/收藏：`lib/providers/library_provider.dart`、`lib/screens/home_screen.dart`、`lib/screens/library_screen.dart`、`lib/screens/hotlist_screen.dart`、`lib/screens/search_screen.dart`。
-- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`。
+- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`、`lib/widgets/play_queue_sheet.dart`。
 - 播放页/歌词/视觉：`lib/screens/now_playing_screen.dart`、`lib/screens/lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/widgets/waveform_progress.dart`、`lib/widgets/album_visual_palette.dart`、`lib/widgets/dynamic_album_background.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`lib/services/cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
 - Android 媒体桥：`android/app/src/main/kotlin/com/example/joyal_music/`。
@@ -29,6 +29,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
+- 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
 - 侧边栏只放真实状态和明确标记为“预留”的占位内容；左下角设置按钮进入 `SettingsHubScreen`。
 

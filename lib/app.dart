@@ -79,6 +79,7 @@ class _MainShellState extends ConsumerState<MainShell>
     with SingleTickerProviderStateMixin {
   int _currentTab = 0;
   AndroidMediaBridge? _androidMediaBridge;
+  final ValueNotifier<int> _libraryTabRequest = ValueNotifier<int>(0);
 
   static const double _drawerWidthFactor = 0.70;
   static const double _drawerOpenThreshold = 0.35;
@@ -144,14 +145,24 @@ class _MainShellState extends ConsumerState<MainShell>
       },
     );
     _screens = [
-      HomeScreen(onExclusionZoneChanged: _registerDrawerExclusion),
-      const LibraryScreen(),
+      HomeScreen(
+        onExclusionZoneChanged: _registerDrawerExclusion,
+        onShowAllAlbums: _openLibraryAlbums,
+      ),
+      LibraryScreen(tabRequest: _libraryTabRequest),
       const HotlistScreen(),
     ];
   }
 
   void _onTabChanged(int index) {
     setState(() => _currentTab = index);
+  }
+
+  void _openLibraryAlbums() {
+    _closeDrawer();
+    setState(() => _currentTab = 1);
+    _libraryTabRequest.value = -1;
+    _libraryTabRequest.value = 1;
   }
 
   bool get _isDrawerOpen => _drawerController.value > 0.001;
@@ -479,6 +490,7 @@ class _MainShellState extends ConsumerState<MainShell>
   void dispose() {
     _androidMediaBridge?.dispose();
     _drawerController.dispose();
+    _libraryTabRequest.dispose();
     super.dispose();
   }
 }
