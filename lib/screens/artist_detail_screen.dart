@@ -16,8 +16,7 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ArtistDetailScreen> createState() =>
-      _ArtistDetailScreenState();
+  ConsumerState<ArtistDetailScreen> createState() => _ArtistDetailScreenState();
 }
 
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
@@ -47,16 +46,33 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 
     return Scaffold(
       backgroundColor: context.backgroundColor,
-      body: SafeArea(
-        child: ArtistContent(
-          showBackButton: true,
-          artist: state.artistDetail,
-          albums: state.artistAlbums,
-          songs: state.artistSongs,
-          isLoading: state.isLoadingArtist,
-          error: state.artistError,
-          onRetry: _load,
-        ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: ArtistContent(
+              artist: state.artistDetail,
+              albums: state.artistAlbums,
+              songs: state.artistSongs,
+              isLoading: state.isLoadingArtist,
+              error: state.artistError,
+              onRetry: _load,
+            ),
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  color: context.primaryColor,
+                  tooltip: '返回',
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -16,10 +16,8 @@ Future<void> showArtistSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.4),
-    builder: (sheetContext) => _ArtistSheetBody(
-      artistId: artistId,
-      artistName: artistName,
-    ),
+    builder: (sheetContext) =>
+        _ArtistSheetBody(artistId: artistId, artistName: artistName),
   );
 }
 
@@ -27,10 +25,7 @@ class _ArtistSheetBody extends ConsumerStatefulWidget {
   final String artistId;
   final String artistName;
 
-  const _ArtistSheetBody({
-    required this.artistId,
-    required this.artistName,
-  });
+  const _ArtistSheetBody({required this.artistId, required this.artistName});
 
   @override
   ConsumerState<_ArtistSheetBody> createState() => _ArtistSheetBodyState();
@@ -88,7 +83,6 @@ class _ArtistSheetBodyState extends ConsumerState<_ArtistSheetBody> {
               // Content
               Expanded(
                 child: ArtistContent(
-                  showBackButton: false,
                   artist: state.artistDetail,
                   albums: state.artistAlbums,
                   songs: state.artistSongs,

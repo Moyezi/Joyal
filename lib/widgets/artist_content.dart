@@ -22,7 +22,6 @@ class ArtistContent extends ConsumerStatefulWidget {
   final bool isLoading;
   final String? error;
   final VoidCallback? onRetry;
-  final bool showBackButton;
 
   const ArtistContent({
     super.key,
@@ -32,7 +31,6 @@ class ArtistContent extends ConsumerStatefulWidget {
     this.isLoading = false,
     this.error,
     this.onRetry,
-    this.showBackButton = false,
   });
 
   @override
@@ -69,13 +67,7 @@ class _ArtistContentState extends ConsumerState<ArtistContent>
             handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
             sliver: SliverPersistentHeader(
               pinned: true,
-              delegate: _TabBarDelegate(
-                tabController: _tabController,
-                showBackButton: widget.showBackButton,
-                onBack: widget.showBackButton
-                    ? () => Navigator.of(context).pop()
-                    : null,
-              ),
+              delegate: _TabBarDelegate(tabController: _tabController),
             ),
           ),
         ];
@@ -213,14 +205,8 @@ class _ArtistAvatar extends StatelessWidget {
 
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabController tabController;
-  final bool showBackButton;
-  final VoidCallback? onBack;
 
-  const _TabBarDelegate({
-    required this.tabController,
-    required this.showBackButton,
-    this.onBack,
-  });
+  const _TabBarDelegate({required this.tabController});
 
   @override
   Widget build(
@@ -230,51 +216,34 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   ) {
     return Container(
       color: context.backgroundColor,
-      child: Column(
-        children: [
-          if (showBackButton)
-            SizedBox(
-              height: 44,
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: onBack,
-                    icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-                  ),
-                ],
-              ),
-            ),
-          TabBar(
-            controller: tabController,
-            labelColor: context.primaryColor,
-            unselectedLabelColor: context.secondaryColor,
-            indicatorColor: context.primaryColor,
-            indicatorSize: TabBarIndicatorSize.label,
-            indicatorWeight: 2,
-            labelStyle: context.textTitleMedium,
-            unselectedLabelStyle: context.textTitleMedium.copyWith(
-              fontWeight: FontWeight.w400,
-            ),
-            tabs: const [
-              Tab(text: '专辑'),
-              Tab(text: '歌曲'),
-            ],
-          ),
+      child: TabBar(
+        controller: tabController,
+        labelColor: context.primaryColor,
+        unselectedLabelColor: context.secondaryColor,
+        indicatorColor: context.primaryColor,
+        indicatorSize: TabBarIndicatorSize.label,
+        indicatorWeight: 2,
+        labelStyle: context.textTitleMedium,
+        unselectedLabelStyle: context.textTitleMedium.copyWith(
+          fontWeight: FontWeight.w400,
+        ),
+        tabs: const [
+          Tab(text: '专辑'),
+          Tab(text: '歌曲'),
         ],
       ),
     );
   }
 
   @override
-  double get maxExtent => showBackButton ? 90 : 46;
+  double get maxExtent => 46;
 
   @override
-  double get minExtent => showBackButton ? 90 : 46;
+  double get minExtent => 46;
 
   @override
   bool shouldRebuild(covariant _TabBarDelegate oldDelegate) {
-    return showBackButton != oldDelegate.showBackButton ||
-        tabController != oldDelegate.tabController;
+    return tabController != oldDelegate.tabController;
   }
 }
 
