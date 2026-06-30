@@ -304,8 +304,12 @@ class _MiniLyricsText extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final displayCurrent = _MiniLyricsLayout.balanceCurrentLine(
+          current,
+          constraints.maxWidth,
+        );
         final layout = _MiniLyricsLayout.resolve(
-          current: current,
+          current: displayCurrent,
           next: next,
           maxWidth: constraints.maxWidth,
         );
@@ -319,7 +323,7 @@ class _MiniLyricsText extends StatelessWidget {
                   left: 0,
                   right: 0,
                   top: layout.currentTop,
-                  child: _CurrentLyricText(current),
+                  child: _CurrentLyricText(displayCurrent),
                 ),
                 if (next.isNotEmpty)
                   Positioned(
@@ -358,13 +362,30 @@ class _RollingMiniLyricsText extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final displayPreviousCurrent = _MiniLyricsLayout.balanceCurrentLine(
+          previousCurrent,
+          constraints.maxWidth,
+        );
+        final displayPromotedText = _MiniLyricsLayout.balanceCurrentLine(
+          promotedText,
+          constraints.maxWidth,
+        );
+        final displayCurrent = _MiniLyricsLayout.balanceCurrentLine(
+          current,
+          constraints.maxWidth,
+        );
         final previousLayout = _MiniLyricsLayout.resolve(
-          current: previousCurrent,
+          current: displayPreviousCurrent,
           next: previousNext,
           maxWidth: constraints.maxWidth,
         );
+        final promotedStartTop = _MiniLyricsLayout.resolvePromotedStartTop(
+          current: displayPreviousCurrent,
+          promoted: displayPromotedText,
+          maxWidth: constraints.maxWidth,
+        );
         final targetLayout = _MiniLyricsLayout.resolve(
-          current: current,
+          current: displayCurrent,
           next: next,
           maxWidth: constraints.maxWidth,
         );
@@ -374,7 +395,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
           progress,
         );
         final promotedTop = _lerp(
-          previousLayout.nextTop,
+          promotedStartTop,
           targetLayout.currentTop,
           progress,
         );
@@ -396,7 +417,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
                   top: oldCurrentTop,
                   child: Opacity(
                     opacity: (1 - progress).clamp(0, 1),
-                    child: _CurrentLyricText(previousCurrent),
+                    child: _CurrentLyricText(displayPreviousCurrent),
                   ),
                 ),
                 Positioned(
@@ -405,7 +426,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
                   top: promotedTop,
                   child: Opacity(
                     opacity: (0.62 + progress * 0.38).clamp(0, 1),
-                    child: _CurrentLyricText(promotedText),
+                    child: _CurrentLyricText(displayPromotedText),
                   ),
                 ),
                 if (next.isNotEmpty)
@@ -453,6 +474,7 @@ class _MiniLyricsLayout {
       _CurrentLyricText.style,
       safeWidth,
       maxLines: 2,
+      strutStyle: _CurrentLyricText.strutStyle,
     );
 
     if (next.isEmpty) {
@@ -473,6 +495,7 @@ class _MiniLyricsLayout {
       _NextLyricText.style,
       safeWidth,
       maxLines: 1,
+      strutStyle: _NextLyricText.strutStyle,
     );
     final freeSpace = (_miniLyricsHeight - currentHeight - nextHeight).clamp(
       0.0,
@@ -493,17 +516,87 @@ class _MiniLyricsLayout {
     );
   }
 
+  static String balanceCurrentLine(String text, double maxWidth) {
+    final safeWidth = maxWidth.isFinite && maxWidth > 0 ? maxWidth : 220.0;
+    if (text.contains('\n')) return text;
+
+    final runes = text.runes.toList(growable: false);
+    if (runes.length < 3) return text;
+
+    if (!_exceedsOneLine(text, safeWidth)) return text;
+
+    final prefixWithoutLast = String.fromCharCodes(
+      runes.take(runes.length - 1),
+    );
+    if (_exceedsOneLine(prefixWithoutLast, safeWidth)) return text;
+
+    final balancedPrefix = String.fromCharCodes(runes.take(runes.length - 2));
+    final balancedTail = _preserveLeadingSpaces(
+      String.fromCharCodes(runes.skip(runes.length - 2)),
+    );
+    return '$balancedPrefix\n$balancedTail';
+  }
+
+  static double resolvePromotedStartTop({
+    required String current,
+    required String promoted,
+    required double maxWidth,
+  }) {
+    final safeWidth = maxWidth.isFinite && maxWidth > 0 ? maxWidth : 220.0;
+    final currentHeight = _measureTextHeight(
+      current,
+      _CurrentLyricText.style,
+      safeWidth,
+      maxLines: 2,
+      strutStyle: _CurrentLyricText.strutStyle,
+    );
+    final promotedHeight = _measureTextHeight(
+      promoted,
+      _CurrentLyricText.style,
+      safeWidth,
+      maxLines: 2,
+      strutStyle: _CurrentLyricText.strutStyle,
+    );
+    final freeSpace = (_miniLyricsHeight - currentHeight - promotedHeight)
+        .clamp(0.0, _miniLyricsHeight);
+    final currentTop = (freeSpace * 0.32).clamp(0.0, _miniLyricsHeight);
+    return (currentTop + currentHeight + freeSpace * 0.36).clamp(
+      currentTop,
+      _miniLyricsHeight - promotedHeight,
+    );
+  }
+
+  static String _preserveLeadingSpaces(String text) {
+    final firstNonSpace = text.indexOf(RegExp(r'[^ ]'));
+    if (firstNonSpace == -1) return '\u00A0' * text.length;
+    if (firstNonSpace <= 0) return text;
+    return '${'\u00A0' * firstNonSpace}${text.substring(firstNonSpace)}';
+  }
+
+  static bool _exceedsOneLine(String text, double maxWidth) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: _CurrentLyricText.style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '\u2026',
+      strutStyle: _CurrentLyricText.strutStyle,
+    )..layout(maxWidth: maxWidth);
+    return painter.didExceedMaxLines;
+  }
+
   static double _measureTextHeight(
     String text,
     TextStyle style,
     double maxWidth, {
     required int maxLines,
+    StrutStyle? strutStyle,
   }) {
     final painter = TextPainter(
       text: TextSpan(text: text, style: style),
       textDirection: TextDirection.ltr,
       maxLines: maxLines,
       ellipsis: '\u2026',
+      strutStyle: strutStyle,
     )..layout(maxWidth: maxWidth);
     return painter.height;
   }
@@ -517,6 +610,11 @@ class _CurrentLyricText extends StatelessWidget {
     height: 1.18,
     fontWeight: FontWeight.w700,
   );
+  static const strutStyle = StrutStyle(
+    fontSize: 16,
+    height: 1.18,
+    forceStrutHeight: true,
+  );
 
   const _CurrentLyricText(this.text);
 
@@ -525,6 +623,7 @@ class _CurrentLyricText extends StatelessWidget {
     return Text(
       text,
       style: style,
+      strutStyle: strutStyle,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -539,6 +638,11 @@ class _NextLyricText extends StatelessWidget {
     height: 1.15,
     fontWeight: FontWeight.w500,
   );
+  static const strutStyle = StrutStyle(
+    fontSize: 12.5,
+    height: 1.15,
+    forceStrutHeight: true,
+  );
 
   const _NextLyricText(this.text);
 
@@ -547,6 +651,7 @@ class _NextLyricText extends StatelessWidget {
     return Text(
       text,
       style: style,
+      strutStyle: strutStyle,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
