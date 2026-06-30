@@ -44,7 +44,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 深色背景 `#121212` / `#1E1E1E`，正文 `#E0E0E0`，标题 `#FFFFFF`，辅助文字 `#9E9E9E`；避免纯黑 `#000000`。
 - `context.primaryColor` 是主文字色，不可做按钮、图标容器、圆形底等背景；深色模式应使用 `context.surfaceColor` 做底、`context.primaryColor` 做前景。
 - Toast 统一用 `lib/utils/app_toast.dart` 的 `showAppToast(...)`，不要散落 `ScaffoldMessenger.showSnackBar(...)`。
-- Toast 宽度应按文案自适应；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
+- Toast 宽度应按文案自适应，优先用 `BoxConstraints` 让文本自然布局，不要用 `TextPainter` 手算容器宽度；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；静态渐变应停止动画控制器。
 
