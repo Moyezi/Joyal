@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,14 +10,28 @@ import '../providers/player_provider.dart';
 import 'cached_disk_image.dart';
 
 const double _miniLyricsHeight = 76;
+const double _miniPlayerHeight = 104;
+const double _miniCoverSize = 72;
+const double _collapsedCoverImageSize = 62;
+const double _miniCoverLeftInset = 18;
+const double _miniCoverRightInset = 18;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
 const Duration _miniLyricsMinRollDuration = Duration(milliseconds: 90);
 const Duration _miniLyricsShortRollDuration = Duration(milliseconds: 160);
 
 class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onTap;
+  final VoidCallback? onCollapseRequested;
+  final VoidCallback? onExpandRequested;
+  final bool isCollapsed;
 
-  const MiniPlayer({super.key, this.onTap});
+  const MiniPlayer({
+    super.key,
+    this.onTap,
+    this.onCollapseRequested,
+    this.onExpandRequested,
+    this.isCollapsed = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,11 +47,175 @@ class MiniPlayer extends ConsumerWidget {
         ? api.getCoverArtUrl(song.coverArt)
         : '';
 
+    final cover = _buildMiniCover(coverUrl, song.coverArt);
+    final lyrics = _MiniLyrics(
+      songId: song.id,
+      lyrics: ref.watch(lyricsProvider(song)),
+      position: playerState.position,
+    );
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: isCollapsed ? 1 : 0),
+      duration: const Duration(milliseconds: 460),
+      curve: Curves.easeInOutCubic,
+      builder: (context, progress, child) {
+        return SizedBox(
+          height: _miniPlayerHeight,
+          width: double.infinity,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final collapsedLeft = math.max(
+                _miniCoverLeftInset,
+                width - _miniCoverRightInset - _miniCoverSize,
+              );
+              final xProgress = Curves.easeOutCubic.transform(progress);
+              final fadeProgress = Curves.easeInCubic.transform(progress);
+              final left = _lerp(_miniCoverLeftInset, collapsedLeft, xProgress);
+              final top =
+                  (_miniPlayerHeight - _miniCoverSize) / 2 -
+                  math.sin(progress * math.pi) * 8;
+              final imageSize = _lerp(
+                _miniCoverSize,
+                _collapsedCoverImageSize,
+                Curves.easeOutCubic.transform(progress),
+              );
+              final coverPadding = (_miniCoverSize - imageSize) / 2;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IgnorePointer(
+                    ignoring: isCollapsed,
+                    child: Opacity(
+                      opacity: (1 - fadeProgress).clamp(0.0, 1.0),
+                      child: _ExpandedMiniPlayer(
+                        trackId: song.id,
+                        isPlaying: playerState.isPlaying,
+                        cover: cover,
+                        showCover: false,
+                        lyrics: lyrics,
+                        onTap: onTap,
+                        onCollapseRequested: onCollapseRequested,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: left,
+                    top: top,
+                    child: IgnorePointer(
+                      ignoring: !isCollapsed,
+                      child: GestureDetector(
+                        onTap: onExpandRequested,
+                        behavior: HitTestBehavior.opaque,
+                        child: _MiniPlayerMorphingCover(
+                          trackId: song.id,
+                          isPlaying: playerState.isPlaying,
+                          cover: cover,
+                          progress: progress,
+                          padding: coverPadding,
+                          imageSize: imageSize,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
+
+  Widget _buildMiniCover(String url, String cacheKey) {
+    if (url.isEmpty) {
+      return Container(
+        color: Colors.white.withValues(alpha: 0.1),
+        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+      );
+    }
+
+    return CachedDiskImage(
+      imageUrl: url,
+      cacheKey: cacheKey,
+      fit: BoxFit.cover,
+      placeholderBuilder: (context) => Container(
+        color: Colors.white.withValues(alpha: 0.1),
+        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+      ),
+      errorBuilder: (context, error) => Container(
+        color: Colors.white.withValues(alpha: 0.1),
+        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+      ),
+    );
+  }
+}
+
+class _ExpandedMiniPlayer extends ConsumerStatefulWidget {
+  final String trackId;
+  final bool isPlaying;
+  final Widget cover;
+  final bool showCover;
+  final Widget lyrics;
+  final VoidCallback? onTap;
+  final VoidCallback? onCollapseRequested;
+
+  const _ExpandedMiniPlayer({
+    required this.trackId,
+    required this.isPlaying,
+    required this.cover,
+    this.showCover = true,
+    required this.lyrics,
+    this.onTap,
+    this.onCollapseRequested,
+  });
+
+  @override
+  ConsumerState<_ExpandedMiniPlayer> createState() =>
+      _ExpandedMiniPlayerState();
+}
+
+class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
+  static const double _collapseDragDistance = 42;
+  static const double _collapseFlingVelocity = 320;
+  double _dragDx = 0;
+
+  void _handleHorizontalDragStart(DragStartDetails details) {
+    _dragDx = 0;
+  }
+
+  void _handleHorizontalDragUpdate(DragUpdateDetails details) {
+    _dragDx += details.delta.dx;
+  }
+
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (_dragDx > _collapseDragDistance || velocity > _collapseFlingVelocity) {
+      widget.onCollapseRequested?.call();
+    }
+    _dragDx = 0;
+  }
+
+  void _handleHorizontalDragCancel() {
+    _dragDx = 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playerState = ref.watch(playerProvider);
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
+      onHorizontalDragStart: _handleHorizontalDragStart,
+      onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+      onHorizontalDragEnd: _handleHorizontalDragEnd,
+      onHorizontalDragCancel: _handleHorizontalDragCancel,
       child: Container(
         width: double.infinity,
-        height: 104,
+        height: _miniPlayerHeight,
         decoration: BoxDecoration(
           color: AppTheme.miniPlayerBg,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
@@ -50,28 +230,25 @@ class MiniPlayer extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 18),
-              child: _RotatingCover(
-                trackId: song.id,
-                isPlaying: playerState.isPlaying,
-                child: ClipOval(
-                  child: SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: _buildMiniCover(coverUrl, song.coverArt),
+            if (widget.showCover)
+              Padding(
+                padding: const EdgeInsets.only(left: _miniCoverLeftInset),
+                child: _RotatingCover(
+                  trackId: widget.trackId,
+                  isPlaying: widget.isPlaying,
+                  child: ClipOval(
+                    child: SizedBox(
+                      width: _miniCoverSize,
+                      height: _miniCoverSize,
+                      child: widget.cover,
+                    ),
                   ),
                 ),
-              ),
-            ),
+              )
+            else
+              const SizedBox(width: _miniCoverLeftInset + _miniCoverSize),
             const SizedBox(width: 9),
-            Expanded(
-              child: _MiniLyrics(
-                songId: song.id,
-                lyrics: ref.watch(lyricsProvider(song)),
-                position: playerState.position,
-              ),
-            ),
+            Expanded(child: widget.lyrics),
             IconButton(
               onPressed: () {
                 ref.read(playerProvider.notifier).togglePlayPause();
@@ -94,26 +271,56 @@ class MiniPlayer extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildMiniCover(String url, String cacheKey) {
-    if (url.isEmpty) {
-      return Container(
-        color: Colors.white.withValues(alpha: 0.1),
-        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
-      );
-    }
+class _MiniPlayerMorphingCover extends StatelessWidget {
+  final String trackId;
+  final bool isPlaying;
+  final Widget cover;
+  final double progress;
+  final double padding;
+  final double imageSize;
 
-    return CachedDiskImage(
-      imageUrl: url,
-      cacheKey: cacheKey,
-      fit: BoxFit.cover,
-      placeholderBuilder: (context) => Container(
-        color: Colors.white.withValues(alpha: 0.1),
-        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
-      ),
-      errorBuilder: (context, error) => Container(
-        color: Colors.white.withValues(alpha: 0.1),
-        child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+  const _MiniPlayerMorphingCover({
+    required this.trackId,
+    required this.isPlaying,
+    required this.cover,
+    required this.progress,
+    required this.padding,
+    required this.imageSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _miniCoverSize,
+      height: _miniCoverSize,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.miniPlayerBg.withValues(alpha: progress),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18 * progress),
+              blurRadius: 24 * progress,
+              offset: Offset(0, 8 * progress),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(padding),
+          child: _RotatingCover(
+            trackId: trackId,
+            isPlaying: isPlaying,
+            child: ClipOval(
+              child: SizedBox(
+                width: imageSize,
+                height: imageSize,
+                child: cover,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

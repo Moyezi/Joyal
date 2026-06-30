@@ -27,6 +27,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 主导航只有：首页、曲库、收藏；搜索从首页大搜索框或顶栏搜索图标进入。
 - 三个主页面使用固定毛玻璃顶栏 `GlassTopBar`，标题/按钮行用 `GlassTopBarTitleRow`。曲库“歌曲/专辑” TabBar 是额外下方区域，不影响标题和按钮位置。
 - 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
+- 迷你播放栏支持在自身区域右滑折叠成右下悬浮旋转专辑封面按钮，点击按钮展开；折叠态必须同步收回 Dock 外层藏青色背景，底部导航回到页面背景色。该交互由 `_MainShellState` 管折叠状态，`MiniPlayer` 只负责展开/折叠形态和手势回调；底部 Dock 区域不应触发主页侧边栏右滑。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
@@ -79,6 +80,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 静态分析：`dart analyze lib test` 或 `flutter analyze`。
 - 测试：`flutter test`。常用单测：`flutter test test/widget_test.dart`、`flutter test test/now_playing_visual_song_test.dart`、`flutter test test/cache_provider_test.dart`、`flutter test test/lyrics_provider_test.dart`。
+- `test/widget_test.dart` 里设置页用例目前仍期待旧文案 `关于 Joyal Music`，当前 `SettingsHubScreen` 实际为 `关于 Joyal`；若只改无关交互，遇到该失败先确认是否为既有测试文案滞后。
 - 侧边栏手势回归：`Home content does not scroll vertically while opening sidebar`、`Home sidebar closes on a fast left fling`。
 - 播放页视觉/歌词手势回归：`test/now_playing_visual_song_test.dart`。
 - APK 复核默认只构建 arm64 Release：`flutter build apk --release --target-platform android-arm64 --split-per-abi --no-tree-shake-icons`。

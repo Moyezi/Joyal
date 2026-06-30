@@ -90,6 +90,7 @@ class _MainShellState extends ConsumerState<MainShell>
   static const Duration _tapCloseDuration = Duration(milliseconds: 220);
 
   bool _isDraggingDrawer = false;
+  bool _isMiniPlayerCollapsed = false;
   double _drawerAccumulatedDx = 0;
   double _drawerAccumulatedDy = 0;
   bool _drawerTrackingAccepted = false;
@@ -263,6 +264,7 @@ class _MainShellState extends ConsumerState<MainShell>
   bool _shouldAllowDrawerPointer(PointerDownEvent event, double drawerWidth) {
     if (drawerWidth <= 0) return false;
     if (_isDraggingDrawer) return false;
+    if (_isInBottomDockArea(event.position)) return false;
 
     final canStartClosed = _currentTab == 0 && !_isDrawerOpen;
     final canTrackOpen = _isDrawerOpen;
@@ -275,6 +277,27 @@ class _MainShellState extends ConsumerState<MainShell>
     }
 
     return true;
+  }
+
+  bool _isInBottomDockArea(Offset globalPosition) {
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery == null) return false;
+
+    final hasSong = ref.read(playerProvider).hasSong;
+    final miniPlayerHeight = hasSong ? 104.0 : 0.0;
+    final bottomNavHeight = 76.0 + mediaQuery.padding.bottom;
+    final dockTop = mediaQuery.size.height - bottomNavHeight - miniPlayerHeight;
+    return globalPosition.dy >= dockTop;
+  }
+
+  void _collapseMiniPlayer() {
+    if (_isMiniPlayerCollapsed) return;
+    setState(() => _isMiniPlayerCollapsed = true);
+  }
+
+  void _expandMiniPlayer() {
+    if (!_isMiniPlayerCollapsed) return;
+    setState(() => _isMiniPlayerCollapsed = false);
   }
 
   void _handleDrawerDragStart(DragStartDetails details) {
@@ -379,6 +402,9 @@ class _MainShellState extends ConsumerState<MainShell>
   Widget build(BuildContext context) {
     ref.listen<PlaybackState>(playerProvider, (previous, next) {
       unawaited(_androidMediaBridge?.sync(next));
+      if (!next.hasSong && _isMiniPlayerCollapsed && mounted) {
+        setState(() => _isMiniPlayerCollapsed = false);
+      }
       if (previous?.currentSong?.id != next.currentSong?.id) {
         _prefetchLyrics(next);
       }
@@ -460,9 +486,16 @@ class _MainShellState extends ConsumerState<MainShell>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      MiniPlayer(onTap: _openNowPlaying),
-                      ColoredBox(
-                        color: hasSong
+                      MiniPlayer(
+                        isCollapsed: _isMiniPlayerCollapsed,
+                        onTap: _openNowPlaying,
+                        onCollapseRequested: _collapseMiniPlayer,
+                        onExpandRequested: _expandMiniPlayer,
+                      ),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
+                        color: hasSong && !_isMiniPlayerCollapsed
                             ? AppTheme.miniPlayerBg
                             : Theme.of(context).scaffoldBackgroundColor,
                         child: AppBottomNav(
