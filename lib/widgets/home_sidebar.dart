@@ -8,8 +8,13 @@ import '../providers/theme_provider.dart';
 
 class HomeSidebar extends ConsumerWidget {
   final VoidCallback onSettingsTap;
+  final VoidCallback onPersonalizationTap;
 
-  const HomeSidebar({super.key, required this.onSettingsTap});
+  const HomeSidebar({
+    super.key,
+    required this.onSettingsTap,
+    required this.onPersonalizationTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,7 +39,11 @@ class HomeSidebar extends ConsumerWidget {
             const SizedBox(height: 12),
             const _ReservedItem(title: '最近动态'),
             const SizedBox(height: 12),
-            const _ReservedItem(title: '个性化预留'),
+            _SidebarActionItem(
+              title: '个性化',
+              icon: Icons.tune_rounded,
+              onTap: onPersonalizationTap,
+            ),
             const Spacer(),
             Row(
               children: [
@@ -58,10 +67,7 @@ class _ConnectionStatus extends StatelessWidget {
   final bool isLoading;
   final bool isConnected;
 
-  const _ConnectionStatus({
-    required this.isLoading,
-    required this.isConnected,
-  });
+  const _ConnectionStatus({required this.isLoading, required this.isConnected});
 
   @override
   Widget build(BuildContext context) {
@@ -71,9 +77,7 @@ class _ConnectionStatus extends StatelessWidget {
     final title = isLoading
         ? '正在恢复连接'
         : (isConnected ? 'Navidrome 已连接' : '未连接服务器');
-    final subtitle = isLoading
-        ? '请稍候'
-        : (isConnected ? '已保存连接' : '前往设置配置连接');
+    final subtitle = isLoading ? '请稍候' : (isConnected ? '已保存连接' : '前往设置配置连接');
     final iconColor = isLoading
         ? context.secondaryColor
         : (isConnected ? Colors.green : context.secondaryColor);
@@ -112,6 +116,40 @@ class _ConnectionStatus extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SidebarActionItem extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _SidebarActionItem({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.surfaceHighlightColor,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(child: Text(title, style: context.textTitleMedium)),
+              const SizedBox(width: 12),
+              Icon(icon, color: context.secondaryColor, size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }

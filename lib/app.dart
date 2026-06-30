@@ -17,6 +17,7 @@ import 'screens/home_screen.dart';
 import 'screens/hotlist_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/now_playing_screen.dart';
+import 'screens/personalization_screen.dart';
 import 'screens/settings_hub_screen.dart';
 import 'services/android_media_bridge.dart';
 import 'services/lyrics_service.dart';
@@ -252,6 +253,13 @@ class _MainShellState extends ConsumerState<MainShell>
     ).push(MaterialPageRoute(builder: (_) => const SettingsHubScreen()));
   }
 
+  void _openPersonalization() {
+    _closeDrawer();
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PersonalizationScreen()));
+  }
+
   bool _shouldAllowDrawerPointer(PointerDownEvent event, double drawerWidth) {
     if (drawerWidth <= 0) return false;
     if (_isDraggingDrawer) return false;
@@ -408,7 +416,10 @@ class _MainShellState extends ConsumerState<MainShell>
                   top: 0,
                   bottom: 0,
                   width: drawerWidth,
-                  child: HomeSidebar(onSettingsTap: _openSettingsHub),
+                  child: HomeSidebar(
+                    onSettingsTap: _openSettingsHub,
+                    onPersonalizationTap: _openPersonalization,
+                  ),
                 ),
                 _buildTransformedShell(
                   hasSong: hasSong,
