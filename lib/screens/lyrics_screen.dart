@@ -5,11 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme_context.dart';
 import '../models/lyrics.dart';
-import '../models/song.dart';
-import '../providers/library_provider.dart';
+import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
-import '../services/app_cache_service.dart';
-import '../services/lyrics_service.dart';
 import '../widgets/dynamic_album_background.dart';
 
 class LyricsScreen extends ConsumerStatefulWidget {
@@ -22,26 +19,6 @@ class LyricsScreen extends ConsumerStatefulWidget {
 }
 
 class _LyricsScreenState extends ConsumerState<LyricsScreen> {
-  static final Map<String, Future<LyricsData>> _lyricsCache = {};
-
-  Future<LyricsData> _lyricsFor(Song song) {
-    final api = ref.read(subsonicApiProvider);
-    if (api == null) {
-      return Future.value(const LyricsData(lines: [], synced: false));
-    }
-    final key =
-        '${AppCacheService.instance.serverScope(api.baseUrl, api.username)}_${song.id}';
-    return _lyricsCache.putIfAbsent(key, () {
-      return LyricsService(
-        api: api,
-        dio: ref.read(dioProvider),
-      ).fetch(song).catchError((Object error) {
-        _lyricsCache.remove(key);
-        throw error;
-      });
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final player = ref.watch(playerProvider);
@@ -64,43 +41,46 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: widget.onBack,
               ),
-        title: const Text('歌词'),
+        title: const Text('\u6b4c\u8bcd'),
       ),
       body: DynamicAlbumBackground(
         coverArtId: song?.coverArt ?? '',
         coverUrl: coverUrl,
         child: SafeArea(
           child: song == null
-              ? const Center(child: Text('暂无播放歌曲'))
-              : FutureBuilder<LyricsData>(
-                  future: _lyricsFor(song),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState != ConnectionState.done) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return _Message(
-                        icon: Icons.cloud_off_outlined,
-                        text: '歌词加载失败',
-                        detail: snapshot.error.toString(),
-                      );
-                    }
-                    final lyrics = snapshot.data;
-                    if (lyrics == null || lyrics.isEmpty) {
-                      return const _Message(
-                        icon: Icons.lyrics_outlined,
-                        text: '暂无歌词',
-                        detail: '当前服务器未提供这首歌的歌词',
-                      );
-                    }
-                    return _LyricsList(
-                      data: lyrics,
-                      position: player.position,
-                      title: song.title,
-                      artist: song.artist,
-                    );
-                  },
-                ),
+              ? const Center(
+                  child: Text('\u6682\u65e0\u64ad\u653e\u6b4c\u66f2'),
+                )
+              : ref
+                    .watch(lyricsProvider(song))
+                    .when(
+                      loading: () {
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                      error: (error, stackTrace) {
+                        return _Message(
+                          icon: Icons.cloud_off_outlined,
+                          text: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
+                          detail: error.toString(),
+                        );
+                      },
+                      data: (lyrics) {
+                        if (lyrics.isEmpty) {
+                          return const _Message(
+                            icon: Icons.lyrics_outlined,
+                            text: '\u6682\u65e0\u6b4c\u8bcd',
+                            detail:
+                                '\u5f53\u524d\u670d\u52a1\u5668\u672a\u63d0\u4f9b\u8fd9\u9996\u6b4c\u7684\u6b4c\u8bcd',
+                          );
+                        }
+                        return _LyricsList(
+                          data: lyrics,
+                          position: player.position,
+                          title: song.title,
+                          artist: song.artist,
+                        );
+                      },
+                    ),
         ),
       ),
     );
@@ -134,15 +114,7 @@ class _LyricsListState extends State<_LyricsList> {
   LyricsData get data => widget.data;
   Duration get position => widget.position;
 
-  int get _activeIndex {
-    if (!data.synced) return -1;
-    var active = -1;
-    for (var index = 0; index < data.lines.length; index++) {
-      final start = data.lines[index].start;
-      if (start != null && start <= position) active = index;
-    }
-    return active;
-  }
+  int get _activeIndex => activeLyricIndex(data, position);
 
   @override
   void initState() {

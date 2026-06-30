@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
+import '../models/lyrics.dart';
+import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
 import 'cached_disk_image.dart';
 
-/// 悬浮胶囊式迷你播放器，显示在底部导航栏上方。
-///
-/// - 显示当前歌曲封面
-/// - 播放/暂停控制
-/// - 点击展开"正在播放"全屏页面
 class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onTap;
 
@@ -48,7 +45,6 @@ class MiniPlayer extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
-            // ── 迷你封面 ──
             Padding(
               padding: const EdgeInsets.only(left: 18),
               child: _RotatingCover(
@@ -63,37 +59,14 @@ class MiniPlayer extends ConsumerWidget {
                 ),
               ),
             ),
-
-            const SizedBox(width: 18),
-
-            // ── 歌曲信息 ──
+            const SizedBox(width: 9),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    song.artist,
-                    style: const TextStyle(color: Colors.white60, fontSize: 13),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+              child: _MiniLyrics(
+                songId: song.id,
+                lyrics: ref.watch(lyricsProvider(song)),
+                position: playerState.position,
               ),
             ),
-
-            // ── 播放 / 暂停 ──
             IconButton(
               onPressed: () {
                 ref.read(playerProvider.notifier).togglePlayPause();
@@ -137,6 +110,260 @@ class MiniPlayer extends ConsumerWidget {
         color: Colors.white.withValues(alpha: 0.1),
         child: const Icon(Icons.music_note, color: Colors.white54, size: 24),
       ),
+    );
+  }
+}
+
+class _MiniLyrics extends StatefulWidget {
+  final String songId;
+  final AsyncValue<LyricsData> lyrics;
+  final Duration position;
+
+  const _MiniLyrics({
+    required this.songId,
+    required this.lyrics,
+    required this.position,
+  });
+
+  @override
+  State<_MiniLyrics> createState() => _MiniLyricsState();
+}
+
+class _MiniLyricsState extends State<_MiniLyrics>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  ({String current, String next, int index})? _previousPair;
+  ({String current, String next, int index})? _displayPair;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    )..value = 1;
+  }
+
+  @override
+  void didUpdateWidget(covariant _MiniLyrics oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextPair = _resolvePair();
+    final currentPair = _displayPair;
+    if (currentPair == null ||
+        nextPair.index == currentPair.index ||
+        nextPair.current == currentPair.current) {
+      _displayPair = nextPair;
+      _previousPair = null;
+      _controller.value = 1;
+      return;
+    }
+
+    _previousPair = currentPair;
+    _displayPair = nextPair;
+    _controller
+      ..value = 0
+      ..forward();
+  }
+
+  ({String current, String next, int index}) _resolvePair() {
+    return widget.lyrics.when(
+      loading: () =>
+          (current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d', next: '', index: -2),
+      error: (error, stackTrace) => (
+        current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
+        next: '',
+        index: -3,
+      ),
+      data: (data) => lyricPairForPosition(data, widget.position),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pair = _displayPair = _displayPair ?? _resolvePair();
+    final previous = _previousPair;
+    if (previous == null || _controller.value == 1) {
+      return _MiniLyricsText(current: pair.current, next: pair.next);
+    }
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(_controller.value);
+        return _RollingMiniLyricsText(
+          previousCurrent: previous.current,
+          previousNext: previous.next,
+          current: pair.current,
+          next: pair.next,
+          progress: t,
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
+class _MiniLyricsText extends StatelessWidget {
+  final String current;
+  final String next;
+
+  const _MiniLyricsText({required this.current, required this.next});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 76,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Flexible(
+            child: Text(
+              current,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                height: 1.18,
+                fontWeight: FontWeight.w700,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (next.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              next,
+              style: const TextStyle(
+                color: Colors.white60,
+                fontSize: 12.5,
+                height: 1.15,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RollingMiniLyricsText extends StatelessWidget {
+  static const double _height = 76;
+  static const double _currentTop = 11;
+  static const double _nextTop = 57;
+  static const double _exitTop = -36;
+  static const double _enterTop = 78;
+
+  final String previousCurrent;
+  final String previousNext;
+  final String current;
+  final String next;
+  final double progress;
+
+  const _RollingMiniLyricsText({
+    required this.previousCurrent,
+    required this.previousNext,
+    required this.current,
+    required this.next,
+    required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final oldCurrentTop = _lerp(_currentTop, _exitTop, progress);
+    final promotedTop = _lerp(_nextTop, _currentTop, progress);
+    final nextTop = _lerp(_enterTop, _nextTop, progress);
+    final promotedText = previousNext.isNotEmpty ? previousNext : current;
+
+    return ClipRect(
+      child: SizedBox(
+        height: _height,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: oldCurrentTop,
+              child: Opacity(
+                opacity: (1 - progress).clamp(0, 1),
+                child: _CurrentLyricText(previousCurrent),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: promotedTop,
+              child: Opacity(
+                opacity: (0.62 + progress * 0.38).clamp(0, 1),
+                child: _CurrentLyricText(promotedText),
+              ),
+            ),
+            if (next.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                top: nextTop,
+                child: Opacity(
+                  opacity: progress.clamp(0, 1),
+                  child: _NextLyricText(next),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
+}
+
+class _CurrentLyricText extends StatelessWidget {
+  final String text;
+
+  const _CurrentLyricText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        height: 1.18,
+        fontWeight: FontWeight.w700,
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _NextLyricText extends StatelessWidget {
+  final String text;
+
+  const _NextLyricText(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white60,
+        fontSize: 12.5,
+        height: 1.15,
+        fontWeight: FontWeight.w500,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
