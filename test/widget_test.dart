@@ -137,6 +137,24 @@ void main() {
 
     expect(homeScrollable.position.pixels, 0);
   });
+
+  testWidgets('Home sidebar closes on a fast left fling', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: JoyalMusicApp()));
+    await tester.pumpAndSettle();
+
+    final searchField = find.text('搜索歌曲、专辑或艺人');
+    final closedLeft = tester.getTopLeft(searchField).dx;
+
+    await tester.flingFrom(const Offset(48, 320), const Offset(520, 0), 1800);
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(searchField).dx, greaterThan(closedLeft + 240));
+
+    await tester.flingFrom(const Offset(700, 320), const Offset(-520, 0), 1800);
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(searchField).dx, moreOrLessEquals(closedLeft));
+  });
 }
 
 class _TestLibraryNotifier extends LibraryNotifier {

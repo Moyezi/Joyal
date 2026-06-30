@@ -67,7 +67,7 @@ class _MainShellState extends ConsumerState<MainShell>
   static const double _drawerOpenThreshold = 0.35;
   static const double _drawerMaxBlur = 8;
   static const double _drawerMinScale = 0.94;
-  static const Duration _snapDuration = Duration(milliseconds: 200);
+  static const double _drawerFlingVelocity = 420;
   static const Duration _tapCloseDuration = Duration(milliseconds: 220);
 
   bool _isDraggingDrawer = false;
@@ -187,20 +187,26 @@ class _MainShellState extends ConsumerState<MainShell>
 
   void _snapAfterRelease([double? releaseVelocity]) {
     final progress = _drawerController.value;
-    if (progress >= _drawerOpenThreshold) {
-      _drawerController.animateTo(
-        1.0,
-        duration: _snapDuration,
-        curve: Curves.easeOut,
-      );
-      _velocitySamples.clear();
-      return;
-    }
     final pixelVelocity = releaseVelocity ?? _estimateVelocity();
     final progressVelocity = _lastDrawerWidth > 0
         ? (pixelVelocity / _lastDrawerWidth).abs()
         : 0.0;
     _velocitySamples.clear();
+
+    if (pixelVelocity >= _drawerFlingVelocity ||
+        (pixelVelocity.abs() < _drawerFlingVelocity &&
+            progress >= _drawerOpenThreshold)) {
+      final remaining = 1 - progress;
+      final speed = progressVelocity.clamp(0.5, 8.0);
+      final durationMs = (remaining / speed * 1000).clamp(120.0, 220.0).toInt();
+      _drawerController.animateTo(
+        1.0,
+        duration: Duration(milliseconds: durationMs),
+        curve: Curves.easeOut,
+      );
+      return;
+    }
+
     final remaining = progress;
     final speed = progressVelocity.clamp(0.5, 8.0);
     final durationMs = (remaining / speed * 1000).clamp(120.0, 220.0).toInt();
