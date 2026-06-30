@@ -7,6 +7,11 @@ import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
 import 'cached_disk_image.dart';
 
+const double _miniLyricsHeight = 76;
+const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
+const Duration _miniLyricsMinRollDuration = Duration(milliseconds: 90);
+const Duration _miniLyricsShortRollDuration = Duration(milliseconds: 160);
+
 class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onTap;
 
@@ -132,16 +137,25 @@ class _MiniLyrics extends StatefulWidget {
 class _MiniLyricsState extends State<_MiniLyrics>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  ({String current, String next, int index})? _previousPair;
-  ({String current, String next, int index})? _displayPair;
+  _MiniLyricPair? _previousPair;
+  _MiniLyricPair? _displayPair;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 520),
-    )..value = 1;
+    _controller =
+        AnimationController(
+            vsync: this,
+            duration: _miniLyricsDefaultRollDuration,
+          )
+          ..value = 1
+          ..addStatusListener((status) {
+            if (mounted &&
+                status == AnimationStatus.completed &&
+                _previousPair != null) {
+              setState(() => _previousPair = null);
+            }
+          });
   }
 
   @override
@@ -161,21 +175,49 @@ class _MiniLyricsState extends State<_MiniLyrics>
     _previousPair = currentPair;
     _displayPair = nextPair;
     _controller
+      ..duration = _rollDurationFor(nextPair)
       ..value = 0
       ..forward();
   }
 
-  ({String current, String next, int index}) _resolvePair() {
+  _MiniLyricPair _resolvePair() {
     return widget.lyrics.when(
-      loading: () =>
-          (current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d', next: '', index: -2),
-      error: (error, stackTrace) => (
+      loading: () => const _MiniLyricPair(
+        current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d',
+        next: '',
+        index: -2,
+      ),
+      error: (error, stackTrace) => const _MiniLyricPair(
         current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
         next: '',
         index: -3,
       ),
-      data: (data) => lyricPairForPosition(data, widget.position),
+      data: (data) => _MiniLyricPair.fromLyrics(data, widget.position),
     );
+  }
+
+  Duration _rollDurationFor(_MiniLyricPair pair) {
+    final currentStart = pair.currentStart;
+    final nextStart = pair.nextStart;
+    if (currentStart == null || nextStart == null) {
+      return _miniLyricsDefaultRollDuration;
+    }
+
+    final availableMs = nextStart.inMilliseconds - currentStart.inMilliseconds;
+    if (availableMs <= 0) return _miniLyricsDefaultRollDuration;
+    if (availableMs <= _miniLyricsShortRollDuration.inMilliseconds) {
+      final compressedMs = (availableMs - 24).clamp(
+        _miniLyricsMinRollDuration.inMilliseconds,
+        _miniLyricsShortRollDuration.inMilliseconds,
+      );
+      return Duration(milliseconds: compressedMs);
+    }
+
+    final adaptiveMs = (availableMs * 0.45).round().clamp(
+      _miniLyricsShortRollDuration.inMilliseconds,
+      _miniLyricsDefaultRollDuration.inMilliseconds,
+    );
+    return Duration(milliseconds: adaptiveMs);
   }
 
   @override
@@ -208,6 +250,50 @@ class _MiniLyricsState extends State<_MiniLyrics>
   }
 }
 
+class _MiniLyricPair {
+  final String current;
+  final String next;
+  final int index;
+  final Duration? currentStart;
+  final Duration? nextStart;
+
+  const _MiniLyricPair({
+    required this.current,
+    required this.next,
+    required this.index,
+    this.currentStart,
+    this.nextStart,
+  });
+
+  factory _MiniLyricPair.fromLyrics(LyricsData data, Duration position) {
+    final pair = lyricPairForPosition(data, position);
+    if (!data.synced || pair.index < 0) {
+      return _MiniLyricPair(
+        current: pair.current,
+        next: pair.next,
+        index: pair.index,
+      );
+    }
+
+    Duration? nextStart;
+    for (var index = pair.index + 1; index < data.lines.length; index++) {
+      final line = data.lines[index];
+      if (line.text.trim().isNotEmpty) {
+        nextStart = line.start;
+        break;
+      }
+    }
+
+    return _MiniLyricPair(
+      current: pair.current,
+      next: pair.next,
+      index: pair.index,
+      currentStart: data.lines[pair.index].start,
+      nextStart: nextStart,
+    );
+  }
+}
+
 class _MiniLyricsText extends StatelessWidget {
   final String current;
   final String next;
@@ -216,52 +302,42 @@ class _MiniLyricsText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 76,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            child: Text(
-              current,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                height: 1.18,
-                fontWeight: FontWeight.w700,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final layout = _MiniLyricsLayout.resolve(
+          current: current,
+          next: next,
+          maxWidth: constraints.maxWidth,
+        );
+        return ClipRect(
+          child: SizedBox(
+            height: _miniLyricsHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: layout.currentTop,
+                  child: _CurrentLyricText(current),
+                ),
+                if (next.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: layout.nextTop,
+                    child: _NextLyricText(next),
+                  ),
+              ],
             ),
           ),
-          if (next.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              next,
-              style: const TextStyle(
-                color: Colors.white60,
-                fontSize: 12.5,
-                height: 1.15,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
 class _RollingMiniLyricsText extends StatelessWidget {
-  static const double _height = 76;
-  static const double _currentTop = 11;
-  static const double _nextTop = 57;
-  static const double _exitTop = -36;
-  static const double _enterTop = 78;
-
   final String previousCurrent;
   final String previousNext;
   final String current;
@@ -278,56 +354,169 @@ class _RollingMiniLyricsText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final oldCurrentTop = _lerp(_currentTop, _exitTop, progress);
-    final promotedTop = _lerp(_nextTop, _currentTop, progress);
-    final nextTop = _lerp(_enterTop, _nextTop, progress);
     final promotedText = previousNext.isNotEmpty ? previousNext : current;
 
-    return ClipRect(
-      child: SizedBox(
-        height: _height,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: oldCurrentTop,
-              child: Opacity(
-                opacity: (1 - progress).clamp(0, 1),
-                child: _CurrentLyricText(previousCurrent),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: promotedTop,
-              child: Opacity(
-                opacity: (0.62 + progress * 0.38).clamp(0, 1),
-                child: _CurrentLyricText(promotedText),
-              ),
-            ),
-            if (next.isNotEmpty)
-              Positioned(
-                left: 0,
-                right: 0,
-                top: nextTop,
-                child: Opacity(
-                  opacity: progress.clamp(0, 1),
-                  child: _NextLyricText(next),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final previousLayout = _MiniLyricsLayout.resolve(
+          current: previousCurrent,
+          next: previousNext,
+          maxWidth: constraints.maxWidth,
+        );
+        final targetLayout = _MiniLyricsLayout.resolve(
+          current: current,
+          next: next,
+          maxWidth: constraints.maxWidth,
+        );
+        final oldCurrentTop = _lerp(
+          previousLayout.currentTop,
+          previousLayout.exitTop,
+          progress,
+        );
+        final promotedTop = _lerp(
+          previousLayout.nextTop,
+          targetLayout.currentTop,
+          progress,
+        );
+        final nextTop = _lerp(
+          targetLayout.enterTop,
+          targetLayout.nextTop,
+          progress,
+        );
+
+        return ClipRect(
+          child: SizedBox(
+            height: _miniLyricsHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: oldCurrentTop,
+                  child: Opacity(
+                    opacity: (1 - progress).clamp(0, 1),
+                    child: _CurrentLyricText(previousCurrent),
+                  ),
                 ),
-              ),
-          ],
-        ),
-      ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: promotedTop,
+                  child: Opacity(
+                    opacity: (0.62 + progress * 0.38).clamp(0, 1),
+                    child: _CurrentLyricText(promotedText),
+                  ),
+                ),
+                if (next.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: nextTop,
+                    child: Opacity(
+                      opacity: progress.clamp(0, 1),
+                      child: _NextLyricText(next),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
   double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
 }
 
+class _MiniLyricsLayout {
+  final double currentTop;
+  final double nextTop;
+  final double exitTop;
+  final double enterTop;
+
+  const _MiniLyricsLayout({
+    required this.currentTop,
+    required this.nextTop,
+    required this.exitTop,
+    required this.enterTop,
+  });
+
+  static _MiniLyricsLayout resolve({
+    required String current,
+    required String next,
+    required double maxWidth,
+  }) {
+    final safeWidth = maxWidth.isFinite && maxWidth > 0 ? maxWidth : 220.0;
+    final currentHeight = _measureTextHeight(
+      current,
+      _CurrentLyricText.style,
+      safeWidth,
+      maxLines: 2,
+    );
+
+    if (next.isEmpty) {
+      final currentTop = ((_miniLyricsHeight - currentHeight) / 2).clamp(
+        0.0,
+        _miniLyricsHeight,
+      );
+      return _MiniLyricsLayout(
+        currentTop: currentTop,
+        nextTop: _miniLyricsHeight,
+        exitTop: -currentHeight - 8,
+        enterTop: _miniLyricsHeight + 8,
+      );
+    }
+
+    final nextHeight = _measureTextHeight(
+      next,
+      _NextLyricText.style,
+      safeWidth,
+      maxLines: 1,
+    );
+    final freeSpace = (_miniLyricsHeight - currentHeight - nextHeight).clamp(
+      0.0,
+      _miniLyricsHeight,
+    );
+    final topInset = freeSpace * 0.32;
+    final currentTop = topInset.clamp(0.0, _miniLyricsHeight);
+    final nextTop = (currentTop + currentHeight + freeSpace * 0.36).clamp(
+      currentTop,
+      _miniLyricsHeight - nextHeight,
+    );
+
+    return _MiniLyricsLayout(
+      currentTop: currentTop,
+      nextTop: nextTop,
+      exitTop: -currentHeight - 8,
+      enterTop: _miniLyricsHeight + 8,
+    );
+  }
+
+  static double _measureTextHeight(
+    String text,
+    TextStyle style,
+    double maxWidth, {
+    required int maxLines,
+  }) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: maxLines,
+      ellipsis: '\u2026',
+    )..layout(maxWidth: maxWidth);
+    return painter.height;
+  }
+}
+
 class _CurrentLyricText extends StatelessWidget {
   final String text;
+  static const style = TextStyle(
+    color: Colors.white,
+    fontSize: 16,
+    height: 1.18,
+    fontWeight: FontWeight.w700,
+  );
 
   const _CurrentLyricText(this.text);
 
@@ -335,12 +524,7 @@ class _CurrentLyricText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 16,
-        height: 1.18,
-        fontWeight: FontWeight.w700,
-      ),
+      style: style,
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
     );
@@ -349,6 +533,12 @@ class _CurrentLyricText extends StatelessWidget {
 
 class _NextLyricText extends StatelessWidget {
   final String text;
+  static const style = TextStyle(
+    color: Colors.white60,
+    fontSize: 12.5,
+    height: 1.15,
+    fontWeight: FontWeight.w500,
+  );
 
   const _NextLyricText(this.text);
 
@@ -356,12 +546,7 @@ class _NextLyricText extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Colors.white60,
-        fontSize: 12.5,
-        height: 1.15,
-        fontWeight: FontWeight.w500,
-      ),
+      style: style,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
