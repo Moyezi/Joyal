@@ -343,17 +343,13 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
   }
 
   /// Inserts [song] into the queue right after the currently playing track.
-  ///
-  /// Rebuilds the underlying audio source so it picks up the new item, then
-  /// seeks back to the current position to keep playback seamless.
   Future<void> playNext(Song song) async {
     if (_audioService == null) return;
     final playlist = [...state.playlist];
     final currentIdx = state.currentIndex;
-    final pos = state.position;
 
     if (currentIdx < 0 || currentIdx >= playlist.length) {
-      // No active queue yet – just start a new playlist.
+      // No active queue yet: just start a new playlist.
       await playPlaylist([song]);
       return;
     }
@@ -361,15 +357,12 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
     final insertIdx = (currentIdx + 1).clamp(0, playlist.length);
     playlist.insert(insertIdx, song);
 
-    await _audioService.restorePlaylist(
-      playlist.map((s) => s.id).toList(),
-      startIndex: currentIdx,
-      position: pos,
-    );
+    await _audioService.insertIntoPlaylist(insertIdx, song.id);
     if (!state.isPlaying) {
       unawaited(_audioService.play());
     }
     state = state.copyWith(playlist: playlist);
+    unawaited(_saveQueue());
     _scheduleSave();
   }
 

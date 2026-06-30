@@ -9,6 +9,7 @@ import 'subsonic_api.dart';
 class AudioPlayerService {
   final AudioPlayer _player = AudioPlayer();
   final SubsonicApi? _api;
+  ConcatenatingAudioSource? _playlistSource;
 
   AudioPlayerService(this._api);
 
@@ -78,6 +79,7 @@ class AudioPlayerService {
     final source = ConcatenatingAudioSource(
       children: await _sourcesFor(songIds),
     );
+    _playlistSource = source;
     await _player.setAudioSource(source, initialIndex: startIndex);
     // AudioPlayer.play() completes when playback finishes. Do not await it here,
     // otherwise callers cannot publish the current song while it is playing.
@@ -93,11 +95,22 @@ class AudioPlayerService {
     final source = ConcatenatingAudioSource(
       children: await _sourcesFor(songIds),
     );
+    _playlistSource = source;
     await _player.setAudioSource(
       source,
       initialIndex: startIndex,
       initialPosition: position,
     );
+  }
+
+  /// Inserts an item into the loaded sequence without rebuilding playback.
+  Future<void> insertIntoPlaylist(int index, String songId) async {
+    final source = _playlistSource;
+    if (source == null) {
+      await playPlaylist([songId]);
+      return;
+    }
+    await source.insert(index, await _sourceFor(songId));
   }
 
   /// Plays or resumes playback.

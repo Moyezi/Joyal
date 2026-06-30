@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joyal_music/app.dart';
 import 'package:joyal_music/models/album.dart';
+import 'package:joyal_music/providers/auth_provider.dart';
 import 'package:joyal_music/providers/library_provider.dart';
+import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
 import 'package:joyal_music/services/cache_repository.dart';
 import 'package:joyal_music/services/buckets/album_cache_bucket.dart';
@@ -21,7 +24,7 @@ void main() {
   testWidgets('App smoke test – main shell renders', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: JoyalMusicApp()));
+    await tester.pumpWidget(_testApp());
 
     // Verify the three primary navigation tabs and home search entrance.
     expect(find.text('主页'), findsOneWidget);
@@ -83,7 +86,7 @@ void main() {
   testWidgets('Favorites tab no longer shows My floating action button', (
     tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: JoyalMusicApp()));
+    await tester.pumpWidget(_testApp());
 
     await tester.tap(find.text('收藏'));
     await tester.pump();
@@ -94,12 +97,13 @@ void main() {
   testWidgets('Home sidebar settings button opens settings hub', (
     tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: JoyalMusicApp()));
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
 
-    await tester.drag(find.text('搜索歌曲、专辑或艺人'), const Offset(360, 0));
-    await tester.pump();
+    await tester.flingFrom(const Offset(48, 320), const Offset(520, 0), 1800);
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
 
     expect(find.text('设置'), findsOneWidget);
@@ -107,20 +111,19 @@ void main() {
     expect(find.text('刷新曲库'), findsOneWidget);
     expect(find.text('下载管理'), findsOneWidget);
     expect(find.text('缓存管理'), findsOneWidget);
-    expect(find.text('关于 Joyal Music'), findsOneWidget);
+    expect(find.text('关于 Joyal'), findsOneWidget);
   });
 
   testWidgets('Home content does not scroll vertically while opening sidebar', (
     tester,
   ) async {
     await tester.pumpWidget(
-      ProviderScope(
+      _testApp(
         overrides: [
           libraryProvider.overrideWith(
             (ref) => _TestLibraryNotifier(_libraryWithManyAlbums()),
           ),
         ],
-        child: const JoyalMusicApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -139,7 +142,7 @@ void main() {
   });
 
   testWidgets('Home sidebar closes on a fast left fling', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: JoyalMusicApp()));
+    await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
     final searchField = find.text('搜索歌曲、专辑或艺人');
@@ -155,6 +158,27 @@ void main() {
 
     expect(tester.getTopLeft(searchField).dx, moreOrLessEquals(closedLeft));
   });
+}
+
+Widget _testApp({List<Override> overrides = const []}) {
+  return ProviderScope(
+    overrides: [
+      authProvider.overrideWith((ref) => _TestAuthNotifier()),
+      playerProvider.overrideWith((ref) => _TestPlayerNotifier()),
+      ...overrides,
+    ],
+    child: const JoyalMusicApp(),
+  );
+}
+
+class _TestAuthNotifier extends AuthNotifier {
+  _TestAuthNotifier() : super(const FlutterSecureStorage(), Dio()) {
+    state = const AuthState();
+  }
+}
+
+class _TestPlayerNotifier extends PlayerNotifier {
+  _TestPlayerNotifier() : super(null, const FlutterSecureStorage());
 }
 
 class _TestLibraryNotifier extends LibraryNotifier {
