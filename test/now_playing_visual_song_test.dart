@@ -66,6 +66,36 @@ void main() {
       );
     },
   );
+
+  group('shouldShowLyricsAfterHorizontalDrag', () {
+    test('uses fling direction before progress threshold', () {
+      expect(
+        shouldShowLyricsAfterHorizontalDrag(
+          progress: 0.8,
+          primaryVelocity: 900,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldShowLyricsAfterHorizontalDrag(
+          progress: 0.1,
+          primaryVelocity: -900,
+        ),
+        isTrue,
+      );
+    });
+
+    test('uses progress threshold for slow releases', () {
+      expect(
+        shouldShowLyricsAfterHorizontalDrag(progress: 0.27, primaryVelocity: 0),
+        isFalse,
+      );
+      expect(
+        shouldShowLyricsAfterHorizontalDrag(progress: 0.28, primaryVelocity: 0),
+        isTrue,
+      );
+    });
+  });
 }
 
 Song _song(String id, String coverArt) {

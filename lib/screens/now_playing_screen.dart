@@ -36,6 +36,19 @@ Song? nowPlayingVisualSong({
   return state.playlist[candidateIndex];
 }
 
+@visibleForTesting
+bool shouldShowLyricsAfterHorizontalDrag({
+  required double progress,
+  required double primaryVelocity,
+}) {
+  const flingVelocity = 500.0;
+  const openThreshold = 0.28;
+
+  if (primaryVelocity <= -flingVelocity) return true;
+  if (primaryVelocity >= flingVelocity) return false;
+  return progress >= openThreshold;
+}
+
 /// The immersive Now Playing detail screen.
 ///
 /// Features:
@@ -115,6 +128,24 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   void _hideLyrics() =>
       _lyricsProgress.animateBack(0, curve: Curves.easeOutCubic);
+
+  void _settleLyricsAfterDrag({
+    required bool show,
+    required double primaryVelocity,
+    required double width,
+  }) {
+    if (show) _initializeLyrics();
+    final target = show ? 1.0 : 0.0;
+    final remaining = (_lyricsProgress.value - target).abs();
+    final progressVelocity = width > 0 ? (primaryVelocity / width).abs() : 0.0;
+    final speed = progressVelocity.clamp(0.9, 8.0);
+    final durationMs = (remaining / speed * 1000).clamp(120.0, 260.0).toInt();
+    _lyricsProgress.animateTo(
+      target,
+      duration: Duration(milliseconds: durationMs),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   void _syncVisualPalette(Song? song) {
     final coverArtId = song?.coverArt ?? '';
@@ -239,11 +270,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   ? null
                   : (details) {
                       final velocity = details.primaryVelocity ?? 0;
-                      if (_lyricsProgress.value >= 0.28 || velocity < -500) {
-                        _showLyrics();
-                      } else {
-                        _hideLyrics();
-                      }
+                      _settleLyricsAfterDrag(
+                        show: shouldShowLyricsAfterHorizontalDrag(
+                          progress: _lyricsProgress.value,
+                          primaryVelocity: velocity,
+                        ),
+                        primaryVelocity: velocity,
+                        width: constraints.maxWidth,
+                      );
                     },
               child: AnimatedBuilder(
                 animation: _lyricsProgress,
