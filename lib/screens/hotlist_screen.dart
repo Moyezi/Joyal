@@ -140,36 +140,29 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
             ),
             GlassTopBar(
               height: _headerHeight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 12, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text('收藏', style: context.textHeadlineLarge),
-                    ),
-                    if (hasSong)
-                      IconButton(
-                        tooltip: '定位到当前歌曲',
-                        onPressed: _locateCurrentSong,
-                        icon: const Icon(Icons.my_location_rounded),
-                      ),
+              child: GlassTopBarTitleRow(
+                title: '收藏',
+                actions: [
+                  if (hasSong)
                     IconButton(
-                      tooltip: '刷新收藏',
-                      onPressed: state.isLoadingStarred
-                          ? null
-                          : () => ref
-                                .read(libraryProvider.notifier)
-                                .fetchStarred(),
-                      icon: state.isLoadingStarred
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.refresh_rounded),
+                      tooltip: '定位到当前歌曲',
+                      onPressed: _locateCurrentSong,
+                      icon: const Icon(Icons.my_location_rounded),
                     ),
-                  ],
-                ),
+                  IconButton(
+                    tooltip: '刷新收藏',
+                    onPressed: state.isLoadingStarred
+                        ? null
+                        : () =>
+                              ref.read(libraryProvider.notifier).fetchStarred(),
+                    icon: state.isLoadingStarred
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                  ),
+                ],
               ),
             ),
           ],

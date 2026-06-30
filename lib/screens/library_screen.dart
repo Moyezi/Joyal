@@ -21,7 +21,9 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with SingleTickerProviderStateMixin {
-  static const double _headerHeight = 116;
+  static const double _topBarHeight = 76;
+  static const double _tabBarHeight = 48;
+  static const double _headerHeight = _topBarHeight + _tabBarHeight;
   static const double _songExtent = 72;
 
   late final TabController _tabController;
@@ -100,31 +102,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               height: _headerHeight,
               child: Column(
                 children: [
-                  SizedBox(
-                    height: 68,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 12, 0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text('曲库', style: context.textHeadlineLarge),
-                          ),
-                          if (hasSong)
-                            IconButton(
-                              tooltip: '定位到当前歌曲',
-                              onPressed: _locateCurrentSong,
-                              icon: const Icon(Icons.my_location_rounded),
-                            ),
-                          IconButton(
-                            tooltip: '刷新曲库',
-                            onPressed: () => ref
-                                .read(libraryProvider.notifier)
-                                .refreshLibrary(),
-                            icon: const Icon(Icons.refresh_rounded),
-                          ),
-                        ],
+                  GlassTopBarTitleRow(
+                    height: _topBarHeight,
+                    title: '曲库',
+                    actions: [
+                      if (hasSong)
+                        IconButton(
+                          tooltip: '定位到当前歌曲',
+                          onPressed: _locateCurrentSong,
+                          icon: const Icon(Icons.my_location_rounded),
+                        ),
+                      IconButton(
+                        tooltip: '刷新曲库',
+                        onPressed: () =>
+                            ref.read(libraryProvider.notifier).refreshLibrary(),
+                        icon: const Icon(Icons.refresh_rounded),
                       ),
-                    ),
+                    ],
                   ),
                   TabBar(
                     controller: _tabController,
@@ -332,7 +326,10 @@ class _EmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 16),
             ],
-            Text(loading ? loadingText : emptyText, style: context.textBodyMedium),
+            Text(
+              loading ? loadingText : emptyText,
+              style: context.textBodyMedium,
+            ),
           ],
         ),
       ),

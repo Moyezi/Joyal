@@ -95,3 +95,32 @@ class GlassTopBar extends StatelessWidget {
     );
   }
 }
+
+class GlassTopBarTitleRow extends StatelessWidget {
+  final String title;
+  final List<Widget> actions;
+  final double height;
+
+  const GlassTopBarTitleRow({
+    super.key,
+    required this.title,
+    this.actions = const [],
+    this.height = 76,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
+        child: Row(
+          children: [
+            Expanded(child: Text(title, style: context.textHeadlineLarge)),
+            ...actions,
+          ],
+        ),
+      ),
+    );
+  }
+}
