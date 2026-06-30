@@ -94,9 +94,9 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                       child: ListView(
                         controller: _scrollController,
                         padding: EdgeInsets.fromLTRB(
-                          20,
+                          12,
                           _headerHeight + 8,
-                          20,
+                          12,
                           hasSong ? 172 : 68,
                         ),
                         children: [
