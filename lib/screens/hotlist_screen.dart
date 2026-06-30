@@ -6,6 +6,8 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/scroll_utils.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/song_actions_sheet.dart';
+import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
 
 class HotlistScreen extends ConsumerStatefulWidget {
@@ -59,6 +61,16 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     final albums = state.starredAlbums;
     final songs = state.starredSongs;
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
+    final currentSongId = ref.watch(
+      playerProvider.select((value) => value.currentSong?.id),
+    );
+    final starredIds = state.starredSongs.map((song) => song.id).toSet();
+    final downloadedIds = ref
+        .watch(downloadRecordsProvider)
+        .maybeWhen(
+          data: (records) => records.map((record) => record.song.id).toSet(),
+          orElse: () => <String>{},
+        );
 
     return Scaffold(
       body: SafeArea(
@@ -116,13 +128,12 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                             ...songs.asMap().entries.map(
                               (entry) => SizedBox(
                                 height: _tileExtent,
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.music_note),
-                                  title: Text(entry.value.title),
-                                  subtitle: Text(
-                                    '${entry.value.artist}  ·  '
-                                    '${entry.value.formattedDuration}',
+                                child: SongTile(
+                                  song: entry.value,
+                                  index: entry.key,
+                                  isPlaying: entry.value.id == currentSongId,
+                                  isDownloaded: downloadedIds.contains(
+                                    entry.value.id,
                                   ),
                                   onTap: () => ref
                                       .read(playerProvider.notifier)
@@ -130,6 +141,36 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                                         songs,
                                         startIndex: entry.key,
                                       ),
+                                  onMore: () {
+                                    final song = entry.value;
+                                    final isStarred = starredIds.contains(
+                                      song.id,
+                                    );
+                                    SongActionsSheet.show(
+                                      context,
+                                      songTitle: song.title,
+                                      songArtist: song.artist,
+                                      isStarred: isStarred,
+                                      onPlayNext: () {
+                                        ref
+                                            .read(playerProvider.notifier)
+                                            .playNext(song);
+                                      },
+                                      onToggleFavorite: () {
+                                        ref
+                                            .read(libraryProvider.notifier)
+                                            .setSongStarred(
+                                              song,
+                                              starred: !isStarred,
+                                            );
+                                      },
+                                      downloadService: ref.read(
+                                        downloadServiceProvider,
+                                      ),
+                                      songId: song.id,
+                                      song: song,
+                                    );
+                                  },
                                 ),
                               ),
                             ),
