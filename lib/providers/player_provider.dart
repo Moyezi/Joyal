@@ -23,6 +23,7 @@ class PlaybackState {
   final bool shuffleEnabled;
   final List<Song> playlist;
   final int currentIndex;
+  final bool isRestoringSession;
 
   const PlaybackState({
     this.currentSong,
@@ -33,6 +34,7 @@ class PlaybackState {
     this.shuffleEnabled = false,
     this.playlist = const [],
     this.currentIndex = -1,
+    this.isRestoringSession = false,
   });
 
   PlaybackState copyWith({
@@ -44,6 +46,7 @@ class PlaybackState {
     bool? shuffleEnabled,
     List<Song>? playlist,
     int? currentIndex,
+    bool? isRestoringSession,
   }) {
     return PlaybackState(
       currentSong: currentSong ?? this.currentSong,
@@ -54,6 +57,7 @@ class PlaybackState {
       shuffleEnabled: shuffleEnabled ?? this.shuffleEnabled,
       playlist: playlist ?? this.playlist,
       currentIndex: currentIndex ?? this.currentIndex,
+      isRestoringSession: isRestoringSession ?? this.isRestoringSession,
     );
   }
 
@@ -95,6 +99,7 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
   /// Sets the audio service reference (called after auth establishes the API).
   void setAudioService(AudioPlayerService service) {
     _listenToPlayer(service);
+    state = state.copyWith(isRestoringSession: true);
     unawaited(_restoreSession(service));
   }
 
@@ -140,11 +145,15 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
         duration: service.duration,
         loopMode: loopMode,
         shuffleEnabled: shuffle,
+        isRestoringSession: false,
       );
     } catch (_) {
       // Ignore stale snapshots so they never prevent a clean player startup.
     } finally {
       _restoring = false;
+      if (mounted && state.isRestoringSession) {
+        state = state.copyWith(isRestoringSession: false);
+      }
     }
   }
 

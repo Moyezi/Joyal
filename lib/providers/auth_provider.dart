@@ -57,7 +57,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final FlutterSecureStorage _storage;
   final Dio _dio;
 
-  AuthNotifier(this._storage, this._dio) : super(const AuthState());
+  AuthNotifier(this._storage, this._dio)
+    : super(const AuthState(isLoading: true));
 
   /// Attempt to load previously saved credentials from secure storage.
   Future<void> loadSavedCredentials() async {

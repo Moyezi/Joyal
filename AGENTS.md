@@ -28,6 +28,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 三个主页面使用固定毛玻璃顶栏 `GlassTopBar`，标题/按钮行用 `GlassTopBarTitleRow`。曲库“歌曲/专辑” TabBar 是额外下方区域，不影响标题和按钮位置。
 - 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
 - 迷你播放栏支持在自身区域右滑折叠成右下悬浮旋转专辑封面按钮，点击按钮展开；折叠态必须同步收回 Dock 外层藏青色背景，底部导航回到页面背景色。该交互由 `_MainShellState` 管折叠状态，`MiniPlayer` 只负责展开/折叠形态和手势回调；底部 Dock 区域不应触发主页侧边栏右滑。
+- 迷你播放栏折叠/展开应保持固定高度轨道，封面作为共享元素从左侧非线性收缩到右侧悬浮按钮；不要用不同高度组件切换导致结束时竖向瞬移。Dock 外层藏青色背景与迷你播放栏主体要使用同一时长/曲线/淡出进度，避免底部导航左右上角色块提前消失或出现。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
@@ -47,7 +48,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 ## 曲库、播放与歌词
 
-- 启动从安全存储恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建，再刷新曲库。
+- 启动从安全存储恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建，再刷新曲库。启动遮罩应覆盖凭据读取和 `PlayerNotifier` 本地播放会话恢复，避免主界面先显示无 MiniPlayer/Dock 状态再闪现播放栏。
 - `refreshLibrary()` 并行刷新专辑、全量歌曲和收藏。专辑用 `getAlbumList2.view` 分页；全量歌曲用空查询 `search3.view` + `songOffset` 分页。
 - 收藏采用共享状态和乐观更新，失败回滚；收藏页无需手动刷新即可同步。
 - 播放器使用 `just_audio` 多曲目音源序列；搜索、收藏、专辑、全曲库歌曲都会用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。

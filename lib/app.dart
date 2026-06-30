@@ -411,6 +411,9 @@ class _MainShellState extends ConsumerState<MainShell>
     });
 
     final hasSong = ref.watch(playerProvider.select((state) => state.hasSong));
+    final isStartingUp =
+        ref.watch(authProvider.select((state) => state.isLoading)) ||
+        ref.watch(playerProvider.select((state) => state.isRestoringSession));
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -451,6 +454,7 @@ class _MainShellState extends ConsumerState<MainShell>
                   hasSong: hasSong,
                   drawerWidth: drawerWidth,
                 ),
+                _StartupMask(isVisible: isStartingUp),
               ],
             ),
           ),
@@ -492,12 +496,25 @@ class _MainShellState extends ConsumerState<MainShell>
                         onCollapseRequested: _collapseMiniPlayer,
                         onExpandRequested: _expandMiniPlayer,
                       ),
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 280),
-                        curve: Curves.easeOutCubic,
-                        color: hasSong && !_isMiniPlayerCollapsed
-                            ? AppTheme.miniPlayerBg
-                            : Theme.of(context).scaffoldBackgroundColor,
+                      TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                          end: hasSong && _isMiniPlayerCollapsed ? 1 : 0,
+                        ),
+                        duration: const Duration(milliseconds: 460),
+                        curve: Curves.easeInOutCubic,
+                        builder: (context, value, child) {
+                          final fadeProgress = Curves.easeInCubic.transform(
+                            value,
+                          );
+                          return ColoredBox(
+                            color: Color.lerp(
+                              AppTheme.miniPlayerBg,
+                              Theme.of(context).scaffoldBackgroundColor,
+                              fadeProgress,
+                            )!,
+                            child: child,
+                          );
+                        },
                         child: AppBottomNav(
                           currentIndex: _currentTab,
                           onTabChanged: (index) {
@@ -536,6 +553,29 @@ class _MainShellState extends ConsumerState<MainShell>
     _drawerController.dispose();
     _libraryTabRequest.dispose();
     super.dispose();
+  }
+}
+
+class _StartupMask extends StatelessWidget {
+  final bool isVisible;
+
+  const _StartupMask({required this.isVisible});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return IgnorePointer(
+      ignoring: !isVisible,
+      child: AnimatedOpacity(
+        opacity: isVisible ? 1 : 0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
   }
 }
 
