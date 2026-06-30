@@ -6,6 +6,7 @@ import '../config/theme_context.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/download_service.dart';
+import '../utils/app_toast.dart';
 import '../widgets/album_cover.dart';
 
 class DownloadManagerScreen extends ConsumerStatefulWidget {
@@ -58,9 +59,7 @@ class _DownloadManagerScreenState extends ConsumerState<DownloadManagerScreen> {
       await service.delete(record);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('删除失败：$error')));
+      showAppToast(context, '删除失败：$error');
     }
   }
 
@@ -98,14 +97,18 @@ class _DownloadManagerScreenState extends ConsumerState<DownloadManagerScreen> {
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? context.surfaceColor
                                   : Colors.white,
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
                               Icons.download_done_rounded,
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? context.primaryColor
                                   : null,
                             ),

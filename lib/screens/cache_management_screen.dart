@@ -6,6 +6,7 @@ import '../config/theme_context.dart';
 import '../models/cache_stats.dart';
 import '../providers/cache_provider.dart';
 import '../services/cache_repository.dart';
+import '../utils/app_toast.dart';
 import '../widgets/donut_chart.dart';
 import 'download_manager_screen.dart';
 
@@ -63,17 +64,20 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   Widget _buildOverviewCard(CacheStats stats, CacheRepository repo) {
     final buckets = repo.buckets;
     final bytesList = [
-      stats.streamBytes, stats.imageBytes, stats.metaBytes,
-      stats.downloadBytes, stats.albumBytes, stats.artistBytes,
+      stats.streamBytes,
+      stats.imageBytes,
+      stats.metaBytes,
+      stats.downloadBytes,
+      stats.albumBytes,
+      stats.artistBytes,
       stats.searchBytes,
     ];
     final segments = <DonutSegment>[];
     for (var i = 0; i < buckets.length; i++) {
       if (bytesList[i] > 0) {
-        segments.add(DonutSegment(
-          color: _colors[i],
-          value: bytesList[i].toDouble(),
-        ));
+        segments.add(
+          DonutSegment(color: _colors[i], value: bytesList[i].toDouble()),
+        );
       }
     }
 
@@ -128,8 +132,12 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   Widget _buildLegend(CacheStats stats, CacheRepository repo) {
     final buckets = repo.buckets;
     final bytesList = [
-      stats.streamBytes, stats.imageBytes, stats.metaBytes,
-      stats.downloadBytes, stats.albumBytes, stats.artistBytes,
+      stats.streamBytes,
+      stats.imageBytes,
+      stats.metaBytes,
+      stats.downloadBytes,
+      stats.albumBytes,
+      stats.artistBytes,
       stats.searchBytes,
     ];
 
@@ -155,8 +163,12 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
   ) {
     final buckets = repo.buckets;
     final bytesList = [
-      stats.streamBytes, stats.imageBytes, stats.metaBytes,
-      stats.downloadBytes, stats.albumBytes, stats.artistBytes,
+      stats.streamBytes,
+      stats.imageBytes,
+      stats.metaBytes,
+      stats.downloadBytes,
+      stats.albumBytes,
+      stats.artistBytes,
       stats.searchBytes,
     ];
     final subtitles = const [
@@ -202,11 +214,11 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     );
                   }
                 : bytesList[i] > 0
-                    ? () => _clearWithFeedback(
-                          () => notifier.clearBucket(buckets[i].id),
-                          '${buckets[i].label}缓存已清理',
-                        )
-                    : null,
+                ? () => _clearWithFeedback(
+                    () => notifier.clearBucket(buckets[i].id),
+                    '${buckets[i].label}缓存已清理',
+                  )
+                : null,
           ),
           if (i < buckets.length - 1)
             const SizedBox(height: AppTheme.spacingSM),
@@ -231,8 +243,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
         children: [
           Text('自动清理', style: context.textTitleMedium),
           const SizedBox(height: 6),
-          Text('设置总缓存上限，超出后自动按LRU删除最旧文件。',
-              style: context.textBodyMedium),
+          Text('设置总缓存上限，超出后自动按LRU删除最旧文件。', style: context.textBodyMedium),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -240,8 +251,9 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
               Text('当前上限', style: context.textBodySmall),
               Text(
                 stats.maxLimitLabel,
-                style: context.textBodyLarge
-                    .copyWith(fontWeight: FontWeight.w600),
+                style: context.textBodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -298,14 +310,10 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
     try {
       await clearFn();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      showAppToast(context, message);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('清理失败：$error')));
+      showAppToast(context, '清理失败：$error');
     }
   }
 

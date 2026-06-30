@@ -5,6 +5,7 @@ import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/glass_top_bar.dart';
@@ -51,9 +52,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ? -1
         : songs.indexWhere((song) => song.id == currentSong.id);
     if (index < 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前歌曲不在曲库列表中')));
+      showAppToast(context, '当前歌曲不在曲库列表中');
       return;
     }
 

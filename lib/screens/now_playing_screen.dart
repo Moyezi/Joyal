@@ -9,6 +9,7 @@ import '../config/theme_context.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/dynamic_album_background.dart';
@@ -469,9 +470,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       await _exitSelectionMode();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('切换失败')));
+        showAppToast(context, '切换失败');
       }
     }
   }
@@ -716,17 +715,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               .read(libraryProvider.notifier)
                               .setSongStarred(song, starred: !isStarred);
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(isStarred ? '已取消收藏' : '已加入收藏'),
-                              ),
+                            showAppToast(
+                              context,
+                              isStarred ? '已取消收藏' : '已加入收藏',
                             );
                           }
                         } catch (error) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('收藏失败：$error')),
-                            );
+                            showAppToast(context, '收藏失败：$error');
                           }
                         }
                       },
@@ -805,9 +801,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     await notifier.seek(position);
                   } catch (error) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('跳转失败，已恢复原进度')),
-                      );
+                      showAppToast(context, '跳转失败，已恢复原进度');
                     }
                     rethrow;
                   }
@@ -860,14 +854,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       HapticFeedback.selectionClick();
                       final mode = await notifier.cyclePlaybackMode();
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context)
-                          ..hideCurrentSnackBar()
-                          ..showSnackBar(
-                            SnackBar(
-                              content: Text(_playbackModeLabel(mode)),
-                              duration: const Duration(milliseconds: 900),
-                            ),
-                          );
+                        showAppToast(
+                          context,
+                          _playbackModeLabel(mode),
+                          duration: const Duration(milliseconds: 900),
+                          replaceCurrent: true,
+                        );
                       }
                     },
                   ),

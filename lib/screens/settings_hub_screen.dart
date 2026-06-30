@@ -6,6 +6,7 @@ import '../config/theme_context.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/theme_provider.dart';
+import '../utils/app_toast.dart';
 import 'cache_management_screen.dart';
 import 'download_manager_screen.dart';
 import 'settings_screen.dart';
@@ -25,16 +26,12 @@ class _SettingsHubScreenState extends ConsumerState<SettingsHubScreen> {
 
     final authState = ref.read(authProvider);
     if (!authState.isConnected) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请先连接服务器')));
+      showAppToast(context, '请先连接服务器');
       return;
     }
 
     setState(() => _isRefreshing = true);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('正在刷新曲库')));
+    showAppToast(context, '正在刷新曲库');
 
     Object? refreshError;
     try {
@@ -47,18 +44,12 @@ class _SettingsHubScreenState extends ConsumerState<SettingsHubScreen> {
 
     setState(() => _isRefreshing = false);
     if (refreshError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('刷新失败: $refreshError')));
+      showAppToast(context, '刷新失败: $refreshError');
       return;
     }
 
     final stateError = ref.read(libraryProvider).error;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(stateError == null ? '曲库已刷新' : '刷新失败: $stateError'),
-      ),
-    );
+    showAppToast(context, stateError == null ? '曲库已刷新' : '刷新失败: $stateError');
   }
 
   @override

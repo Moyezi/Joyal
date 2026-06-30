@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../providers/auth_provider.dart';
+import '../utils/app_toast.dart';
 
 /// Navidrome 服务器连接设置页面。
 ///
@@ -45,9 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final password = _passwordController.text.trim();
 
     if (baseUrl.isEmpty || username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('请填写完整的连接信息')));
+      showAppToast(context, '请填写完整的连接信息');
       return;
     }
 
@@ -58,14 +57,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) {
       final authState = ref.read(authProvider);
       if (authState.isConnected) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('连接成功')));
+        showAppToast(context, '连接成功');
         Navigator.of(context).pop();
       } else if (authState.error != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('连接失败: ${authState.error}')));
+        showAppToast(context, '连接失败: ${authState.error}');
       }
     }
   }

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
 import '../services/download_service.dart';
+import '../utils/app_toast.dart';
 
 /// Signature for the actions available on a song.
 typedef PlayNextCallback = void Function();
@@ -192,9 +193,7 @@ class _SongActionsSheetState extends State<SongActionsSheet> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    showAppToast(context, message);
   }
 
   String _downloadErrorText(DioException e) {

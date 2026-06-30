@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme_context.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/song_actions_sheet.dart';
@@ -36,9 +37,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
         ? -1
         : state.starredSongs.indexWhere((song) => song.id == currentSong.id);
     if (index < 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前歌曲不在收藏列表中')));
+      showAppToast(context, '当前歌曲不在收藏列表中');
       return;
     }
     if (!_scrollController.hasClients) return;

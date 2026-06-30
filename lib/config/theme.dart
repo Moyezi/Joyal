@@ -89,46 +89,90 @@ class AppTheme {
   );
 
   // ━━━ Dark Typography ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  static final TextStyle darkHeadlineLarge = headlineLarge.copyWith(color: darkPrimaryText);
-  static final TextStyle darkHeadlineMedium = headlineMedium.copyWith(color: darkPrimaryText);
-  static final TextStyle darkTitleLarge = titleLarge.copyWith(color: darkPrimaryText);
-  static final TextStyle darkTitleMedium = titleMedium.copyWith(color: darkPrimaryText);
-  static final TextStyle darkBodyLarge = bodyLarge.copyWith(color: darkBodyPrimary);
-  static final TextStyle darkBodyMedium = bodyMedium.copyWith(color: darkSecondaryText);
-  static final TextStyle darkBodySmall = bodySmall.copyWith(color: darkSecondaryText);
-  static final TextStyle darkCaption = caption.copyWith(color: darkSecondaryText);
+  static final TextStyle darkHeadlineLarge = headlineLarge.copyWith(
+    color: darkPrimaryText,
+  );
+  static final TextStyle darkHeadlineMedium = headlineMedium.copyWith(
+    color: darkPrimaryText,
+  );
+  static final TextStyle darkTitleLarge = titleLarge.copyWith(
+    color: darkPrimaryText,
+  );
+  static final TextStyle darkTitleMedium = titleMedium.copyWith(
+    color: darkPrimaryText,
+  );
+  static final TextStyle darkBodyLarge = bodyLarge.copyWith(
+    color: darkBodyPrimary,
+  );
+  static final TextStyle darkBodyMedium = bodyMedium.copyWith(
+    color: darkSecondaryText,
+  );
+  static final TextStyle darkBodySmall = bodySmall.copyWith(
+    color: darkSecondaryText,
+  );
+  static final TextStyle darkCaption = caption.copyWith(
+    color: darkSecondaryText,
+  );
 
   // ━━━ Context-Aware Color Resolution ━━━━━━━━━━━━━━━━━━━━━━
 
   static Color primaryColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkPrimaryText
-          : primaryText;
+      ? darkPrimaryText
+      : primaryText;
 
   static Color secondaryColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkSecondaryText
-          : secondaryText;
+      ? darkSecondaryText
+      : secondaryText;
 
   static Color surfaceColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkSurface
-          : surfaceLight;
+      ? darkSurface
+      : surfaceLight;
 
   static Color backgroundColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkBackground
-          : background;
+      ? darkBackground
+      : background;
 
   static Color surfaceHighlightColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkSurfaceVariant
-          : surfaceHighlight;
+      ? darkSurfaceVariant
+      : surfaceHighlight;
 
   static Color favoriteRedColorOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark
-          ? darkFavoriteRed
-          : favoriteRed;
+      ? darkFavoriteRed
+      : favoriteRed;
+
+  static SnackBarThemeData _snackBarTheme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      insetPadding: const EdgeInsets.fromLTRB(24, 0, 24, 88),
+      backgroundColor: dark ? darkSurfaceVariant : background,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(radiusLarge),
+        side: BorderSide(
+          color: dark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      contentTextStyle: TextStyle(
+        color: dark ? darkBodyPrimary : primaryText,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        height: 1.35,
+      ),
+      actionTextColor: dark ? darkPrimaryText : primaryText,
+      disabledActionTextColor: dark ? darkSecondaryText : secondaryText,
+      closeIconColor: dark ? darkPrimaryText : primaryText,
+      dismissDirection: DismissDirection.horizontal,
+    );
+  }
 
   // ━━━ Theme Data ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   static ThemeData get lightTheme {
@@ -192,6 +236,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMedium),
         ),
       ),
+      snackBarTheme: _snackBarTheme(Brightness.light),
     );
   }
 
@@ -245,6 +290,7 @@ class AppTheme {
         ),
       ),
       dividerColor: darkSurfaceVariant,
+      snackBarTheme: _snackBarTheme(Brightness.dark),
     );
   }
 

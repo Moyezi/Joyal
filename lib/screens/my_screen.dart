@@ -5,6 +5,7 @@ import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
+import '../utils/app_toast.dart';
 import 'cache_management_screen.dart';
 import 'download_manager_screen.dart';
 import 'settings_screen.dart';
@@ -93,9 +94,7 @@ class MyScreen extends ConsumerWidget {
             subtitle: '从服务器重新加载专辑列表',
             onTap: () {
               ref.read(libraryProvider.notifier).fetchAlbums();
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('正在刷新曲库')));
+              showAppToast(context, '正在刷新曲库');
             },
           ),
           _MenuItem(
