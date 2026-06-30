@@ -28,7 +28,6 @@ class HomeSidebar extends ConsumerWidget {
             _ConnectionStatus(
               isLoading: authState.isLoading,
               isConnected: authState.isConnected,
-              baseUrl: authState.baseUrl,
             ),
             const SizedBox(height: 16),
             const _ReservedItem(title: '灵感入口'),
@@ -58,12 +57,10 @@ class HomeSidebar extends ConsumerWidget {
 class _ConnectionStatus extends StatelessWidget {
   final bool isLoading;
   final bool isConnected;
-  final String? baseUrl;
 
   const _ConnectionStatus({
     required this.isLoading,
     required this.isConnected,
-    required this.baseUrl,
   });
 
   @override
@@ -76,9 +73,7 @@ class _ConnectionStatus extends StatelessWidget {
         : (isConnected ? 'Navidrome 已连接' : '未连接服务器');
     final subtitle = isLoading
         ? '请稍候'
-        : (isConnected
-              ? ((baseUrl != null && baseUrl!.isNotEmpty) ? baseUrl! : '已保存连接')
-              : '前往设置配置连接');
+        : (isConnected ? '已保存连接' : '前往设置配置连接');
     final iconColor = isLoading
         ? context.secondaryColor
         : (isConnected ? Colors.green : context.secondaryColor);
