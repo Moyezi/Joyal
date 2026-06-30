@@ -50,6 +50,8 @@ bool shouldShowLyricsAfterHorizontalDrag({
   return progress >= openThreshold;
 }
 
+enum _CoverSlideDirection { previous, next }
+
 /// The immersive Now Playing detail screen.
 ///
 /// Features:
@@ -72,6 +74,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   bool _allowRoutePop = false;
   bool _isSelecting = false;
   int _candidateIndex = 0;
+  Song? _coverTransitionFrom;
+  Song? _coverTransitionTo;
+  _CoverSlideDirection _coverSlideDirection = _CoverSlideDirection.next;
+  bool _coverTransitionPending = false;
   double _dismissDragOffset = 0;
   Offset? _dismissPointerPosition;
   DateTime? _dismissPointerTime;
@@ -93,6 +99,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
+  late final AnimationController _coverSlideCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460),
+  );
+  late final Animation<double> _coverSlideAnim = CurvedAnimation(
+    parent: _coverSlideCtrl,
+    curve: const Cubic(0.2, 0, 0, 1),
+  );
   late final AnimationController _selSnapCtrl = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 260),
@@ -107,12 +121,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _selSnapCtrl.addListener(() {
       if (mounted && _selSnapCtrl.isAnimating) setState(() {});
     });
+    _coverSlideCtrl.addStatusListener((status) {
+      if (status != AnimationStatus.completed || !mounted) return;
+      setState(() {
+        _coverTransitionFrom = null;
+        _coverTransitionTo = null;
+      });
+      _coverSlideCtrl.reset();
+    });
   }
 
   @override
   void dispose() {
     _lyricsProgress.dispose();
     _selEnterCtrl.dispose();
+    _coverSlideCtrl.dispose();
     _selSnapCtrl.dispose();
     super.dispose();
   }
@@ -491,7 +514,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _enterSelectionMode(PlaybackState ps) {
     if (ps.playlist.length <= 1) return;
     HapticFeedback.heavyImpact();
+    _coverSlideCtrl.stop();
     setState(() {
+      _coverTransitionFrom = null;
+      _coverTransitionTo = null;
+      _coverTransitionPending = false;
       _isSelecting = true;
       _candidateIndex = ps.currentIndex.clamp(0, ps.playlist.length - 1);
       _selDragOffset = 0;
@@ -637,6 +664,115 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     );
   }
 
+  Future<void> _slideToAdjacentTrack(_CoverSlideDirection direction) async {
+    if (_isSelecting) return;
+    final playerState = ref.read(playerProvider);
+    final fromSong = playerState.currentSong;
+    if (fromSong == null) return;
+
+    _coverSlideCtrl.stop();
+    setState(() {
+      _coverSlideDirection = direction;
+      _coverTransitionFrom = fromSong;
+      _coverTransitionTo = null;
+      _coverTransitionPending = true;
+    });
+
+    final notifier = ref.read(playerProvider.notifier);
+    try {
+      if (direction == _CoverSlideDirection.next) {
+        await notifier.next();
+      } else {
+        await notifier.previous();
+      }
+    } catch (_) {
+      if (!mounted) rethrow;
+      setState(() {
+        _coverTransitionFrom = null;
+        _coverTransitionTo = null;
+        _coverTransitionPending = false;
+      });
+      showAppToast(context, '切换失败');
+      return;
+    }
+
+    if (!mounted) return;
+    final toSong = ref.read(playerProvider).currentSong;
+    setState(() => _coverTransitionPending = false);
+    if (toSong == null || toSong.id == fromSong.id) {
+      setState(() {
+        _coverTransitionFrom = null;
+        _coverTransitionTo = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _coverTransitionFrom = fromSong;
+      _coverTransitionTo = toSong;
+      _coverSlideDirection = direction;
+    });
+    _coverSlideCtrl.forward(from: 0);
+  }
+
+  Widget _nowPlayingCover({required Song song}) {
+    final lockedSong = _coverTransitionFrom;
+    if (_coverTransitionPending && lockedSong != null) {
+      return _coverForSong(lockedSong);
+    }
+
+    final incomingSong = _coverTransitionTo;
+    if (lockedSong == null ||
+        incomingSong == null ||
+        !_coverSlideCtrl.isAnimating) {
+      return _coverForSong(song);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final coverSize = _coverSizeFor(context);
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final travel = (screenWidth + coverSize) / 2 + AppTheme.spacingLG;
+        final sign = _coverSlideDirection == _CoverSlideDirection.next
+            ? 1.0
+            : -1.0;
+
+        return AnimatedBuilder(
+          animation: _coverSlideAnim,
+          builder: (context, _) {
+            final progress = _coverSlideAnim.value;
+            return SizedBox(
+              width: coverSize,
+              height: coverSize,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Transform.translate(
+                    offset: Offset(-sign * travel * progress, 0),
+                    child: _coverForSong(lockedSong),
+                  ),
+                  Transform.translate(
+                    offset: Offset(sign * travel * (1 - progress), 0),
+                    child: _coverForSong(incomingSong),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _coverForSong(Song song) {
+    return AlbumCover(
+      coverArtUrl: _coverUrl(ref, song),
+      cacheKey: song.coverArt,
+      size: _coverSizeFor(context),
+    );
+  }
+
   Widget _playerContent(
     BuildContext context,
     WidgetRef ref,
@@ -659,12 +795,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         (state) => state.starredSongs.any((item) => item.id == song.id),
       ),
     );
-
-    // Resolve cover art URL.
-    final api = ref.read(subsonicApiProvider);
-    final coverUrl = api != null && song.coverArt.isNotEmpty
-        ? api.getCoverArtUrl(song.coverArt)
-        : '';
 
     // In selection mode, show info for the candidate song instead of current.
     final displayCandidateIndex = _clampedCandidateIndex(playerState);
@@ -692,11 +822,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
                     child: GestureDetector(
                       onLongPressStart: (_) => _enterSelectionMode(playerState),
-                      child: AlbumCover(
-                        coverArtUrl: coverUrl,
-                        cacheKey: song.coverArt,
-                        size: _coverSizeFor(context),
-                      ),
+                      child: _nowPlayingCover(song: song),
                     ),
                   ),
           ),
@@ -884,7 +1010,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   IconButton(
                     icon: const Icon(Icons.skip_previous),
                     iconSize: 36,
-                    onPressed: () => notifier.previous(),
+                    onPressed: () =>
+                        _slideToAdjacentTrack(_CoverSlideDirection.previous),
                   ),
 
                   // Play / Pause (large CTA)
@@ -909,7 +1036,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   IconButton(
                     icon: const Icon(Icons.skip_next),
                     iconSize: 36,
-                    onPressed: () => notifier.next(),
+                    onPressed: () =>
+                        _slideToAdjacentTrack(_CoverSlideDirection.next),
                   ),
 
                   // Queue
