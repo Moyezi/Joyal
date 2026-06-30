@@ -104,7 +104,6 @@ class _WaveformProgressState extends State<WaveformProgress>
       _rippleFadeController.forward();
     } else {
       _ripplePhaseController.stop();
-      _rippleFadeController.reverse();
     }
   }
 
@@ -222,9 +221,15 @@ class _WaveformProgressState extends State<WaveformProgress>
                           barCount: widget.barCount,
                           centerFraction: _displayFraction,
                           barFillRatio: widget.barFillRatio,
-                          ripplePhase: _ripplePhaseController.value * 2 * 3.14159,
-                          rippleAlpha: _rippleFadeController.value.clamp(0.0, 1.0),
-                          activeHalfWidth: WaveformGeometry.activeHalfWidth(widget.barCount),
+                          ripplePhase:
+                              _ripplePhaseController.value * 2 * 3.14159,
+                          rippleAlpha: _rippleFadeController.value.clamp(
+                            0.0,
+                            1.0,
+                          ),
+                          activeHalfWidth: WaveformGeometry.activeHalfWidth(
+                            widget.barCount,
+                          ),
                           activeColor: widget.playedColor,
                           inactiveColor: widget.unplayedColor,
                           dragFraction: effectiveDragFraction,
@@ -241,14 +246,14 @@ class _WaveformProgressState extends State<WaveformProgress>
                           width: 56,
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           decoration: BoxDecoration(
-                            color: context.primaryColor,
+                            color: context.surfaceHighlightColor,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             _formatDuration(widget.duration * _displayFraction),
                             textAlign: TextAlign.center,
                             style: context.textCaption.copyWith(
-                              color: Colors.white,
+                              color: context.primaryColor,
                             ),
                           ),
                         ),
