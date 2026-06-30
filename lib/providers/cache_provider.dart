@@ -17,6 +17,7 @@ class CacheNotifier extends StateNotifier<CacheStats> {
 
   final CacheRepository _repo;
   final FlutterSecureStorage _storage;
+  late final Future<void> _initialSettingsLoad;
   int _downloadBytes = 0;
 
   CacheNotifier({
@@ -25,10 +26,12 @@ class CacheNotifier extends StateNotifier<CacheStats> {
   }) : _repo = repo,
        _storage = storage,
        super(const CacheStats()) {
-    unawaited(_loadAndRefresh());
+    _initialSettingsLoad = _loadSettings();
+    unawaited(_initialSettingsLoad.then((_) => refresh(force: true)));
   }
 
   Future<void> refresh({bool force = false}) async {
+    await _initialSettingsLoad;
     if (state.isCalculating) return;
     if (!force &&
         state.lastUpdated != null &&
@@ -92,7 +95,7 @@ class CacheNotifier extends StateNotifier<CacheStats> {
 
   // ── Internal ──
 
-  Future<void> _loadAndRefresh() async {
+  Future<void> _loadSettings() async {
     final saved = await _loadSavedLimit();
     if (saved != null && CacheStats.limitPresets.contains(saved)) {
       state = state.copyWith(maxLimitMb: saved);
@@ -101,7 +104,6 @@ class CacheNotifier extends StateNotifier<CacheStats> {
       final enabled = await isAutoCleanEnabled(b.id);
       b.autoCleanEnabled = enabled;
     }
-    await refresh(force: true);
   }
 
   Future<int?> _loadSavedLimit() async {
