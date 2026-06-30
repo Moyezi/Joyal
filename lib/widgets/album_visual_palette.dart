@@ -43,7 +43,10 @@ class AlbumVisualPalette {
   static final Map<String, Future<AlbumVisualPalette>> _paletteCache = {};
   static Future<Map<String, dynamic>>? _diskPaletteCache;
 
-  static AlbumVisualPalette fromScheme(ColorScheme scheme, Brightness brightness) {
+  static AlbumVisualPalette fromScheme(
+    ColorScheme scheme,
+    Brightness brightness,
+  ) {
     if (brightness == Brightness.dark) {
       final top = Color.lerp(scheme.primaryContainer, Colors.black, 0.50)!;
       final bottom = Color.lerp(scheme.secondaryContainer, Colors.black, 0.50)!;
@@ -72,6 +75,44 @@ class AlbumVisualPalette {
       waveformAccentSoft: accentSoft,
       waveformTrack: track,
     );
+  }
+
+  Color waveformAccentFor(Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return _withMinimumLuminance(waveformAccent, 0.34);
+    }
+    return _withMaximumLuminance(waveformAccent, 0.30);
+  }
+
+  Color waveformTrackFor(Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return _withMaximumLuminance(
+        _withMinimumLuminance(waveformTrack, 0.08),
+        0.20,
+      );
+    }
+    return _withMaximumLuminance(
+      _withMinimumLuminance(waveformTrack, 0.54),
+      0.76,
+    );
+  }
+
+  static Color _withMinimumLuminance(Color color, double target) {
+    if (color.computeLuminance() >= target) return color;
+    for (var step = 1; step <= 12; step++) {
+      final adjusted = Color.lerp(color, Colors.white, step / 12)!;
+      if (adjusted.computeLuminance() >= target) return adjusted;
+    }
+    return Colors.white;
+  }
+
+  static Color _withMaximumLuminance(Color color, double target) {
+    if (color.computeLuminance() <= target) return color;
+    for (var step = 1; step <= 12; step++) {
+      final adjusted = Color.lerp(color, Colors.black, step / 12)!;
+      if (adjusted.computeLuminance() <= target) return adjusted;
+    }
+    return Colors.black;
   }
 
   static Future<AlbumVisualPalette> resolve({

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/widgets/waveform_progress.dart';
 
@@ -155,6 +156,9 @@ void main() {
   });
 
   group('ripple coloring logic', () {
+    const active = Color(0xFF3366FF);
+    const inactive = Color(0xFFCCCCCC);
+
     test('active zone radius covers ~14% of total bars', () {
       final half = WaveformGeometry.activeHalfWidth(72);
       expect(half * 2, closeTo(0.14, 0.01));
@@ -181,6 +185,50 @@ void main() {
         staticHeight: 12,
       );
       expect(h, closeTo(12, 0.01));
+    });
+
+    test('played bars use active color before the ripple blend', () {
+      final color = WaveformGeometry.barColor(
+        barFraction: 0.25,
+        centerFraction: 0.5,
+        activeColor: active,
+        inactiveColor: inactive,
+        colorBlend: 0,
+      );
+
+      expect(color, active);
+    });
+
+    test('unplayed bars stay inactive until drag or ripple reaches them', () {
+      final color = WaveformGeometry.barColor(
+        barFraction: 0.75,
+        centerFraction: 0.5,
+        activeColor: active,
+        inactiveColor: inactive,
+        colorBlend: 0,
+      );
+
+      expect(color, inactive);
+    });
+
+    test('moving center fraction recolors newly passed bars', () {
+      final before = WaveformGeometry.barColor(
+        barFraction: 0.62,
+        centerFraction: 0.5,
+        activeColor: active,
+        inactiveColor: inactive,
+        colorBlend: 0,
+      );
+      final after = WaveformGeometry.barColor(
+        barFraction: 0.62,
+        centerFraction: 0.7,
+        activeColor: active,
+        inactiveColor: inactive,
+        colorBlend: 0,
+      );
+
+      expect(before, inactive);
+      expect(after, active);
     });
   });
 }

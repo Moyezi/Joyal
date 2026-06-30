@@ -644,6 +644,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   ) {
     final song = playerState.currentSong!;
     final notifier = ref.read(playerProvider.notifier);
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
+    final actionIconColor = context.primaryColor;
+    final disabledActionIconColor = actionIconColor.withValues(alpha: 0.38);
+    final playButtonBackground = isDark
+        ? context.surfaceColor
+        : context.primaryColor;
+    final playButtonForeground = isDark
+        ? context.primaryColor
+        : Theme.of(context).colorScheme.onPrimary;
     final isStarred = ref.watch(
       libraryProvider.select(
         (state) => state.starredSongs.any((item) => item.id == song.id),
@@ -704,9 +714,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 icon: Icon(
                   isStarred ? Icons.favorite_rounded : Icons.favorite_border,
                 ),
-                color: isStarred
-                    ? context.favoriteRedColor
-                    : context.secondaryColor,
+                style: IconButton.styleFrom(
+                  foregroundColor: isStarred
+                      ? context.favoriteRedColor
+                      : actionIconColor,
+                  disabledForegroundColor: disabledActionIconColor,
+                ),
                 onPressed: _isSelecting
                     ? null
                     : () async {
@@ -753,7 +766,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               IconButton(
                 tooltip: '更多操作',
                 icon: const Icon(Icons.more_horiz),
-                color: context.secondaryColor,
+                style: IconButton.styleFrom(
+                  foregroundColor: actionIconColor,
+                  disabledForegroundColor: disabledActionIconColor,
+                ),
                 onPressed: _isSelecting
                     ? null
                     : () => SongActionsSheet.show(
@@ -794,8 +810,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 duration: playerState.duration ?? Duration.zero,
                 trackKey: song.id,
                 isPlaying: playerState.isPlaying,
-                playedColor: _visualPalette.waveformAccent,
-                unplayedColor: _visualPalette.waveformTrack,
+                playedColor: _visualPalette.waveformAccentFor(brightness),
+                unplayedColor: _visualPalette.waveformTrackFor(brightness),
                 onSeek: (position) async {
                   try {
                     await notifier.seek(position);
@@ -848,7 +864,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     tooltip: _playbackModeLabel(playerState.playbackMode),
                     icon: Icon(_playbackModeIcon(playerState.playbackMode)),
                     color: playerState.playbackMode == PlaybackMode.sequential
-                        ? context.secondaryColor
+                        ? actionIconColor
                         : context.primaryColor,
                     onPressed: () async {
                       HapticFeedback.selectionClick();
@@ -876,17 +892,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     width: 78,
                     height: 78,
                     decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? context.surfaceColor
-                          : context.primaryColor,
+                      color: playButtonBackground,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
                       icon: Icon(
                         playerState.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? context.primaryColor
-                            : Colors.white,
+                        color: playButtonForeground,
                         size: 40,
                       ),
                       onPressed: () => notifier.togglePlayPause(),
@@ -904,7 +916,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   IconButton(
                     tooltip: '播放队列',
                     icon: const Icon(Icons.queue_music_outlined),
-                    color: context.secondaryColor,
+                    style: IconButton.styleFrom(
+                      foregroundColor: actionIconColor,
+                      disabledForegroundColor: disabledActionIconColor,
+                    ),
                     onPressed: () => PlayQueueSheet.show(context),
                   ),
                 ],

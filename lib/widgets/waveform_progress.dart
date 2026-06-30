@@ -347,6 +347,18 @@ class WaveformGeometry {
     if (dragFraction != null) return dragFraction;
     return dragIntensity.clamp(0.0, 1.0) > 0 ? settlingDragFraction : null;
   }
+
+  static Color barColor({
+    required double barFraction,
+    required double centerFraction,
+    required Color activeColor,
+    required Color inactiveColor,
+    required double colorBlend,
+  }) {
+    final hasPlayed = barFraction <= centerFraction;
+    final baseColor = hasPlayed ? activeColor : inactiveColor;
+    return Color.lerp(baseColor, activeColor, colorBlend.clamp(0.0, 1.0))!;
+  }
 }
 
 class _WaveformPainter extends CustomPainter {
@@ -422,7 +434,13 @@ class _WaveformPainter extends CustomPainter {
       height = height.clamp(3.0, size.height);
 
       // 3. Coloring: smooth blend from inactiveColor → activeColor
-      final color = Color.lerp(inactiveColor, activeColor, colorBlend)!;
+      final color = WaveformGeometry.barColor(
+        barFraction: barFraction,
+        centerFraction: centerFraction,
+        activeColor: activeColor,
+        inactiveColor: inactiveColor,
+        colorBlend: colorBlend,
+      );
 
       final paint = Paint()..color = color;
       final x = i * barWidth + (barWidth - drawWidth) / 2;

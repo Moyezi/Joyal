@@ -50,6 +50,7 @@ class HomeSidebar extends ConsumerWidget {
                 IconButton.filledTonal(
                   tooltip: '设置',
                   onPressed: onSettingsTap,
+                  style: _sidebarBottomButtonStyle(context),
                   icon: const Icon(Icons.settings_outlined),
                 ),
                 const SizedBox(width: 12),
@@ -198,7 +199,17 @@ class _ThemeModeButton extends ConsumerWidget {
     return IconButton.filledTonal(
       tooltip: '主题模式 - $label',
       onPressed: () => ref.read(themeModeProvider.notifier).cycleMode(),
+      style: _sidebarBottomButtonStyle(context),
       icon: Icon(icon),
     );
   }
+}
+
+ButtonStyle _sidebarBottomButtonStyle(BuildContext context) {
+  return IconButton.styleFrom(
+    backgroundColor: context.surfaceColor,
+    foregroundColor: context.primaryColor,
+    disabledBackgroundColor: context.surfaceColor.withValues(alpha: 0.58),
+    disabledForegroundColor: context.primaryColor.withValues(alpha: 0.38),
+  );
 }

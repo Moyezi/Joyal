@@ -36,4 +36,42 @@ void main() {
       );
     },
   );
+
+  test('readable waveform colors keep contrast in dark mode', () {
+    const palette = AlbumVisualPalette(
+      top: Color(0xFF121212),
+      bottom: Color(0xFF121212),
+      waveformAccent: Color(0xFF1C1C1C),
+      waveformAccentSoft: Color(0xFF333333),
+      waveformTrack: Color(0xFF151515),
+    );
+
+    expect(
+      palette.waveformAccentFor(Brightness.dark).computeLuminance(),
+      greaterThanOrEqualTo(0.34),
+    );
+    expect(
+      palette.waveformTrackFor(Brightness.dark).computeLuminance(),
+      greaterThanOrEqualTo(0.08),
+    );
+  });
+
+  test('readable waveform colors keep contrast in light mode', () {
+    const palette = AlbumVisualPalette(
+      top: Color(0xFFFFFFFF),
+      bottom: Color(0xFFFFFFFF),
+      waveformAccent: Color(0xFFEDEDED),
+      waveformAccentSoft: Color(0xFFF4F4F4),
+      waveformTrack: Color(0xFFFAFAFA),
+    );
+
+    expect(
+      palette.waveformAccentFor(Brightness.light).computeLuminance(),
+      lessThanOrEqualTo(0.30),
+    );
+    expect(
+      palette.waveformTrackFor(Brightness.light).computeLuminance(),
+      lessThanOrEqualTo(0.76),
+    );
+  });
 }

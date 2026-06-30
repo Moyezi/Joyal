@@ -59,7 +59,9 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 ## 播放页与选曲模式
 
-- 波形进度条为等长离散短柱 + 涟漪行波动画，非 PCM 振幅；颜色由当前视觉歌曲的 `AlbumVisualPalette` 驱动。
+- 播放页爱心、更多、播放队列等操作按钮普通态要与播放控制按钮统一使用 `context.primaryColor`（浅色偏黑、深色偏白）；收藏态保留 `context.favoriteRedColor`，禁用态只降透明度。
+- 波形进度条为等长离散短柱 + 涟漪行波动画，非 PCM 振幅；颜色由当前视觉歌曲的 `AlbumVisualPalette` 驱动，并通过亮暗模式可读性校正后使用。
+- 波形进度条已播放区要持续染上当前动态取色；拖动时用手指位置对应的显示进度作为染色边界，颜色必须随拖动实时变化。
 - 长按播放页封面进入选曲模式；左右滑动只切换候选，不立即播放；点击中央封面确认 `playAtIndex()`，点击空白取消。
 - 待选封面应由屏幕边界自然截断，不得被封面槽、当前封面、局部 `ClipRect` 或可见遮罩/亮色槽截断。
 - 选曲模式下标题、艺人、动态背景和波形颜色跟随候选歌曲；逻辑通过 `nowPlayingVisualSong(...)` 统一选择视觉歌曲。选曲逻辑保留在 `lib/screens/now_playing_screen.dart` 的 `_NowPlayingScreenState`，不拆额外组件。
