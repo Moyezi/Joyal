@@ -810,6 +810,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         tag: nowPlayingCoverHeroTag,
         createRectTween: (begin, end) =>
             NowPlayingCoverRectTween(begin: begin, end: end),
+        flightShuttleBuilder:
+            (context, animation, direction, fromContext, toContext) {
+              final isPop = direction == HeroFlightDirection.pop;
+              return AnimatedBuilder(
+                animation: animation,
+                child: _coverForSong(song),
+                builder: (context, child) {
+                  final progress = animation.value.clamp(0.0, 1.0);
+                  final alignProgress = isPop ? 1 - progress : progress;
+                  final miniTurns = RotatingNowPlayingCover.turnsFor(song.id);
+                  final turns = isPop
+                      ? miniTurns * alignProgress
+                      : miniTurns * (1 - alignProgress);
+                  return Transform.rotate(
+                    angle: turns * 2 * 3.141592653589793,
+                    child: child,
+                  );
+                },
+              );
+            },
         child: _coverForSong(song),
       );
     }

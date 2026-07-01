@@ -234,7 +234,7 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
             if (widget.showCover)
               Padding(
                 padding: const EdgeInsets.only(left: _miniCoverLeftInset),
-                child: _RotatingCover(
+                child: RotatingNowPlayingCover(
                   trackId: widget.trackId,
                   isPlaying: widget.isPlaying,
                   child: ClipOval(
@@ -314,7 +314,7 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
             tag: nowPlayingCoverHeroTag,
             createRectTween: (begin, end) =>
                 NowPlayingCoverRectTween(begin: begin, end: end),
-            child: _RotatingCover(
+            child: RotatingNowPlayingCover(
               trackId: trackId,
               isPlaying: isPlaying,
               child: ClipOval(
@@ -868,58 +868,5 @@ class _NextLyricText extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
-  }
-}
-
-/// Keeps the record at its exact angle when playback is paused.
-class _RotatingCover extends StatefulWidget {
-  final String trackId;
-  final bool isPlaying;
-  final Widget child;
-
-  const _RotatingCover({
-    required this.trackId,
-    required this.isPlaying,
-    required this.child,
-  });
-
-  @override
-  State<_RotatingCover> createState() => _RotatingCoverState();
-}
-
-class _RotatingCoverState extends State<_RotatingCover>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    );
-    if (widget.isPlaying) _controller.repeat();
-  }
-
-  @override
-  void didUpdateWidget(covariant _RotatingCover oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.trackId != oldWidget.trackId) _controller.value = 0;
-    if (widget.isPlaying && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if (!widget.isPlaying && _controller.isAnimating) {
-      _controller.stop();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RotationTransition(turns: _controller, child: widget.child);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
   }
 }
