@@ -46,6 +46,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
       body: DynamicAlbumBackground(
         coverArtId: song?.coverArt ?? '',
         coverUrl: coverUrl,
+        motionSeed: song?.id,
         child: SafeArea(
           child: song == null
               ? const Center(

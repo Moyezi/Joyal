@@ -270,6 +270,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       child: DynamicAlbumBackground(
         coverArtId: visualSong?.coverArt ?? '',
         coverUrl: _coverUrl(ref, visualSong),
+        motionSeed: visualSong?.id,
         child: Listener(
           behavior: HitTestBehavior.translucent,
           onPointerDown: _onDismissPointerDown,
@@ -380,6 +381,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       body: DynamicAlbumBackground(
         coverArtId: visualSong?.coverArt ?? '',
         coverUrl: _coverUrl(ref, visualSong),
+        motionSeed: visualSong?.id,
         child: SafeArea(
           child: song == null
               ? _emptyState()

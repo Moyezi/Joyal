@@ -33,7 +33,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`，保持播放态、下载标记、更多菜单和排版一致。
 - 歌曲操作里的“下一首播放”应在加入队列后显示 toast 确认，不做无反馈的静默操作。
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
-- 首页“全部专辑”只展示 4 行专辑（双列共 8 张）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
+- 首页“随机专辑”从 `LibraryState.albums` 中按当天日期稳定随机选 8 张（双列 4 行）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
 - 侧边栏只放真实状态和明确标记为“预留”的占位内容；“个性化”进入 `PersonalizationScreen`，左下角设置按钮进入 `SettingsHubScreen`。
 
@@ -46,12 +46,13 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - Toast 统一用 `lib/utils/app_toast.dart` 的 `showAppToast(...)`，不要散落 `ScaffoldMessenger.showSnackBar(...)`。
 - Toast 宽度应按文案自适应，优先用 `BoxConstraints` 让文本自然布局，不要用 `TextPainter` 手算容器宽度；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
-- 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；静态渐变应停止动画控制器。
+- 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；运动参数可按歌曲 `motionSeed` 稳定生成，切歌时要平滑过渡，不要让光斑瞬移；静态渐变应停止动画控制器。
 
 ## 曲库、播放与歌词
 
 - 启动从安全存储恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建，再刷新曲库。启动遮罩应覆盖凭据读取和 `PlayerNotifier` 本地播放会话恢复，避免主界面先显示无 MiniPlayer/Dock 状态再闪现播放栏。
 - `refreshLibrary()` 并行刷新专辑、全量歌曲和收藏。专辑用 `getAlbumList2.view` 分页；全量歌曲用空查询 `search3.view` + `songOffset` 分页。
+- 曲库页刷新走 `refreshLibrary()`，收藏页刷新走 `fetchStarred()`；顶部刷新按钮和下拉刷新都要防重复触发，未连接时提示，刷新后用 `showAppToast(...)` 明确成功或失败，不能静默完成。
 - 收藏采用共享状态和乐观更新，失败回滚；收藏页无需手动刷新即可同步。
 - 播放器使用 `just_audio` 多曲目音源序列；搜索、收藏、专辑、全曲库歌曲都会用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。
 - 用户明确要求：不要恢复异常自动下一首、回跳和额外 seek 保护逻辑；播放链路尽量单纯地从 Navidrome `stream.view&format=raw` 播放。

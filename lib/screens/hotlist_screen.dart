@@ -23,6 +23,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   static const double _tileExtent = 72;
   static const double _sectionHeaderExtent = 36;
   final ScrollController _scrollController = ScrollController();
+  bool _isRefreshing = false;
 
   @override
   void dispose() {
@@ -52,6 +53,40 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
       leadingExtent:
           _headerHeight + 8 + albumsSectionExtent + _sectionHeaderExtent,
     );
+  }
+
+  Future<void> _refreshStarred() async {
+    if (_isRefreshing) return;
+    if (ref.read(subsonicApiProvider) == null) {
+      showAppToast(context, '请先连接服务器');
+      return;
+    }
+
+    setState(() => _isRefreshing = true);
+    showAppToast(context, '正在刷新收藏', replaceCurrent: true);
+
+    Object? refreshError;
+    try {
+      await ref.read(libraryProvider.notifier).fetchStarred();
+    } catch (error) {
+      refreshError = error;
+    }
+
+    if (!mounted) return;
+    setState(() => _isRefreshing = false);
+
+    final stateError = ref.read(libraryProvider).error;
+    final error = refreshError ?? stateError;
+    if (error != null) {
+      showAppToast(
+        context,
+        '刷新失败: ${error.toString().replaceFirst('Exception: ', '')}',
+        replaceCurrent: true,
+      );
+      return;
+    }
+
+    showAppToast(context, '收藏已刷新', replaceCurrent: true);
   }
 
   @override
@@ -89,8 +124,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                       ),
                     )
                   : RefreshIndicator(
-                      onRefresh: () =>
-                          ref.read(libraryProvider.notifier).fetchStarred(),
+                      onRefresh: _refreshStarred,
                       child: ListView(
                         controller: _scrollController,
                         padding: EdgeInsets.fromLTRB(
@@ -191,11 +225,10 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                     ),
                   IconButton(
                     tooltip: '刷新收藏',
-                    onPressed: state.isLoadingStarred
+                    onPressed: _isRefreshing || state.isLoadingStarred
                         ? null
-                        : () =>
-                              ref.read(libraryProvider.notifier).fetchStarred(),
-                    icon: state.isLoadingStarred
+                        : _refreshStarred,
+                    icon: _isRefreshing || state.isLoadingStarred
                         ? const SizedBox.square(
                             dimension: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),

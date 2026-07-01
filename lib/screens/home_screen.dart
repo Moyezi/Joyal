@@ -17,7 +17,7 @@ import 'search_screen.dart';
 
 /// 主页 Tab – Spotify 风格的专辑浏览。
 ///
-/// 布局：顶部问候语 → 大搜索框 → 最近添加横向滚动 → 全部专辑双列网格。
+/// 布局：顶部问候语 → 大搜索框 → 最近添加横向滚动 → 随机专辑双列网格。
 /// 向下滚动时大搜索框缩小/上移/淡出，同时顶栏右侧搜索图标淡入放大。
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(Rect)? onExclusionZoneChanged;
@@ -191,7 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     final albums = state.albums;
-    final visibleAlbums = albums.take(8).toList();
+    final randomAlbums = _dailyRandomAlbums(albums);
     final recentAlbums = albums.take(6).toList();
     final dailySongs = _dailyRecommendedSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
@@ -250,10 +250,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
           ],
 
-          // ── 全部专辑（双列网格） ──
+          // ── 随机专辑（双列网格） ──
           SliverToBoxAdapter(
             child: _SectionTitle(
-              title: '全部专辑',
+              title: '随机专辑',
               actionLabel: '查看更多',
               onActionTap: widget.onShowAllAlbums,
             ),
@@ -268,12 +268,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 childAspectRatio: 0.82,
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
-                final a = visibleAlbums[index];
+                final a = randomAlbums[index];
                 return _AlbumGridCard(
                   album: a,
                   coverUrl: _coverUrl(a.coverArt),
                 );
-              }, childCount: visibleAlbums.length),
+              }, childCount: randomAlbums.length),
             ),
           ),
           SliverToBoxAdapter(
@@ -365,6 +365,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final seed = today.year * 10000 + today.month * 100 + today.day;
     final recommended = [...songs]..shuffle(Random(seed));
     return recommended.take(24).toList();
+  }
+
+  List<Album> _dailyRandomAlbums(List<Album> albums) {
+    if (albums.isEmpty) return const [];
+    final today = DateTime.now();
+    final seed = today.year * 10000 + today.month * 100 + today.day;
+    final randomAlbums = [...albums]..shuffle(Random(seed));
+    return randomAlbums.take(8).toList();
   }
 
   void _showDailyRecommendations(List<Song> songs) {

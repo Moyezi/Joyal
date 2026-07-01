@@ -33,6 +33,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final TabController _tabController;
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -91,6 +92,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
+  Future<void> _refreshLibrary() async {
+    if (_isRefreshing) return;
+    if (ref.read(subsonicApiProvider) == null) {
+      showAppToast(context, '请先连接服务器');
+      return;
+    }
+
+    setState(() => _isRefreshing = true);
+    showAppToast(context, '正在刷新曲库', replaceCurrent: true);
+
+    Object? refreshError;
+    try {
+      await ref.read(libraryProvider.notifier).refreshLibrary();
+    } catch (error) {
+      refreshError = error;
+    }
+
+    if (!mounted) return;
+    setState(() => _isRefreshing = false);
+
+    final stateError = ref.read(libraryProvider).error;
+    final error = refreshError ?? stateError;
+    if (error != null) {
+      showAppToast(
+        context,
+        '刷新失败: ${error.toString().replaceFirst('Exception: ', '')}',
+        replaceCurrent: true,
+      );
+      return;
+    }
+
+    showAppToast(context, '曲库已刷新', replaceCurrent: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
@@ -133,9 +168,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         ),
                       IconButton(
                         tooltip: '刷新曲库',
-                        onPressed: () =>
-                            ref.read(libraryProvider.notifier).refreshLibrary(),
-                        icon: const Icon(Icons.refresh_rounded),
+                        onPressed: _isRefreshing ? null : _refreshLibrary,
+                        icon: _isRefreshing
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh_rounded),
                       ),
                     ],
                   ),
