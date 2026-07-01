@@ -356,7 +356,7 @@ class _MainShellState extends ConsumerState<MainShell>
         pageBuilder: (context, animation, secondaryAnimation) =>
             const NowPlayingScreen(),
         transitionDuration: const Duration(milliseconds: 640),
-        reverseTransitionDuration: const Duration(milliseconds: 280),
+        reverseTransitionDuration: const Duration(milliseconds: 480),
       ),
     );
   }

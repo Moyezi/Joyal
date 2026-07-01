@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -135,6 +136,41 @@ class _NowPlayingControlsEntrance extends StatelessWidget {
       },
     );
   }
+}
+
+class _HeroCoverShapeClip extends StatelessWidget {
+  final double circleProgress;
+  final Widget child;
+
+  const _HeroCoverShapeClip({
+    required this.circleProgress,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        final circleRadius = width.isFinite && height.isFinite
+            ? math.min(width, height) / 2
+            : AppTheme.radiusLarge;
+        final radius = _lerp(
+          AppTheme.radiusLarge,
+          circleRadius,
+          Curves.easeInOutCubic.transform(circleProgress.clamp(0.0, 1.0)),
+        );
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: child,
+        );
+      },
+    );
+  }
+
+  double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
 }
 
 /// The immersive Now Playing detail screen.
@@ -819,13 +855,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 builder: (context, child) {
                   final progress = animation.value.clamp(0.0, 1.0);
                   final alignProgress = isPop ? 1 - progress : progress;
+                  final circleProgress = isPop ? progress : 1 - progress;
                   final miniTurns = RotatingNowPlayingCover.turnsFor(song.id);
                   final turns = isPop
                       ? miniTurns * alignProgress
                       : miniTurns * (1 - alignProgress);
                   return Transform.rotate(
                     angle: turns * 2 * 3.141592653589793,
-                    child: child,
+                    child: _HeroCoverShapeClip(
+                      circleProgress: circleProgress,
+                      child: child!,
+                    ),
                   );
                 },
               );
