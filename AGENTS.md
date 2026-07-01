@@ -18,7 +18,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`。
 - 曲库/搜索/收藏：`lib/providers/library_provider.dart`、`lib/screens/home_screen.dart`、`lib/screens/library_screen.dart`、`lib/screens/hotlist_screen.dart`、`lib/screens/search_screen.dart`。
 - 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/screens/personalization_screen.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`、`lib/widgets/play_queue_sheet.dart`。
-- 播放页/歌词/视觉：`lib/screens/now_playing_screen.dart`、`lib/screens/lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/providers/visual_effect_provider.dart`、`lib/widgets/waveform_progress.dart`、`lib/widgets/album_visual_palette.dart`、`lib/widgets/dynamic_album_background.dart`。
+- 播放页/歌词/视觉：`lib/screens/now_playing_screen.dart`、`lib/screens/lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/providers/visual_effect_provider.dart`、`lib/widgets/waveform_progress.dart`、`lib/widgets/album_visual_palette.dart`、`lib/widgets/dynamic_album_background.dart`、`lib/widgets/now_playing_transition.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`lib/services/cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
 - Android 媒体桥：`android/app/src/main/kotlin/com/example/joyal_music/`。
 
@@ -65,6 +65,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 ## 播放页与选曲模式
 
 - 播放页爱心、更多、播放队列等操作按钮普通态要与播放控制按钮统一使用 `context.primaryColor`（浅色偏黑、深色偏白）；收藏态保留 `context.favoriteRedColor`，禁用态只降透明度。
+- 点击迷你播放栏进入播放详情页使用透明 `PageRouteBuilder` + 页面内自绘转场：流动光影背景先压暗，再从屏幕底部向上铺满并恢复正常亮度；退出时不再压暗。播放页功能区随背景从底部向上运动；专辑封面用共享 Hero 从迷你播放栏圆形头像位置非线性移动到播放页位置，可轻微过冲后归位。
 - 波形进度条为等长离散短柱 + 涟漪行波动画，非 PCM 振幅；颜色由当前视觉歌曲的 `AlbumVisualPalette` 驱动，并通过亮暗模式可读性校正后使用。
 - 波形进度条已播放区要持续染上当前动态取色；拖动时用手指位置对应的显示进度作为染色边界，颜色必须随拖动实时变化。
 - 播放页点击下一首/上一首时封面使用非线性横向切换动画：下一首为当前封面向左完全移出屏幕、新封面从右侧进入；上一首方向相反。离场封面边缘必须完全离开屏幕后再清理状态，不能在屏幕边缘残留一截后瞬间消失。

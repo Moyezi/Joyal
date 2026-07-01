@@ -8,6 +8,7 @@ import '../models/lyrics.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
 import 'cached_disk_image.dart';
+import 'now_playing_transition.dart';
 
 const double _miniLyricsHeight = 76;
 const double _miniPlayerHeight = 104;
@@ -309,14 +310,19 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
         ),
         child: Padding(
           padding: EdgeInsets.all(padding),
-          child: _RotatingCover(
-            trackId: trackId,
-            isPlaying: isPlaying,
-            child: ClipOval(
-              child: SizedBox(
-                width: imageSize,
-                height: imageSize,
-                child: cover,
+          child: Hero(
+            tag: nowPlayingCoverHeroTag,
+            createRectTween: (begin, end) =>
+                NowPlayingCoverRectTween(begin: begin, end: end),
+            child: _RotatingCover(
+              trackId: trackId,
+              isPlaying: isPlaying,
+              child: ClipOval(
+                child: SizedBox(
+                  width: imageSize,
+                  height: imageSize,
+                  child: cover,
+                ),
               ),
             ),
           ),

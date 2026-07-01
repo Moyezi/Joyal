@@ -351,21 +351,12 @@ class _MainShellState extends ConsumerState<MainShell>
   void _openNowPlaying() {
     Navigator.of(context).push(
       PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.transparent,
         pageBuilder: (context, animation, secondaryAnimation) =>
             const NowPlayingScreen(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                .animate(
-                  CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  ),
-                ),
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 350),
+        transitionDuration: const Duration(milliseconds: 640),
+        reverseTransitionDuration: const Duration(milliseconds: 280),
       ),
     );
   }

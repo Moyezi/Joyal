@@ -13,6 +13,7 @@ import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/dynamic_album_background.dart';
+import '../widgets/now_playing_transition.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/waveform_progress.dart';
@@ -51,6 +52,90 @@ bool shouldShowLyricsAfterHorizontalDrag({
 }
 
 enum _CoverSlideDirection { previous, next }
+
+class _NowPlayingEntrance extends StatelessWidget {
+  final Widget child;
+
+  const _NowPlayingEntrance({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (routeAnimation == null) return child;
+
+    return AnimatedBuilder(
+      animation: routeAnimation,
+      builder: (context, _) {
+        final rawProgress = routeAnimation.value.clamp(0.0, 1.0);
+        final revealProgress = Curves.easeOutCubic.transform(rawProgress);
+        final dimProgress = Curves.easeInCubic.transform(rawProgress);
+        final dimAlpha = routeAnimation.status == AnimationStatus.reverse
+            ? 0.0
+            : 0.34 * (1 - dimProgress);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final height = constraints.maxHeight;
+            final revealHeight = height * revealProgress.clamp(0.001, 1.0);
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: revealHeight,
+                  child: ClipRect(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        height: height,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
+                IgnorePointer(
+                  child: ColoredBox(
+                    color: Colors.black.withValues(alpha: dimAlpha),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _NowPlayingControlsEntrance extends StatelessWidget {
+  final Widget child;
+
+  const _NowPlayingControlsEntrance({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (routeAnimation == null) return child;
+
+    return AnimatedBuilder(
+      animation: routeAnimation,
+      child: child,
+      builder: (context, child) {
+        final progress = Curves.easeOutQuart.transform(
+          routeAnimation.value.clamp(0.0, 1.0),
+        );
+        final height = MediaQuery.sizeOf(context).height;
+        return Transform.translate(
+          offset: Offset(0, height * 0.16 * (1 - progress)),
+          child: child,
+        );
+      },
+    );
+  }
+}
 
 /// The immersive Now Playing detail screen.
 ///
@@ -267,80 +352,84 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _closePage();
       },
-      child: DynamicAlbumBackground(
-        coverArtId: visualSong?.coverArt ?? '',
-        coverUrl: _coverUrl(ref, visualSong),
-        motionSeed: visualSong?.id,
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: _onDismissPointerDown,
-          onPointerMove: _onDismissPointerMove,
-          onPointerUp: _onDismissPointerUp,
-          onPointerCancel: _onDismissPointerCancel,
-          child: LayoutBuilder(
-            builder: (context, constraints) => GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (!hasSong || _isSelecting)
-                  ? null
-                  : (_) => _initializeLyrics(),
-              onHorizontalDragUpdate: (!hasSong || _isSelecting)
-                  ? null
-                  : (details) {
-                      _lyricsProgress.value =
-                          (_lyricsProgress.value -
-                                  details.delta.dx / constraints.maxWidth)
-                              .clamp(0.0, 1.0);
-                    },
-              onHorizontalDragEnd: (!hasSong || _isSelecting)
-                  ? null
-                  : (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-                      _settleLyricsAfterDrag(
-                        show: shouldShowLyricsAfterHorizontalDrag(
-                          progress: _lyricsProgress.value,
+      child: _NowPlayingEntrance(
+        child: DynamicAlbumBackground(
+          coverArtId: visualSong?.coverArt ?? '',
+          coverUrl: _coverUrl(ref, visualSong),
+          motionSeed: visualSong?.id,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: _onDismissPointerDown,
+            onPointerMove: _onDismissPointerMove,
+            onPointerUp: _onDismissPointerUp,
+            onPointerCancel: _onDismissPointerCancel,
+            child: LayoutBuilder(
+              builder: (context, constraints) => GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragStart: (!hasSong || _isSelecting)
+                    ? null
+                    : (_) => _initializeLyrics(),
+                onHorizontalDragUpdate: (!hasSong || _isSelecting)
+                    ? null
+                    : (details) {
+                        _lyricsProgress.value =
+                            (_lyricsProgress.value -
+                                    details.delta.dx / constraints.maxWidth)
+                                .clamp(0.0, 1.0);
+                      },
+                onHorizontalDragEnd: (!hasSong || _isSelecting)
+                    ? null
+                    : (details) {
+                        final velocity = details.primaryVelocity ?? 0;
+                        _settleLyricsAfterDrag(
+                          show: shouldShowLyricsAfterHorizontalDrag(
+                            progress: _lyricsProgress.value,
+                            primaryVelocity: velocity,
+                          ),
                           primaryVelocity: velocity,
-                        ),
-                        primaryVelocity: velocity,
-                        width: constraints.maxWidth,
-                      );
-                    },
-              child: AnimatedBuilder(
-                animation: _lyricsProgress,
-                builder: (context, _) {
-                  final progress = Curves.easeOut.transform(
-                    _lyricsProgress.value,
-                  );
-                  final width = constraints.maxWidth;
-                  return Stack(
-                    children: [
-                      Transform.translate(
-                        offset: Offset(-width * 0.1 * progress, 0),
-                        child: Transform.scale(
-                          scale: 1 - 0.055 * progress,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(28 * progress),
-                            child: IgnorePointer(
-                              ignoring: _lyricsProgress.value > 0.01,
-                              child: playerPage,
+                          width: constraints.maxWidth,
+                        );
+                      },
+                child: AnimatedBuilder(
+                  animation: _lyricsProgress,
+                  builder: (context, _) {
+                    final progress = Curves.easeOut.transform(
+                      _lyricsProgress.value,
+                    );
+                    final width = constraints.maxWidth;
+                    return Stack(
+                      children: [
+                        Transform.translate(
+                          offset: Offset(-width * 0.1 * progress, 0),
+                          child: Transform.scale(
+                            scale: 1 - 0.055 * progress,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                28 * progress,
+                              ),
+                              child: IgnorePointer(
+                                ignoring: _lyricsProgress.value > 0.01,
+                                child: playerPage,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Transform.translate(
-                        offset: Offset(width * (1 - progress), 0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            28 * (1 - progress),
-                          ),
-                          child: IgnorePointer(
-                            ignoring: _lyricsProgress.value < 0.99,
-                            child: lyricsPage,
+                        Transform.translate(
+                          offset: Offset(width * (1 - progress), 0),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              28 * (1 - progress),
+                            ),
+                            child: IgnorePointer(
+                              ignoring: _lyricsProgress.value < 0.99,
+                              child: lyricsPage,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -352,11 +441,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Widget _buildPlayerPage(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final song = playerState.currentSong;
-    final visualSong = nowPlayingVisualSong(
-      state: playerState,
-      isSelecting: _isSelecting,
-      candidateIndex: _candidateIndex,
-    );
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -378,15 +462,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           ),
         ],
       ),
-      body: DynamicAlbumBackground(
-        coverArtId: visualSong?.coverArt ?? '',
-        coverUrl: _coverUrl(ref, visualSong),
-        motionSeed: visualSong?.id,
-        child: SafeArea(
-          child: song == null
-              ? _emptyState()
-              : _playerContent(context, ref, playerState),
-        ),
+      body: SafeArea(
+        child: song == null
+            ? _emptyState()
+            : _playerContent(context, ref, playerState),
       ),
     );
   }
@@ -727,7 +806,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     if (lockedSong == null ||
         incomingSong == null ||
         !_coverSlideCtrl.isAnimating) {
-      return _coverForSong(song);
+      return Hero(
+        tag: nowPlayingCoverHeroTag,
+        createRectTween: (begin, end) =>
+            NowPlayingCoverRectTween(begin: begin, end: end),
+        child: _coverForSong(song),
+      );
     }
 
     return LayoutBuilder(
@@ -830,235 +914,261 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           ),
         ),
 
-        const SizedBox(height: AppTheme.spacingLG),
-
-        // ── Song info ──
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
-          child: Row(
+        _NowPlayingControlsEntrance(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(
-                tooltip: isStarred ? '取消收藏' : '加入收藏',
-                icon: Icon(
-                  isStarred ? Icons.favorite_rounded : Icons.favorite_border,
+              const SizedBox(height: AppTheme.spacingLG),
+
+              // ── Song info ──
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingLG,
                 ),
-                style: IconButton.styleFrom(
-                  foregroundColor: isStarred
-                      ? context.favoriteRedColor
-                      : actionIconColor,
-                  disabledForegroundColor: disabledActionIconColor,
-                ),
-                onPressed: _isSelecting
-                    ? null
-                    : () async {
-                        try {
-                          await ref
-                              .read(libraryProvider.notifier)
-                              .setSongStarred(song, starred: !isStarred);
-                          if (context.mounted) {
-                            showAppToast(
-                              context,
-                              isStarred ? '已取消收藏' : '已加入收藏',
-                            );
-                          }
-                        } catch (error) {
-                          if (context.mounted) {
-                            showAppToast(context, '收藏失败：$error');
-                          }
-                        }
-                      },
-              ),
-              Expanded(
-                child: Column(
+                child: Row(
                   children: [
-                    Text(
-                      displaySong.title,
-                      style: context.textHeadlineMedium,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: AppTheme.spacingXS),
-                    Text(
-                      displaySong.artist,
-                      style: context.textTitleMedium.copyWith(
-                        color: context.secondaryColor,
+                    IconButton(
+                      tooltip: isStarred ? '取消收藏' : '加入收藏',
+                      icon: Icon(
+                        isStarred
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border,
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      style: IconButton.styleFrom(
+                        foregroundColor: isStarred
+                            ? context.favoriteRedColor
+                            : actionIconColor,
+                        disabledForegroundColor: disabledActionIconColor,
+                      ),
+                      onPressed: _isSelecting
+                          ? null
+                          : () async {
+                              try {
+                                await ref
+                                    .read(libraryProvider.notifier)
+                                    .setSongStarred(song, starred: !isStarred);
+                                if (context.mounted) {
+                                  showAppToast(
+                                    context,
+                                    isStarred ? '已取消收藏' : '已加入收藏',
+                                  );
+                                }
+                              } catch (error) {
+                                if (context.mounted) {
+                                  showAppToast(context, '收藏失败：$error');
+                                }
+                              }
+                            },
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Text(
+                            displaySong.title,
+                            style: context.textHeadlineMedium,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: AppTheme.spacingXS),
+                          Text(
+                            displaySong.artist,
+                            style: context.textTitleMedium.copyWith(
+                              color: context.secondaryColor,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '更多操作',
+                      icon: const Icon(Icons.more_horiz),
+                      style: IconButton.styleFrom(
+                        foregroundColor: actionIconColor,
+                        disabledForegroundColor: disabledActionIconColor,
+                      ),
+                      onPressed: _isSelecting
+                          ? null
+                          : () => SongActionsSheet.show(
+                              context,
+                              songTitle: song.title,
+                              songArtist: song.artist,
+                              isStarred: isStarred,
+                              onPlayNext: () {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .playNext(song);
+                              },
+                              onToggleFavorite: () {
+                                ref
+                                    .read(libraryProvider.notifier)
+                                    .setSongStarred(song, starred: !isStarred);
+                              },
+                              downloadService: ref.read(
+                                downloadServiceProvider,
+                              ),
+                              songId: song.id,
+                              song: song,
+                            ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: '更多操作',
-                icon: const Icon(Icons.more_horiz),
-                style: IconButton.styleFrom(
-                  foregroundColor: actionIconColor,
-                  disabledForegroundColor: disabledActionIconColor,
+
+              const SizedBox(height: AppTheme.spacingLG),
+
+              // ── Waveform progress ──
+              Opacity(
+                opacity: _isSelecting ? 0.3 : 1.0,
+                child: IgnorePointer(
+                  ignoring: _isSelecting,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingMD,
+                    ),
+                    child: WaveformProgress(
+                      position: playerState.position,
+                      duration: playerState.duration ?? Duration.zero,
+                      trackKey: song.id,
+                      isPlaying: playerState.isPlaying,
+                      playedColor: _visualPalette.waveformAccentFor(brightness),
+                      unplayedColor: _visualPalette.waveformTrackFor(
+                        brightness,
+                      ),
+                      onSeek: (position) async {
+                        try {
+                          await notifier.seek(position);
+                        } catch (error) {
+                          if (context.mounted) {
+                            showAppToast(context, '跳转失败，已恢复原进度');
+                          }
+                          rethrow;
+                        }
+                      },
+                    ),
+                  ),
                 ),
-                onPressed: _isSelecting
-                    ? null
-                    : () => SongActionsSheet.show(
-                        context,
-                        songTitle: song.title,
-                        songArtist: song.artist,
-                        isStarred: isStarred,
-                        onPlayNext: () {
-                          ref.read(playerProvider.notifier).playNext(song);
-                        },
-                        onToggleFavorite: () {
-                          ref
-                              .read(libraryProvider.notifier)
-                              .setSongStarred(song, starred: !isStarred);
-                        },
-                        downloadService: ref.read(downloadServiceProvider),
-                        songId: song.id,
-                        song: song,
-                      ),
               ),
+
+              // ── Time labels ──
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingXL,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatDuration(playerState.position),
+                      style: context.textCaption,
+                    ),
+                    Text(
+                      _formatDuration(playerState.duration ?? Duration.zero),
+                      style: context.textCaption,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: AppTheme.spacingMD),
+
+              // ── Playback controls ──
+              Opacity(
+                opacity: _isSelecting ? 0.3 : 1.0,
+                child: IgnorePointer(
+                  ignoring: _isSelecting,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingLG,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        // Combined playback mode
+                        IconButton(
+                          tooltip: _playbackModeLabel(playerState.playbackMode),
+                          icon: Icon(
+                            _playbackModeIcon(playerState.playbackMode),
+                          ),
+                          color:
+                              playerState.playbackMode ==
+                                  PlaybackMode.sequential
+                              ? actionIconColor
+                              : context.primaryColor,
+                          onPressed: () async {
+                            HapticFeedback.selectionClick();
+                            final mode = await notifier.cyclePlaybackMode();
+                            if (context.mounted) {
+                              showAppToast(
+                                context,
+                                _playbackModeLabel(mode),
+                                duration: const Duration(milliseconds: 900),
+                                replaceCurrent: true,
+                              );
+                            }
+                          },
+                        ),
+
+                        // Previous
+                        IconButton(
+                          icon: const Icon(Icons.skip_previous),
+                          iconSize: 36,
+                          onPressed: () => _slideToAdjacentTrack(
+                            _CoverSlideDirection.previous,
+                          ),
+                        ),
+
+                        // Play / Pause (large CTA)
+                        Container(
+                          width: 78,
+                          height: 78,
+                          decoration: BoxDecoration(
+                            color: playButtonBackground,
+                            shape: BoxShape.circle,
+                          ),
+                          child: IconButton(
+                            icon: Icon(
+                              playerState.isPlaying
+                                  ? Icons.pause
+                                  : Icons.play_arrow,
+                              color: playButtonForeground,
+                              size: 40,
+                            ),
+                            onPressed: () => notifier.togglePlayPause(),
+                          ),
+                        ),
+
+                        // Next
+                        IconButton(
+                          icon: const Icon(Icons.skip_next),
+                          iconSize: 36,
+                          onPressed: () =>
+                              _slideToAdjacentTrack(_CoverSlideDirection.next),
+                        ),
+
+                        // Queue
+                        IconButton(
+                          tooltip: '播放队列',
+                          icon: const Icon(Icons.queue_music_outlined),
+                          style: IconButton.styleFrom(
+                            foregroundColor: actionIconColor,
+                            disabledForegroundColor: disabledActionIconColor,
+                          ),
+                          onPressed: () => PlayQueueSheet.show(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: AppTheme.spacingLG),
             ],
           ),
         ),
-
-        const SizedBox(height: AppTheme.spacingLG),
-
-        // ── Waveform progress ──
-        Opacity(
-          opacity: _isSelecting ? 0.3 : 1.0,
-          child: IgnorePointer(
-            ignoring: _isSelecting,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacingMD,
-              ),
-              child: WaveformProgress(
-                position: playerState.position,
-                duration: playerState.duration ?? Duration.zero,
-                trackKey: song.id,
-                isPlaying: playerState.isPlaying,
-                playedColor: _visualPalette.waveformAccentFor(brightness),
-                unplayedColor: _visualPalette.waveformTrackFor(brightness),
-                onSeek: (position) async {
-                  try {
-                    await notifier.seek(position);
-                  } catch (error) {
-                    if (context.mounted) {
-                      showAppToast(context, '跳转失败，已恢复原进度');
-                    }
-                    rethrow;
-                  }
-                },
-              ),
-            ),
-          ),
-        ),
-
-        // ── Time labels ──
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(playerState.position),
-                style: context.textCaption,
-              ),
-              Text(
-                _formatDuration(playerState.duration ?? Duration.zero),
-                style: context.textCaption,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: AppTheme.spacingMD),
-
-        // ── Playback controls ──
-        Opacity(
-          opacity: _isSelecting ? 0.3 : 1.0,
-          child: IgnorePointer(
-            ignoring: _isSelecting,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacingLG,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Combined playback mode
-                  IconButton(
-                    tooltip: _playbackModeLabel(playerState.playbackMode),
-                    icon: Icon(_playbackModeIcon(playerState.playbackMode)),
-                    color: playerState.playbackMode == PlaybackMode.sequential
-                        ? actionIconColor
-                        : context.primaryColor,
-                    onPressed: () async {
-                      HapticFeedback.selectionClick();
-                      final mode = await notifier.cyclePlaybackMode();
-                      if (context.mounted) {
-                        showAppToast(
-                          context,
-                          _playbackModeLabel(mode),
-                          duration: const Duration(milliseconds: 900),
-                          replaceCurrent: true,
-                        );
-                      }
-                    },
-                  ),
-
-                  // Previous
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous),
-                    iconSize: 36,
-                    onPressed: () =>
-                        _slideToAdjacentTrack(_CoverSlideDirection.previous),
-                  ),
-
-                  // Play / Pause (large CTA)
-                  Container(
-                    width: 78,
-                    height: 78,
-                    decoration: BoxDecoration(
-                      color: playButtonBackground,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        playerState.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: playButtonForeground,
-                        size: 40,
-                      ),
-                      onPressed: () => notifier.togglePlayPause(),
-                    ),
-                  ),
-
-                  // Next
-                  IconButton(
-                    icon: const Icon(Icons.skip_next),
-                    iconSize: 36,
-                    onPressed: () =>
-                        _slideToAdjacentTrack(_CoverSlideDirection.next),
-                  ),
-
-                  // Queue
-                  IconButton(
-                    tooltip: '播放队列',
-                    icon: const Icon(Icons.queue_music_outlined),
-                    style: IconButton.styleFrom(
-                      foregroundColor: actionIconColor,
-                      disabledForegroundColor: disabledActionIconColor,
-                    ),
-                    onPressed: () => PlayQueueSheet.show(context),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: AppTheme.spacingLG),
       ],
     );
   }
