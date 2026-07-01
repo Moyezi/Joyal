@@ -37,42 +37,48 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
         coverArtId: song?.coverArt ?? '',
         coverUrl: coverUrl,
         motionSeed: song?.id,
-        child: SafeArea(
-          child: song == null
-              ? const Center(
+        child: song == null
+            ? const SafeArea(
+                child: Center(
                   child: Text('\u6682\u65e0\u64ad\u653e\u6b4c\u66f2'),
-                )
-              : ref
-                    .watch(lyricsProvider(song))
-                    .when(
-                      loading: () {
-                        return const Center(child: CircularProgressIndicator());
-                      },
-                      error: (error, stackTrace) {
-                        return _Message(
+                ),
+              )
+            : ref
+                  .watch(lyricsProvider(song))
+                  .when(
+                    loading: () {
+                      return const SafeArea(
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    },
+                    error: (error, stackTrace) {
+                      return SafeArea(
+                        child: _Message(
                           icon: Icons.cloud_off_outlined,
                           text: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
                           detail: error.toString(),
-                        );
-                      },
-                      data: (lyrics) {
-                        if (lyrics.isEmpty) {
-                          return const _Message(
+                        ),
+                      );
+                    },
+                    data: (lyrics) {
+                      if (lyrics.isEmpty) {
+                        return const SafeArea(
+                          child: _Message(
                             icon: Icons.lyrics_outlined,
                             text: '\u6682\u65e0\u6b4c\u8bcd',
                             detail:
                                 '\u5f53\u524d\u670d\u52a1\u5668\u672a\u63d0\u4f9b\u8fd9\u9996\u6b4c\u7684\u6b4c\u8bcd',
-                          );
-                        }
-                        return _LyricsList(
-                          data: lyrics,
-                          position: player.position,
-                          title: song.title,
-                          artist: song.artist,
+                          ),
                         );
-                      },
-                    ),
-        ),
+                      }
+                      return _LyricsList(
+                        data: lyrics,
+                        position: player.position,
+                        title: song.title,
+                        artist: song.artist,
+                      );
+                    },
+                  ),
       ),
     );
   }
@@ -200,66 +206,72 @@ class _LyricsListState extends State<_LyricsList> {
     final inactiveColor = isDark
         ? context.secondaryColor
         : context.primaryColor.withValues(alpha: 0.42);
+    final topInset = MediaQuery.paddingOf(context).top;
     final headerReserve = MediaQuery.textScalerOf(context).scale(52) + 64;
+    final lyricsTop = topInset + headerReserve;
+    final titleTop = topInset + 18;
     return Stack(
       fit: StackFit.expand,
       children: [
-        NotificationListener<ScrollNotification>(
-          onNotification: _handleScroll,
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(
-              22,
-              headerReserve,
-              22,
-              MediaQuery.sizeOf(context).height * 0.42,
-            ),
-            itemCount: data.lines.length,
-            itemBuilder: (context, lineIndex) {
-              final line = data.lines[lineIndex];
-              final isActive = lineIndex == active;
-              final text = line.text.isEmpty ? ' ' : line.text;
-              final activeStyle = context.textHeadlineMedium.copyWith(
-                fontSize: 30,
-                height: 1.35,
-                color: activeColor,
-                fontWeight: FontWeight.w800,
-              );
-              final inactiveScale = 21 / activeStyle.fontSize!;
-              final distance = active < 0
-                  ? 0
-                  : (lineIndex - active).abs().clamp(0, 6);
-              final blurSigma = isActive
-                  ? 0.0
-                  : (distance * 0.95).clamp(0.0, 4.8);
-              return Padding(
-                key: _lineKeys[lineIndex],
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: AnimatedScale(
-                  scale: isActive ? 1 : inactiveScale,
-                  alignment: Alignment.centerLeft,
-                  duration: const Duration(milliseconds: 520),
-                  curve: Curves.easeOutCubic,
-                  child: _LyricDepthFilteredLine(
-                    blurSigma: blurSigma,
-                    child: Text(
-                      text,
-                      style: activeStyle.copyWith(
-                        color: isActive ? activeColor : inactiveColor,
-                        fontWeight: isActive
-                            ? FontWeight.w800
-                            : FontWeight.w600,
+        Positioned.fill(
+          top: lyricsTop,
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handleScroll,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: EdgeInsets.fromLTRB(
+                22,
+                0,
+                22,
+                MediaQuery.sizeOf(context).height * 0.42,
+              ),
+              itemCount: data.lines.length,
+              itemBuilder: (context, lineIndex) {
+                final line = data.lines[lineIndex];
+                final isActive = lineIndex == active;
+                final text = line.text.isEmpty ? ' ' : line.text;
+                final activeStyle = context.textHeadlineMedium.copyWith(
+                  fontSize: 30,
+                  height: 1.35,
+                  color: activeColor,
+                  fontWeight: FontWeight.w800,
+                );
+                final inactiveScale = 21 / activeStyle.fontSize!;
+                final distance = active < 0
+                    ? 0
+                    : (lineIndex - active).abs().clamp(0, 6);
+                final blurSigma = isActive
+                    ? 0.0
+                    : (distance * 0.95).clamp(0.0, 4.8);
+                return Padding(
+                  key: _lineKeys[lineIndex],
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: AnimatedScale(
+                    scale: isActive ? 1 : inactiveScale,
+                    alignment: Alignment.centerLeft,
+                    duration: const Duration(milliseconds: 520),
+                    curve: Curves.easeOutCubic,
+                    child: _LyricDepthFilteredLine(
+                      blurSigma: blurSigma,
+                      child: Text(
+                        text,
+                        style: activeStyle.copyWith(
+                          color: isActive ? activeColor : inactiveColor,
+                          fontWeight: isActive
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const _LyricsGlassDepthOverlay(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+          padding: EdgeInsets.fromLTRB(22, titleTop, 22, 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
