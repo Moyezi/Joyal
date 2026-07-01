@@ -138,12 +138,14 @@ class _NowPlayingControlsEntrance extends StatelessWidget {
   }
 }
 
-class _HeroCoverShapeClip extends StatelessWidget {
+class _HeroCoverShapeFrame extends StatelessWidget {
   final double circleProgress;
+  final double shadowOpacity;
   final Widget child;
 
-  const _HeroCoverShapeClip({
+  const _HeroCoverShapeFrame({
     required this.circleProgress,
+    required this.shadowOpacity,
     required this.child,
   });
 
@@ -162,12 +164,30 @@ class _HeroCoverShapeClip extends StatelessWidget {
           Curves.easeInOutCubic.transform(circleProgress.clamp(0.0, 1.0)),
         );
 
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(radius),
-          child: child,
+        final borderRadius = BorderRadius.circular(radius);
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            boxShadow: _diffuseShadowWithOpacity(shadowOpacity),
+          ),
+          child: ClipRRect(borderRadius: borderRadius, child: child),
         );
       },
     );
+  }
+
+  List<BoxShadow> _diffuseShadowWithOpacity(double opacity) {
+    final clampedOpacity = opacity.clamp(0.0, 1.0);
+    if (clampedOpacity == 0) return const [];
+    return AppTheme.diffuseShadow
+        .map(
+          (shadow) => shadow.copyWith(
+            color: shadow.color.withValues(
+              alpha: shadow.color.a * clampedOpacity,
+            ),
+          ),
+        )
+        .toList();
   }
 
   double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
@@ -851,19 +871,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               final isPop = direction == HeroFlightDirection.pop;
               return AnimatedBuilder(
                 animation: animation,
-                child: _coverForSong(song),
+                child: _coverForSong(song, showShadow: false),
                 builder: (context, child) {
                   final progress = animation.value.clamp(0.0, 1.0);
                   final alignProgress = isPop ? 1 - progress : progress;
-                  final circleProgress = isPop ? progress : 1 - progress;
+                  final circleProgress = 1 - progress;
                   final miniTurns = RotatingNowPlayingCover.turnsFor(song.id);
                   final turns = isPop
                       ? miniTurns * alignProgress
                       : miniTurns * (1 - alignProgress);
                   return Transform.rotate(
                     angle: turns * 2 * 3.141592653589793,
-                    child: _HeroCoverShapeClip(
+                    child: _HeroCoverShapeFrame(
                       circleProgress: circleProgress,
+                      shadowOpacity: progress,
                       child: child!,
                     ),
                   );
@@ -911,11 +932,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     );
   }
 
-  Widget _coverForSong(Song song) {
+  Widget _coverForSong(Song song, {bool showShadow = true}) {
     return AlbumCover(
       coverArtUrl: _coverUrl(ref, song),
       cacheKey: song.coverArt,
       size: _coverSizeFor(context),
+      showShadow: showShadow,
     );
   }
 
