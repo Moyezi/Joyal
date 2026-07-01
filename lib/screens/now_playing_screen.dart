@@ -344,13 +344,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   void _onDismissPointerDown(PointerDownEvent event) {
+    if (_isDismissGestureDisabled) {
+      _resetDismissPointer();
+      return;
+    }
     _dismissDragOffset = 0;
     _dismissPointerPosition = event.position;
     _dismissPointerTime = DateTime.now();
   }
 
   void _onDismissPointerMove(PointerMoveEvent event) {
-    if (_isSelecting) return;
+    if (_isDismissGestureDisabled) {
+      _resetDismissPointer();
+      return;
+    }
     _dismissDragOffset = (_dismissDragOffset + event.delta.dy).clamp(
       0.0,
       double.infinity,
@@ -358,7 +365,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   void _onDismissPointerUp(PointerUpEvent event) {
-    if (_isSelecting) {
+    if (_isDismissGestureDisabled) {
       _resetDismissPointer();
       return;
     }
@@ -373,6 +380,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _onDismissPointerCancel(PointerCancelEvent event) {
     _resetDismissPointer();
   }
+
+  bool get _isDismissGestureDisabled =>
+      _isSelecting || _lyricsProgress.value > 0.01;
 
   double _dismissVelocity(Offset endPosition) {
     final startPosition = _dismissPointerPosition;

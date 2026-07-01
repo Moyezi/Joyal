@@ -29,20 +29,9 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
         : '';
 
     return Scaffold(
+      extendBody: true,
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        leading: widget.onBack == null
-            ? null
-            : IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: widget.onBack,
-              ),
-        title: const Text('\u6b4c\u8bcd'),
-      ),
       body: DynamicAlbumBackground(
         coverArtId: song?.coverArt ?? '',
         coverUrl: coverUrl,
@@ -210,66 +199,83 @@ class _LyricsListState extends State<_LyricsList> {
     final inactiveColor = isDark
         ? context.secondaryColor
         : context.primaryColor.withValues(alpha: 0.42);
-    return NotificationListener<ScrollNotification>(
-      onNotification: _handleScroll,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: EdgeInsets.fromLTRB(
-          28,
-          24,
-          28,
-          MediaQuery.sizeOf(context).height * 0.42,
-        ),
-        itemCount: data.lines.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(widget.title, style: context.textHeadlineLarge),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.artist,
-                    style: context.textTitleMedium.copyWith(
-                      color: context.secondaryColor,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-          final lineIndex = index - 1;
-          final line = data.lines[lineIndex];
-          final isActive = lineIndex == active;
-          final text = line.text.isEmpty ? ' ' : line.text;
-          final activeStyle = context.textHeadlineMedium.copyWith(
-            fontSize: 30,
-            height: 1.35,
-            color: activeColor,
-            fontWeight: FontWeight.w800,
-          );
-          final inactiveScale = 21 / activeStyle.fontSize!;
-          return Padding(
-            key: _lineKeys[lineIndex],
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: AnimatedScale(
-              scale: isActive ? 1 : inactiveScale,
-              alignment: Alignment.centerLeft,
-              duration: const Duration(milliseconds: 520),
-              curve: Curves.easeOutCubic,
-              child: Text(
-                text,
-                style: activeStyle.copyWith(
-                  color: isActive ? activeColor : inactiveColor,
-                  fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.textTitleLarge.copyWith(
+                  color: activeColor.withValues(alpha: 0.92),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                widget.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.textBodyMedium.copyWith(
+                  color: activeColor.withValues(alpha: 0.68),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _handleScroll,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: EdgeInsets.fromLTRB(
+                22,
+                18,
+                22,
+                MediaQuery.sizeOf(context).height * 0.42,
+              ),
+              itemCount: data.lines.length,
+              itemBuilder: (context, lineIndex) {
+                final line = data.lines[lineIndex];
+                final isActive = lineIndex == active;
+                final text = line.text.isEmpty ? ' ' : line.text;
+                final activeStyle = context.textHeadlineMedium.copyWith(
+                  fontSize: 30,
+                  height: 1.35,
+                  color: activeColor,
+                  fontWeight: FontWeight.w800,
+                );
+                final inactiveScale = 21 / activeStyle.fontSize!;
+                return Padding(
+                  key: _lineKeys[lineIndex],
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: AnimatedScale(
+                    scale: isActive ? 1 : inactiveScale,
+                    alignment: Alignment.centerLeft,
+                    duration: const Duration(milliseconds: 520),
+                    curve: Curves.easeOutCubic,
+                    child: Text(
+                      text,
+                      style: activeStyle.copyWith(
+                        color: isActive ? activeColor : inactiveColor,
+                        fontWeight: isActive
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 
