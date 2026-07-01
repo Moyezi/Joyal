@@ -10,8 +10,11 @@ import '../models/song.dart';
 import '../services/audio_player_service.dart';
 import '../services/subsonic_api.dart';
 import 'auth_provider.dart';
+import 'listening_stats_provider.dart';
 
 enum PlaybackMode { sequential, shuffle, repeatAll, repeatOne }
+
+void _noopCurrentSongStarted(Song song) {}
 
 /// Immutable snapshot of the audio player state.
 class PlaybackState {
@@ -87,14 +90,22 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
   static const _progressStorageKey = 'player_progress_v2';
   final AudioPlayerService? _audioService;
   final FlutterSecureStorage _storage;
+  final void Function(Song song) _onCurrentSongStarted;
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   Timer? _saveTimer;
   bool _restoring = false;
   int _queueSaveGeneration = 0;
   int _progressSaveGeneration = 0;
 
-  PlayerNotifier(this._audioService, this._storage)
-    : super(const PlaybackState());
+  PlayerNotifier(
+    this._audioService,
+    this._storage, {
+    this._onCurrentSongStarted = _noopCurrentSongStarted,
+  }) : super(const PlaybackState());
+
+  void _markCurrentSongHeard(Song song) {
+    _onCurrentSongStarted(song);
+  }
 
   /// Sets the audio service reference (called after auth establishes the API).
   void setAudioService(AudioPlayerService service) {
@@ -147,6 +158,7 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
         shuffleEnabled: shuffle,
         isRestoringSession: false,
       );
+      _markCurrentSongHeard(songs[index]);
     } catch (_) {
       // Ignore stale snapshots so they never prevent a clean player startup.
     } finally {
@@ -237,10 +249,9 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
         if (index == null || index < 0 || index >= state.playlist.length) {
           return;
         }
-        state = state.copyWith(
-          currentIndex: index,
-          currentSong: state.playlist[index],
-        );
+        final song = state.playlist[index];
+        state = state.copyWith(currentIndex: index, currentSong: song);
+        _markCurrentSongHeard(song);
         _scheduleSave();
       }),
     );
@@ -256,6 +267,7 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
       playlist: [song],
       currentIndex: 0,
     );
+    _markCurrentSongHeard(song);
     unawaited(_saveQueue());
     unawaited(_saveProgress());
     _scheduleSave();
@@ -274,6 +286,7 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
       playlist: songs,
       currentIndex: startIndex,
     );
+    _markCurrentSongHeard(songs[startIndex]);
     unawaited(_saveQueue());
     unawaited(_saveProgress());
     _scheduleSave();
@@ -339,6 +352,7 @@ class PlayerNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       isPlaying: true,
     );
+    _markCurrentSongHeard(state.playlist[index]);
     _scheduleSave();
   }
 
@@ -441,6 +455,11 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlaybackState>((
   final notifier = PlayerNotifier(
     audioService,
     ref.watch(secureStorageProvider),
+    onCurrentSongStarted: (song) {
+      unawaited(
+        ref.read(listeningStatsProvider.notifier).markSongHeard(song.id),
+      );
+    },
   );
   if (audioService != null) {
     notifier.setAudioService(audioService);

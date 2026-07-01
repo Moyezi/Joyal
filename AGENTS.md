@@ -15,7 +15,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 ## 关键路径
 
-- API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`。
+- API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`、`lib/providers/listening_stats_provider.dart`。
 - 曲库/搜索/收藏：`lib/providers/library_provider.dart`、`lib/screens/home_screen.dart`、`lib/screens/library_screen.dart`、`lib/screens/hotlist_screen.dart`、`lib/screens/search_screen.dart`。
 - 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/screens/personalization_screen.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`、`lib/widgets/play_queue_sheet.dart`。
 - 播放页/歌词/视觉：`lib/screens/now_playing_screen.dart`、`lib/screens/lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/providers/visual_effect_provider.dart`、`lib/widgets/waveform_progress.dart`、`lib/widgets/album_visual_palette.dart`、`lib/widgets/dynamic_album_background.dart`、`lib/widgets/now_playing_transition.dart`。
@@ -35,7 +35,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
 - 首页“随机专辑”从 `LibraryState.albums` 中按当天日期稳定随机选 8 张（双列 4 行）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
-- 侧边栏只放真实状态和明确标记为“预留”的占位内容；“个性化”进入 `PersonalizationScreen`，左下角设置按钮进入 `SettingsHubScreen`。
+- 侧边栏只放真实状态和明确标记为“预留”的占位内容；“个性化”进入 `PersonalizationScreen`，左下角设置按钮进入 `SettingsHubScreen`。侧边栏内容区可滚动，底部设置/主题按钮固定，避免小屏溢出。
 
 ## 主题与视觉
 
@@ -55,6 +55,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 曲库页刷新走 `refreshLibrary()`，收藏页刷新走 `fetchStarred()`；顶部刷新按钮和下拉刷新都要防重复触发，未连接时提示，刷新后用 `showAppToast(...)` 明确成功或失败，不能静默完成。
 - 收藏采用共享状态和乐观更新，失败回滚；收藏页无需手动刷新即可同步。
 - 播放器使用 `just_audio` 多曲目音源序列；搜索、收藏、专辑、全曲库歌曲都会用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。
+- `ListeningStatsNotifier` 只记录本机已听过的去重歌曲 id，写入 secure storage；侧边栏“听歌概览”进度条 = 已听歌曲数 / 当前曲库全部歌曲数。不要把它描述成服务端累计播放统计。
 - 用户明确要求：不要恢复异常自动下一首、回跳和额外 seek 保护逻辑；播放链路尽量单纯地从 Navidrome `stream.view&format=raw` 播放。
 - 切歌时后台预取当前歌曲和下一首歌词并写入本地 JSON 缓存；不承诺应用进程彻底关闭后恢复完整队列和进度。
 - 歌词缓存键按 `baseUrl + username + song.id` 作用域生成；空歌词也要短期缓存。失败后移除内存 Future 缓存。
