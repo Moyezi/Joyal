@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -199,12 +200,68 @@ class _LyricsListState extends State<_LyricsList> {
     final inactiveColor = isDark
         ? context.secondaryColor
         : context.primaryColor.withValues(alpha: 0.42);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final headerReserve = MediaQuery.textScalerOf(context).scale(52) + 64;
+    return Stack(
+      fit: StackFit.expand,
       children: [
+        NotificationListener<ScrollNotification>(
+          onNotification: _handleScroll,
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(
+              22,
+              headerReserve,
+              22,
+              MediaQuery.sizeOf(context).height * 0.42,
+            ),
+            itemCount: data.lines.length,
+            itemBuilder: (context, lineIndex) {
+              final line = data.lines[lineIndex];
+              final isActive = lineIndex == active;
+              final text = line.text.isEmpty ? ' ' : line.text;
+              final activeStyle = context.textHeadlineMedium.copyWith(
+                fontSize: 30,
+                height: 1.35,
+                color: activeColor,
+                fontWeight: FontWeight.w800,
+              );
+              final inactiveScale = 21 / activeStyle.fontSize!;
+              final distance = active < 0
+                  ? 0
+                  : (lineIndex - active).abs().clamp(0, 6);
+              final blurSigma = isActive
+                  ? 0.0
+                  : (distance * 0.95).clamp(0.0, 4.8);
+              return Padding(
+                key: _lineKeys[lineIndex],
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: AnimatedScale(
+                  scale: isActive ? 1 : inactiveScale,
+                  alignment: Alignment.centerLeft,
+                  duration: const Duration(milliseconds: 520),
+                  curve: Curves.easeOutCubic,
+                  child: _LyricDepthFilteredLine(
+                    blurSigma: blurSigma,
+                    child: Text(
+                      text,
+                      style: activeStyle.copyWith(
+                        color: isActive ? activeColor : inactiveColor,
+                        fontWeight: isActive
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const _LyricsGlassDepthOverlay(),
         Padding(
           padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -229,52 +286,6 @@ class _LyricsListState extends State<_LyricsList> {
             ],
           ),
         ),
-        Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _handleScroll,
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: EdgeInsets.fromLTRB(
-                22,
-                18,
-                22,
-                MediaQuery.sizeOf(context).height * 0.42,
-              ),
-              itemCount: data.lines.length,
-              itemBuilder: (context, lineIndex) {
-                final line = data.lines[lineIndex];
-                final isActive = lineIndex == active;
-                final text = line.text.isEmpty ? ' ' : line.text;
-                final activeStyle = context.textHeadlineMedium.copyWith(
-                  fontSize: 30,
-                  height: 1.35,
-                  color: activeColor,
-                  fontWeight: FontWeight.w800,
-                );
-                final inactiveScale = 21 / activeStyle.fontSize!;
-                return Padding(
-                  key: _lineKeys[lineIndex],
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: AnimatedScale(
-                    scale: isActive ? 1 : inactiveScale,
-                    alignment: Alignment.centerLeft,
-                    duration: const Duration(milliseconds: 520),
-                    curve: Curves.easeOutCubic,
-                    child: Text(
-                      text,
-                      style: activeStyle.copyWith(
-                        color: isActive ? activeColor : inactiveColor,
-                        fontWeight: isActive
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -284,6 +295,130 @@ class _LyricsListState extends State<_LyricsList> {
     _resumeTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+}
+
+class _LyricDepthFilteredLine extends StatelessWidget {
+  final double blurSigma;
+  final Widget child;
+
+  const _LyricDepthFilteredLine({required this.blurSigma, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: blurSigma),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, sigma, child) {
+        if (sigma <= 0.05) return child!;
+        return ImageFiltered(
+          imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+class _LyricsGlassDepthOverlay extends StatelessWidget {
+  const _LyricsGlassDepthOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tint = isDark ? Colors.black : Colors.white;
+    return IgnorePointer(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final height = constraints.maxHeight;
+          final bandHeight = (height * 0.34).clamp(120.0, 220.0);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Align(
+                alignment: Alignment.topCenter,
+                child: _GlassFadeBand(
+                  height: bandHeight,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  sigma: 13,
+                  tint: tint,
+                  tintAlpha: isDark ? 0.22 : 0.18,
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _GlassFadeBand(
+                  height: bandHeight,
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  sigma: 15,
+                  tint: tint,
+                  tintAlpha: isDark ? 0.30 : 0.26,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _GlassFadeBand extends StatelessWidget {
+  final double height;
+  final Alignment begin;
+  final Alignment end;
+  final double sigma;
+  final Color tint;
+  final double tintAlpha;
+
+  const _GlassFadeBand({
+    required this.height,
+    required this.begin,
+    required this.end,
+    required this.sigma,
+    required this.tint,
+    required this.tintAlpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: ClipRect(
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: begin,
+              end: end,
+              colors: const [Colors.white, Colors.transparent],
+              stops: const [0.12, 1],
+            ).createShader(bounds);
+          },
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: begin,
+                  end: end,
+                  colors: [
+                    tint.withValues(alpha: tintAlpha),
+                    tint.withValues(alpha: 0),
+                  ],
+                  stops: const [0, 1],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
