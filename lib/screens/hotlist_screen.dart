@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme_context.dart';
 import '../providers/library_provider.dart';
+import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/page_custom_background.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
@@ -110,6 +112,11 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
       body: SafeArea(
         child: Stack(
           children: [
+            const Positioned.fill(
+              child: PageCustomBackground(
+                target: PageBackgroundTarget.favorites,
+              ),
+            ),
             Positioned.fill(
               child: state.isLoadingStarred && albums.isEmpty && songs.isEmpty
                   ? const Padding(

@@ -8,9 +8,11 @@ import '../config/theme_context.dart';
 import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
+import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/page_custom_background.dart';
 import '../widgets/play_queue_sheet.dart';
 import 'album_detail_screen.dart';
 import 'search_screen.dart';
@@ -115,6 +117,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       body: SafeArea(
         child: Stack(
           children: [
+            const Positioned.fill(
+              child: PageCustomBackground(target: PageBackgroundTarget.home),
+            ),
             Positioned.fill(child: _buildBody(libraryState)),
             GlassTopBar(
               height: _headerHeight,

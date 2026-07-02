@@ -9,7 +9,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 ## 技术与安全
 
 - Flutter / Dart / Material 3，Riverpod 管共享状态；播放用 `just_audio`，请求用 `dio`，封面缓存优先走本地磁盘。
-- 凭据、搜索历史、播放进度、主题和缓存上限写入 `flutter_secure_storage`；缓存上限另写 `AppCacheService` JSON 兜底。
+- 凭据、搜索历史、播放进度、主题、页面背景路径和缓存上限写入 `flutter_secure_storage`；缓存上限另写 `AppCacheService` JSON 兜底。
 - Subsonic 认证使用随机 salt + `md5(password + salt)` token。禁止写入或传输真实明文凭据；公网 Navidrome 优先 HTTPS。
 - Android 媒体桥只传播放元数据和本地封面路径，不传流媒体 URL、token、密码或 baseUrl。`OppoFluidCloudBridge` 仅作未来 SDK 预留，当前依赖标准 `MediaSession`。
 
@@ -17,7 +17,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`、`lib/providers/listening_stats_provider.dart`。
 - 曲库/搜索/收藏：`lib/providers/library_provider.dart`、`lib/screens/home_screen.dart`、`lib/screens/library_screen.dart`、`lib/screens/hotlist_screen.dart`、`lib/screens/search_screen.dart`。
-- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/screens/personalization_screen.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`、`lib/widgets/play_queue_sheet.dart`。
+- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`lib/screens/settings_hub_screen.dart`、`lib/screens/personalization_screen.dart`、`lib/providers/page_background_provider.dart`、`lib/widgets/page_custom_background.dart`、`lib/widgets/glass_top_bar.dart`、`lib/widgets/mini_player.dart`、`lib/widgets/bottom_nav.dart`、`lib/widgets/play_queue_sheet.dart`。
 - 播放页/歌词/视觉：`lib/screens/now_playing_screen.dart`、`lib/screens/lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/providers/visual_effect_provider.dart`、`lib/widgets/waveform_progress.dart`、`lib/widgets/album_visual_palette.dart`、`lib/widgets/dynamic_album_background.dart`、`lib/widgets/now_playing_transition.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`lib/services/cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
 - Android 媒体桥：`android/app/src/main/kotlin/com/example/joyal_music/`。
@@ -26,7 +26,8 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 主导航只有：首页、曲库、收藏；搜索从首页大搜索框或顶栏搜索图标进入。
 - 三个主页面使用固定毛玻璃顶栏 `GlassTopBar`，标题/按钮行用 `GlassTopBarTitleRow`。曲库“歌曲/专辑” TabBar 是额外下方区域，不影响标题和按钮位置。
-- 根页面用 `Stack`；页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
+- 根页面用 `Stack`；主页面内容用 `PageView` 承载，页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
+- 底部导航支持在 `AppBottomNav` 区域横向拖动切换主页面：手指移动到哪个导航项就显示对应页面，跨项时触发选择振动反馈；页面切换要能看到目标页从屏幕边缘滑入，不做瞬间替换。
 - 迷你播放栏支持在自身区域右滑折叠成右下悬浮旋转专辑封面按钮，点击按钮展开；折叠态必须同步收回 Dock 外层藏青色背景，底部导航回到页面背景色。该交互由 `_MainShellState` 管折叠状态，`MiniPlayer` 只负责展开/折叠形态和手势回调；底部 Dock 区域不应触发主页侧边栏右滑。
 - 迷你播放栏折叠/展开应保持固定高度轨道，封面作为共享元素从左侧非线性收缩到右侧悬浮按钮；不要用不同高度组件切换导致结束时竖向瞬移。Dock 外层藏青色背景与迷你播放栏主体要使用同一时长/曲线/淡出进度，避免底部导航左右上角色块提前消失或出现。
 - 独立详情页的返回按钮固定在页面级左上安全区；复用内容组件不要自带返回栏或改变 TabBar/标题区域高度。
@@ -35,7 +36,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
 - 首页“随机专辑”从 `LibraryState.albums` 中按当天日期稳定随机选 8 张（双列 4 行）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
-- 侧边栏只放真实状态和明确标记为“预留”的占位内容；“个性化”进入 `PersonalizationScreen`，左下角设置按钮进入 `SettingsHubScreen`。侧边栏内容区可滚动，底部设置/主题按钮固定，避免小屏溢出。
+- 侧边栏只放真实状态和明确标记为“预留”的占位内容；底部固定按钮行放设置、个性化（刷子图标）和主题切换，分别进入 `SettingsHubScreen`、`PersonalizationScreen` 或循环主题。侧边栏内容区可滚动，底部按钮固定，避免小屏溢出。
 
 ## 主题与视觉
 
@@ -46,6 +47,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - Toast 统一用 `lib/utils/app_toast.dart` 的 `showAppToast(...)`，不要散落 `ScaffoldMessenger.showSnackBar(...)`。
 - Toast 宽度应按文案自适应，优先用 `BoxConstraints` 让文本自然布局，不要用 `TextPainter` 手算容器宽度；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
+- `PersonalizationScreen` 可为首页、曲库、收藏分别选择手机本地图片作页面背景；用 `image_picker` 选择后复制到应用支持目录，再由 `PageBackgroundNotifier` 保存路径。主页面通过 `PageCustomBackground` 在内容 `Stack` 底层铺图并按亮暗模式加遮罩，不改变列表、顶栏和 Dock 的空间关系。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；运动参数可按歌曲 `motionSeed` 稳定生成，切歌时要平滑过渡，不要让光斑瞬移；静态渐变应停止动画控制器。
 
 ## 曲库、播放与歌词

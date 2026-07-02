@@ -61,12 +61,6 @@ class HomeSidebar extends ConsumerWidget {
                     const _ReservedItem(title: '灵感入口'),
                     const SizedBox(height: 12),
                     const _ReservedItem(title: '最近动态'),
-                    const SizedBox(height: 12),
-                    _SidebarActionItem(
-                      title: '个性化',
-                      icon: Icons.tune_rounded,
-                      onTap: onPersonalizationTap,
-                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -79,6 +73,13 @@ class HomeSidebar extends ConsumerWidget {
                   onPressed: onSettingsTap,
                   style: _sidebarBottomButtonStyle(context),
                   icon: const Icon(Icons.settings_outlined),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filledTonal(
+                  tooltip: '个性化',
+                  onPressed: onPersonalizationTap,
+                  style: _sidebarBottomButtonStyle(context),
+                  icon: const Icon(Icons.brush_outlined),
                 ),
                 const SizedBox(width: 12),
                 _ThemeModeButton(),
@@ -279,40 +280,6 @@ class _ListeningStat extends StatelessWidget {
           style: context.textCaption.copyWith(fontSize: 12),
         ),
       ],
-    );
-  }
-}
-
-class _SidebarActionItem extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SidebarActionItem({
-    required this.title,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.surfaceHighlightColor,
-      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Expanded(child: Text(title, style: context.textTitleMedium)),
-              const SizedBox(width: 12),
-              Icon(icon, color: context.secondaryColor, size: 20),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
