@@ -86,11 +86,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       await WidgetsBinding.instance.endOfFrame;
     }
     if (!mounted) return;
+    final topInset = MediaQuery.paddingOf(context).top;
     await scrollIndexToCenter(
       controller: _songsController,
       index: index,
       itemExtent: _songExtent,
-      leadingExtent: _headerHeight + 8,
+      leadingExtent: _headerHeight + topInset + 8,
     );
   }
 
@@ -132,78 +133,81 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
+    final topPadding = _headerHeight + MediaQuery.paddingOf(context).top;
+    final hasPageBackground = ref.watch(
+      pageBackgroundProvider.select(
+        (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
+      ),
+    );
 
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: PageCustomBackground(target: PageBackgroundTarget.library),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: PageCustomBackground(target: PageBackgroundTarget.library),
+          ),
+          Positioned.fill(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _SongsView(
+                  state: state,
+                  controller: _songsController,
+                  topPadding: topPadding,
+                ),
+                _AlbumsView(
+                  state: state,
+                  controller: _albumsController,
+                  topPadding: topPadding,
+                ),
+              ],
             ),
-            Positioned.fill(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _SongsView(
-                    state: state,
-                    controller: _songsController,
-                    topPadding: _headerHeight,
-                  ),
-                  _AlbumsView(
-                    state: state,
-                    controller: _albumsController,
-                    topPadding: _headerHeight,
-                  ),
-                ],
-              ),
-            ),
-            GlassTopBar(
-              height: _headerHeight,
-              child: Column(
-                children: [
-                  GlassTopBarTitleRow(
-                    height: _topBarHeight,
-                    title: '曲库',
-                    actions: [
-                      if (hasSong)
-                        IconButton(
-                          tooltip: '定位到当前歌曲',
-                          onPressed: _locateCurrentSong,
-                          icon: const Icon(Icons.my_location_rounded),
-                        ),
+          ),
+          GlassTopBar(
+            height: _headerHeight,
+            hasPageBackground: hasPageBackground,
+            child: Column(
+              children: [
+                GlassTopBarTitleRow(
+                  height: _topBarHeight,
+                  title: '曲库',
+                  actions: [
+                    if (hasSong)
                       IconButton(
-                        tooltip: '刷新曲库',
-                        onPressed: _isRefreshing ? null : _refreshLibrary,
-                        icon: _isRefreshing
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.refresh_rounded),
+                        tooltip: '定位到当前歌曲',
+                        onPressed: _locateCurrentSong,
+                        icon: const Icon(Icons.my_location_rounded),
                       ),
-                    ],
-                  ),
-                  TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    dividerColor: Colors.transparent,
-                    labelColor: context.primaryColor,
-                    unselectedLabelColor: context.secondaryColor,
-                    indicatorColor: context.primaryColor,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    tabs: [
-                      Tab(text: '歌曲  ${state.songs.length}'),
-                      Tab(text: '专辑  ${state.albums.length}'),
-                    ],
-                  ),
-                ],
-              ),
+                    IconButton(
+                      tooltip: '刷新曲库',
+                      onPressed: _isRefreshing ? null : _refreshLibrary,
+                      icon: _isRefreshing
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.refresh_rounded),
+                    ),
+                  ],
+                ),
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  dividerColor: Colors.transparent,
+                  labelColor: context.primaryColor,
+                  unselectedLabelColor: context.secondaryColor,
+                  indicatorColor: context.primaryColor,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  tabs: [
+                    Tab(text: '歌曲  ${state.songs.length}'),
+                    Tab(text: '专辑  ${state.albums.length}'),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

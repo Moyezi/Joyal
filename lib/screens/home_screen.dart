@@ -103,6 +103,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
+    final topInset = MediaQuery.paddingOf(context).top;
+    final hasPageBackground = ref.watch(
+      pageBackgroundProvider.select(
+        (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
+      ),
+    );
 
     // 每次重建后尝试上报排除矩形（防抖：同一帧内不重复调度）
     if (!_exclusionRectPending) {
@@ -114,25 +120,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: PageCustomBackground(target: PageBackgroundTarget.home),
-            ),
-            Positioned.fill(child: _buildBody(libraryState)),
-            GlassTopBar(
-              height: _headerHeight,
-              searchAnimation: _animController,
-              onSearchTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
-              child: _buildHeader(),
-            ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: PageCustomBackground(target: PageBackgroundTarget.home),
+          ),
+          Positioned.fill(child: _buildBody(libraryState, topInset)),
+          GlassTopBar(
+            height: _headerHeight,
+            hasPageBackground: hasPageBackground,
+            searchAnimation: _animController,
+            onSearchTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+            child: _buildHeader(),
+          ),
+        ],
       ),
     );
+  }
+
+  double _topContentPadding(double topInset) => _headerHeight + topInset;
+
+  Widget _headerSpacer(double topInset) {
+    return SizedBox(height: _topContentPadding(topInset));
+  }
+
+  EdgeInsets _topOnlyPadding(double topInset) {
+    return EdgeInsets.only(top: _topContentPadding(topInset));
+  }
+
+  Widget _topPaddingSliver(double topInset) {
+    return SliverToBoxAdapter(child: _headerSpacer(topInset));
   }
 
   Widget _buildHeader() {
@@ -179,20 +198,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildBody(LibraryState state) {
+  Widget _buildBody(LibraryState state, double topInset) {
     if (state.isLoading && state.albums.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(top: _headerHeight),
-        child: Center(child: CircularProgressIndicator()),
+      return Padding(
+        padding: _topOnlyPadding(topInset),
+        child: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (state.error != null && state.albums.isEmpty) {
-      return _buildError(state.error!);
+      return _buildError(state.error!, topInset);
     }
 
     if (state.albums.isEmpty) {
-      return _buildEmpty();
+      return _buildEmpty(topInset);
     }
 
     final albums = state.albums;
@@ -209,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         controller: _scrollController,
         slivers: [
           // ── 顶部问候 ──
-          const SliverToBoxAdapter(child: SizedBox(height: _headerHeight)),
+          _topPaddingSliver(topInset),
           SliverToBoxAdapter(child: _buildSearch()),
 
           // ── 最近添加（横向滚动） ──
@@ -302,9 +321,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildError(String msg) {
+  Widget _buildError(String msg, double topInset) {
     return Padding(
-      padding: const EdgeInsets.only(top: _headerHeight),
+      padding: _topOnlyPadding(topInset),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppTheme.spacingXL),
@@ -333,10 +352,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(double topInset) {
     return ListView(
       children: [
-        const SizedBox(height: _headerHeight),
+        _headerSpacer(topInset),
         _buildSearch(),
         const SizedBox(height: 80),
         Center(

@@ -26,6 +26,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 主导航只有：首页、曲库、收藏；搜索从首页大搜索框或顶栏搜索图标进入。
 - 三个主页面使用固定毛玻璃顶栏 `GlassTopBar`，标题/按钮行用 `GlassTopBarTitleRow`。曲库“歌曲/专辑” TabBar 是额外下方区域，不影响标题和按钮位置。
+- `GlassTopBar` 的毛玻璃层必须覆盖到手机状态栏；主页面根 `Stack` 不要整体包 `SafeArea`，应由顶栏内部吃顶部安全区，列表/空态顶部留白再加 `MediaQuery.padding.top`，避免状态栏和标题栏玻璃割裂。
 - 根页面用 `Stack`；主页面内容用 `PageView` 承载，页面铺底，`MiniPlayer` 与 `AppBottomNav` 组成透明 Dock 覆盖底部。列表底部内边距要动态避让 Dock，并区分无播放栏/有播放栏两种情况；有播放栏时额外加上 `MiniPlayer` 高度。
 - 底部导航支持在 `AppBottomNav` 区域横向拖动切换主页面：手指移动到哪个导航项就显示对应页面，跨项时触发选择振动反馈；页面切换要能看到目标页从屏幕边缘滑入，不做瞬间替换。
 - 迷你播放栏支持在自身区域右滑折叠成右下悬浮旋转专辑封面按钮，点击按钮展开；折叠态必须同步收回 Dock 外层藏青色背景，底部导航回到页面背景色。该交互由 `_MainShellState` 管折叠状态，`MiniPlayer` 只负责展开/折叠形态和手势回调；底部 Dock 区域不应触发主页侧边栏右滑。
@@ -47,7 +48,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - Toast 统一用 `lib/utils/app_toast.dart` 的 `showAppToast(...)`，不要散落 `ScaffoldMessenger.showSnackBar(...)`。
 - Toast 宽度应按文案自适应，优先用 `BoxConstraints` 让文本自然布局，不要用 `TextPainter` 手算容器宽度；少于 10 个字保持单行完整显示，10 个字及以上才允许最多两行，避免短提示提前省略。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
-- `PersonalizationScreen` 可为首页、曲库、收藏分别选择手机本地图片作页面背景；用 `image_picker` 选择后复制到应用支持目录，再由 `PageBackgroundNotifier` 保存路径。主页面通过 `PageCustomBackground` 在内容 `Stack` 底层铺图并按亮暗模式加遮罩，不改变列表、顶栏和 Dock 的空间关系。
+- `PersonalizationScreen` 只维护一张首页、曲库、收藏共用的手机本地页面背景；用 `image_picker` 选择后复制到应用支持目录，再由 `PageBackgroundNotifier` 保存统一路径和背景模糊值。主页面通过 `PageCustomBackground` 在内容 `Stack` 底层铺图、按亮暗模式加遮罩并应用可调模糊，不改变列表、顶栏和 Dock 的空间关系；`GlassTopBar` 有自定义背景时应降低遮罩不透明度，让背景延伸到毛玻璃后面。旧的分页面背景路径只作为升级兼容迁移来源，不再作为产品形态。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；运动参数可按歌曲 `motionSeed` 稳定生成，切歌时要平滑过渡，不要让光斑瞬移；静态渐变应停止动画控制器。
 
 ## 曲库、播放与歌词

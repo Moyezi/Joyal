@@ -13,6 +13,7 @@ class GlassTopBar extends StatelessWidget {
   final Widget child;
   final Animation<double>? searchAnimation;
   final VoidCallback? onSearchTap;
+  final bool hasPageBackground;
 
   const GlassTopBar({
     super.key,
@@ -20,18 +21,24 @@ class GlassTopBar extends StatelessWidget {
     required this.child,
     this.searchAnimation,
     this.onSearchTap,
+    this.hasPageBackground = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final showSearch = searchAnimation != null && onSearchTap != null;
+    final topInset = MediaQuery.paddingOf(context).top;
     final bg = Theme.of(context).scaffoldBackgroundColor;
+    final topColor = hasPageBackground ? bg.withValues(alpha: .72) : bg;
+    final middleColor = hasPageBackground ? bg.withValues(alpha: .64) : bg;
+    final lowerColor = bg.withValues(alpha: hasPageBackground ? .42 : .76);
+    final bottomColor = bg.withValues(alpha: hasPageBackground ? .20 : .54);
 
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
-      height: height,
+      height: height + topInset,
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
@@ -45,12 +52,7 @@ class GlassTopBar extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    bg,
-                    bg,
-                    bg.withValues(alpha: .76),
-                    bg.withValues(alpha: .54),
-                  ],
+                  colors: [topColor, middleColor, lowerColor, bottomColor],
                   stops: const [0, .18, .56, 1],
                 ),
                 border: Border(
@@ -61,12 +63,18 @@ class GlassTopBar extends StatelessWidget {
               ),
             ),
             // Left: original child (greeting)
-            child,
+            Positioned(
+              top: topInset,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: child,
+            ),
             // Right: search icon (only when searchAnimation is provided)
             if (showSearch)
               Positioned(
                 right: 16,
-                top: 0,
+                top: topInset,
                 bottom: 0,
                 child: AnimatedBuilder(
                   animation: searchAnimation!,
