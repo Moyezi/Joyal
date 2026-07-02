@@ -94,6 +94,25 @@ void main() {
     expect(find.byIcon(Icons.person_outline), findsNothing);
   });
 
+  testWidgets('Bottom navigation switches tabs while dragging across items', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
+
+    await tester.dragFrom(const Offset(620, 580), const Offset(-180, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('歌曲  0'), findsOneWidget);
+
+    await tester.dragFrom(const Offset(360, 580), const Offset(-180, 0));
+    await tester.pumpAndSettle();
+
+    expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
+  });
+
   testWidgets('Home sidebar settings button opens settings hub', (
     tester,
   ) async {

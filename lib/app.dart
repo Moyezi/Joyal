@@ -67,7 +67,7 @@ class JoyalMusicApp extends ConsumerWidget {
 
 /// The primary navigation shell:
 /// - Bottom tab bar (Home / Library / Favorites)
-/// - Tab content via [IndexedStack]
+/// - Tab content via [PageView]
 /// - Home sidebar drawer and floating [MiniPlayer] above the bottom nav
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -81,12 +81,15 @@ class _MainShellState extends ConsumerState<MainShell>
   int _currentTab = 0;
   AndroidMediaBridge? _androidMediaBridge;
   final ValueNotifier<int> _libraryTabRequest = ValueNotifier<int>(0);
+  final PageController _pageController = PageController();
+  final GlobalKey _bottomNavKey = GlobalKey();
 
   static const double _drawerWidthFactor = 0.70;
   static const double _drawerOpenThreshold = 0.35;
   static const double _drawerMaxBlur = 8;
   static const double _drawerMinScale = 0.94;
   static const double _drawerFlingVelocity = 420;
+  static const Duration _tabSwitchDuration = Duration(milliseconds: 260);
   static const Duration _tapCloseDuration = Duration(milliseconds: 220);
 
   bool _isDraggingDrawer = false;
@@ -157,12 +160,50 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   void _onTabChanged(int index) {
-    setState(() => _currentTab = index);
+    _selectTab(index);
+  }
+
+  void _selectTab(int index, {bool haptic = false}) {
+    final nextIndex = index.clamp(0, _screens.length - 1);
+    if (nextIndex == _currentTab) return;
+
+    if (haptic) {
+      HapticFeedback.selectionClick();
+    }
+    setState(() => _currentTab = nextIndex);
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        nextIndex,
+        duration: _tabSwitchDuration,
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  int? _tabIndexAtGlobalPosition(Offset globalPosition) {
+    final context = _bottomNavKey.currentContext;
+    if (context == null) return null;
+    final renderBox = context.findRenderObject();
+    if (renderBox is! RenderBox || renderBox.size.width <= 0) return null;
+
+    final localX = renderBox.globalToLocal(globalPosition).dx;
+    final clampedX = localX.clamp(0.0, renderBox.size.width - 0.1);
+    return (clampedX / renderBox.size.width * _screens.length).floor().clamp(
+      0,
+      _screens.length - 1,
+    );
+  }
+
+  void _handleBottomNavDragUpdate(DragUpdateDetails details) {
+    final index = _tabIndexAtGlobalPosition(details.globalPosition);
+    if (index == null || index == _currentTab) return;
+    _closeDrawer();
+    _selectTab(index, haptic: true);
   }
 
   void _openLibraryAlbums() {
     _closeDrawer();
-    setState(() => _currentTab = 1);
+    _selectTab(1);
     _libraryTabRequest.value = -1;
     _libraryTabRequest.value = 1;
   }
@@ -472,7 +513,15 @@ class _MainShellState extends ConsumerState<MainShell>
           child: Stack(
             children: [
               Positioned.fill(
-                child: IndexedStack(index: _currentTab, children: _screens),
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (index) {
+                    if (index == _currentTab) return;
+                    setState(() => _currentTab = index);
+                  },
+                  children: _screens,
+                ),
               ),
               Align(
                 alignment: Alignment.bottomCenter,
@@ -506,12 +555,17 @@ class _MainShellState extends ConsumerState<MainShell>
                             child: child,
                           );
                         },
-                        child: AppBottomNav(
-                          currentIndex: _currentTab,
-                          onTabChanged: (index) {
-                            _closeDrawer();
-                            _onTabChanged(index);
-                          },
+                        child: GestureDetector(
+                          key: _bottomNavKey,
+                          behavior: HitTestBehavior.opaque,
+                          onHorizontalDragUpdate: _handleBottomNavDragUpdate,
+                          child: AppBottomNav(
+                            currentIndex: _currentTab,
+                            onTabChanged: (index) {
+                              _closeDrawer();
+                              _onTabChanged(index);
+                            },
+                          ),
                         ),
                       ),
                     ],
@@ -543,6 +597,7 @@ class _MainShellState extends ConsumerState<MainShell>
     _androidMediaBridge?.dispose();
     _drawerController.dispose();
     _libraryTabRequest.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 }
