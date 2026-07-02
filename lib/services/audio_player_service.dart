@@ -7,9 +7,14 @@ import 'subsonic_api.dart';
 
 /// Wraps [AudioPlayer] from `just_audio` with Subsonic stream URL resolution.
 class AudioPlayerService {
+  static const _volumeFadeDuration = Duration(milliseconds: 220);
+  static const _volumeFadeStep = Duration(milliseconds: 16);
+
   final AudioPlayer _player = AudioPlayer();
   final SubsonicApi? _api;
   ConcatenatingAudioSource? _playlistSource;
+  double _targetVolume = 1.0;
+  int _volumeFadeGeneration = 0;
 
   AudioPlayerService(this._api);
 
@@ -76,6 +81,7 @@ class AudioPlayerService {
 
   /// Loads a real multi-item audio sequence and starts at [startIndex].
   Future<void> playPlaylist(List<String> songIds, {int startIndex = 0}) async {
+    await _cancelVolumeFade();
     final source = ConcatenatingAudioSource(
       children: await _sourcesFor(songIds),
     );
@@ -92,6 +98,7 @@ class AudioPlayerService {
     required int startIndex,
     required Duration position,
   }) async {
+    await _cancelVolumeFade();
     final source = ConcatenatingAudioSource(
       children: await _sourcesFor(songIds),
     );
@@ -114,13 +121,35 @@ class AudioPlayerService {
   }
 
   /// Plays or resumes playback.
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    final generation = ++_volumeFadeGeneration;
+    if (_player.playing) {
+      await _fadeVolume(to: _targetVolume, generation: generation);
+      return;
+    }
+    await _player.setVolume(0);
+    unawaited(_player.play());
+    await _fadeVolume(to: _targetVolume, generation: generation);
+  }
 
   /// Pauses playback.
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    if (!_player.playing) {
+      await _player.pause();
+      return;
+    }
+    final generation = ++_volumeFadeGeneration;
+    await _fadeVolume(to: 0, generation: generation);
+    if (generation != _volumeFadeGeneration) return;
+    await _player.pause();
+    await _player.setVolume(_targetVolume);
+  }
 
   /// Stops playback and releases resources.
-  Future<void> stop() => _player.stop();
+  Future<void> stop() async {
+    await _cancelVolumeFade();
+    await _player.stop();
+  }
 
   /// Seeks to a specific [position].
   Future<void> seek(Duration position) => _player.seek(position);
@@ -139,18 +168,28 @@ class AudioPlayerService {
   }
 
   /// Plays the next item in the sequence.
-  Future<void> skipToNext() => _player.seekToNext();
+  Future<void> skipToNext() async {
+    await _cancelVolumeFade();
+    await _player.seekToNext();
+  }
 
   /// Plays the previous item in the sequence.
-  Future<void> skipToPrevious() => _player.seekToPrevious();
+  Future<void> skipToPrevious() async {
+    await _cancelVolumeFade();
+    await _player.seekToPrevious();
+  }
 
   /// Jumps to an item in the currently loaded sequence.
-  Future<void> seekToIndex(int index) =>
-      _player.seek(Duration.zero, index: index);
+  Future<void> seekToIndex(int index) async {
+    await _cancelVolumeFade();
+    await _player.seek(Duration.zero, index: index);
+  }
 
   /// Jumps to a specific item and position in one operation.
-  Future<void> seekToIndexAndPosition(int index, Duration position) =>
-      _player.seek(position, index: index);
+  Future<void> seekToIndexAndPosition(int index, Duration position) async {
+    await _cancelVolumeFade();
+    await _player.seek(position, index: index);
+  }
 
   /// Toggles shuffle mode.
   Future<void> toggleShuffle() async {
@@ -175,7 +214,10 @@ class AudioPlayerService {
   }
 
   /// Sets the volume (0.0 – 1.0).
-  Future<void> setVolume(double volume) => _player.setVolume(volume);
+  Future<void> setVolume(double volume) {
+    _targetVolume = volume.clamp(0.0, 1.0);
+    return _player.setVolume(_targetVolume);
+  }
 
   /// Configures the playback speed.
   Future<void> setSpeed(double speed) => _player.setSpeed(speed);
@@ -184,4 +226,30 @@ class AudioPlayerService {
 
   /// Disposes of the underlying player and releases system resources.
   Future<void> dispose() => _player.dispose();
+
+  Future<void> _fadeVolume({
+    required double to,
+    required int generation,
+  }) async {
+    final from = _player.volume;
+    final target = to.clamp(0.0, 1.0);
+    final stepCount =
+        (_volumeFadeDuration.inMilliseconds / _volumeFadeStep.inMilliseconds)
+            .ceil();
+
+    for (var step = 1; step <= stepCount; step++) {
+      if (generation != _volumeFadeGeneration) return;
+      final progress = step / stepCount;
+      final eased = 1 - (1 - progress) * (1 - progress);
+      await _player.setVolume(from + (target - from) * eased);
+      if (step < stepCount) {
+        await Future<void>.delayed(_volumeFadeStep);
+      }
+    }
+  }
+
+  Future<void> _cancelVolumeFade() async {
+    _volumeFadeGeneration++;
+    await _player.setVolume(_targetVolume);
+  }
 }

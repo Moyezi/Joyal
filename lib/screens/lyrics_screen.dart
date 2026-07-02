@@ -76,6 +76,11 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                         position: player.position,
                         title: song.title,
                         artist: song.artist,
+                        onSeek: (position) {
+                          unawaited(
+                            ref.read(playerProvider.notifier).seek(position),
+                          );
+                        },
                       );
                     },
                   ),
@@ -89,12 +94,14 @@ class _LyricsList extends StatefulWidget {
   final Duration position;
   final String title;
   final String artist;
+  final ValueChanged<Duration> onSeek;
 
   const _LyricsList({
     required this.data,
     required this.position,
     required this.title,
     required this.artist,
+    required this.onSeek,
   });
 
   @override
@@ -197,6 +204,15 @@ class _LyricsListState extends State<_LyricsList> {
     return false;
   }
 
+  void _seekToLine(LyricLine line) {
+    final start = line.start;
+    if (start == null) return;
+    _resumeTimer?.cancel();
+    _userBrowsing = false;
+    widget.onSeek(start);
+    _scheduleCenter(force: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = _activeIndex;
@@ -230,6 +246,7 @@ class _LyricsListState extends State<_LyricsList> {
                 final line = data.lines[lineIndex];
                 final isActive = lineIndex == active;
                 final text = line.text.isEmpty ? ' ' : line.text;
+                final canSeek = line.start != null;
                 final activeStyle = context.textHeadlineMedium.copyWith(
                   fontSize: 30,
                   height: 1.35,
@@ -243,23 +260,27 @@ class _LyricsListState extends State<_LyricsList> {
                 final blurSigma = isActive
                     ? 0.0
                     : (distance * 0.95).clamp(0.0, 4.8);
-                return Padding(
+                return GestureDetector(
                   key: _lineKeys[lineIndex],
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: AnimatedScale(
-                    scale: isActive ? 1 : inactiveScale,
-                    alignment: Alignment.centerLeft,
-                    duration: const Duration(milliseconds: 520),
-                    curve: Curves.easeOutCubic,
-                    child: _LyricDepthFilteredLine(
-                      blurSigma: blurSigma,
-                      child: Text(
-                        text,
-                        style: activeStyle.copyWith(
-                          color: isActive ? activeColor : inactiveColor,
-                          fontWeight: isActive
-                              ? FontWeight.w800
-                              : FontWeight.w600,
+                  behavior: HitTestBehavior.translucent,
+                  onTap: canSeek ? () => _seekToLine(line) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: AnimatedScale(
+                      scale: isActive ? 1 : inactiveScale,
+                      alignment: Alignment.centerLeft,
+                      duration: const Duration(milliseconds: 520),
+                      curve: Curves.easeOutCubic,
+                      child: _LyricDepthFilteredLine(
+                        blurSigma: blurSigma,
+                        child: Text(
+                          text,
+                          style: activeStyle.copyWith(
+                            color: isActive ? activeColor : inactiveColor,
+                            fontWeight: isActive
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
