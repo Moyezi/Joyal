@@ -1214,22 +1214,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         ),
 
                         // Play / Pause (large CTA)
-                        Container(
-                          width: 78,
-                          height: 78,
-                          decoration: BoxDecoration(
-                            color: playButtonBackground,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: Icon(
-                              playerState.isPlaying
-                                  ? Icons.pause
-                                  : Icons.play_arrow,
-                              color: playButtonForeground,
-                              size: 40,
+                        NowPlayingSharedHero(
+                          tag: nowPlayingPlayButtonHeroTag,
+                          crossFadeOnPop: true,
+                          child: Container(
+                            width: 78,
+                            height: 78,
+                            decoration: BoxDecoration(
+                              color: playButtonBackground,
+                              shape: BoxShape.circle,
                             ),
-                            onPressed: () => notifier.togglePlayPause(),
+                            child: IconButton(
+                              icon: Icon(
+                                playerState.isPlaying
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                                color: playButtonForeground,
+                                size: 40,
+                              ),
+                              onPressed: () => notifier.togglePlayPause(),
+                            ),
                           ),
                         ),
 

@@ -1,6 +1,85 @@
 import 'package:flutter/material.dart';
 
 const String nowPlayingCoverHeroTag = 'joyal-now-playing-cover';
+const String nowPlayingPlayButtonHeroTag = 'joyal-now-playing-play-button';
+
+class NowPlayingSharedHero extends StatelessWidget {
+  final String tag;
+  final Widget child;
+  final bool useDestinationOnPop;
+  final bool crossFadeOnPop;
+
+  const NowPlayingSharedHero({
+    super.key,
+    required this.tag,
+    required this.child,
+    this.useDestinationOnPop = false,
+    this.crossFadeOnPop = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Hero(
+      tag: tag,
+      createRectTween: (begin, end) =>
+          NowPlayingElementRectTween(begin: begin, end: end),
+      flightShuttleBuilder: (context, animation, direction, from, to) {
+        final isPop = direction == HeroFlightDirection.pop;
+        final flightChild = isPop && !useDestinationOnPop
+            ? from.widget
+            : to.widget;
+        return AnimatedBuilder(
+          animation: animation,
+          child: flightChild,
+          builder: (context, child) {
+            final progress = animation.value.clamp(0.0, 1.0);
+            final scale = 0.96 + 0.04 * Curves.easeOutCubic.transform(progress);
+            final content = isPop && crossFadeOnPop
+                ? _PopCrossFadeHeroFlight(
+                    progress: progress,
+                    from: from.widget,
+                    to: to.widget,
+                  )
+                : child;
+            return Transform.scale(
+              scale: isPop ? 1.0 : scale,
+              child: Material(type: MaterialType.transparency, child: content),
+            );
+          },
+        );
+      },
+      child: Material(type: MaterialType.transparency, child: child),
+    );
+  }
+}
+
+class _PopCrossFadeHeroFlight extends StatelessWidget {
+  final double progress;
+  final Widget from;
+  final Widget to;
+
+  const _PopCrossFadeHeroFlight({
+    required this.progress,
+    required this.from,
+    required this.to,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final destinationOpacity = Curves.easeInOutCubic.transform(
+      (1 - progress).clamp(0.0, 1.0),
+    );
+    final sourceOpacity = (1 - destinationOpacity).clamp(0.0, 1.0);
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(opacity: sourceOpacity, child: from),
+        Opacity(opacity: destinationOpacity, child: to),
+      ],
+    );
+  }
+}
 
 /// Keeps the current cover rotation phase stable across Hero flights and
 /// widget rebuilds.
@@ -122,6 +201,32 @@ class NowPlayingCoverRectTween extends RectTween {
         end: 1,
       ).chain(CurveTween(curve: Curves.easeInOutCubic)),
       weight: 22,
+    ),
+  ]);
+
+  @override
+  Rect lerp(double t) {
+    return Rect.lerp(begin, end, _motion.transform(t.clamp(0.0, 1.0)))!;
+  }
+}
+
+class NowPlayingElementRectTween extends RectTween {
+  NowPlayingElementRectTween({required super.begin, required super.end});
+
+  static final Animatable<double> _motion = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 0,
+        end: 1.02,
+      ).chain(CurveTween(curve: Curves.easeOutCubic)),
+      weight: 82,
+    ),
+    TweenSequenceItem(
+      tween: Tween<double>(
+        begin: 1.02,
+        end: 1,
+      ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+      weight: 18,
     ),
   ]);
 

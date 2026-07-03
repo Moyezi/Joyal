@@ -305,22 +305,30 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () {
-                  ref.read(playerProvider.notifier).togglePlayPause();
-                },
-                style: IconButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: widget.chrome.playButtonForeground,
-                  minimumSize: const Size(58, 58),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(19),
+              NowPlayingSharedHero(
+                tag: nowPlayingPlayButtonHeroTag,
+                crossFadeOnPop: true,
+                child: SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: IconButton(
+                    onPressed: () {
+                      ref.read(playerProvider.notifier).togglePlayPause();
+                    },
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: widget.chrome.playButtonForeground,
+                      minimumSize: const Size(58, 58),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(19),
+                      ),
+                    ),
+                    icon: Icon(
+                      playerState.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow_rounded,
+                    ),
                   ),
-                ),
-                icon: Icon(
-                  playerState.isPlaying
-                      ? Icons.pause
-                      : Icons.play_arrow_rounded,
                 ),
               ),
               const SizedBox(width: 12),
