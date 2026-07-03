@@ -12,10 +12,12 @@ import 'now_playing_transition.dart';
 
 const double _miniLyricsHeight = 76;
 const double _miniPlayerHeight = 104;
+const double _miniPlayerCapsuleHeight = 88;
 const double _miniCoverSize = 72;
 const double _collapsedCoverImageSize = 62;
 const double _miniCoverLeftInset = 18;
 const double _miniCoverRightInset = 18;
+const double _miniPlayerHorizontalInset = 14;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
 const Duration _miniLyricsMinRollDuration = Duration(milliseconds: 90);
 const Duration _miniLyricsShortRollDuration = Duration(milliseconds: 160);
@@ -218,16 +220,22 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
       onHorizontalDragEnd: _handleHorizontalDragEnd,
       onHorizontalDragCancel: _handleHorizontalDragCancel,
       child: Container(
+        margin: const EdgeInsets.fromLTRB(
+          _miniPlayerHorizontalInset,
+          8,
+          _miniPlayerHorizontalInset,
+          8,
+        ),
         width: double.infinity,
-        height: _miniPlayerHeight,
+        height: _miniPlayerCapsuleHeight,
         decoration: BoxDecoration(
           color: AppTheme.miniPlayerBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+          borderRadius: BorderRadius.circular(44),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 16,
-              offset: const Offset(0, -2),
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
             ),
           ],
         ),

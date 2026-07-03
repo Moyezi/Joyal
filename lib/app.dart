@@ -442,7 +442,6 @@ class _MainShellState extends ConsumerState<MainShell>
       }
     });
 
-    final hasSong = ref.watch(playerProvider.select((state) => state.hasSong));
     final isStartingUp =
         ref.watch(authProvider.select((state) => state.isLoading)) ||
         ref.watch(playerProvider.select((state) => state.isRestoringSession));
@@ -482,10 +481,7 @@ class _MainShellState extends ConsumerState<MainShell>
                     onPersonalizationTap: _openPersonalization,
                   ),
                 ),
-                _buildTransformedShell(
-                  hasSong: hasSong,
-                  drawerWidth: drawerWidth,
-                ),
+                _buildTransformedShell(drawerWidth: drawerWidth),
                 _StartupMask(isVisible: isStartingUp),
               ],
             ),
@@ -495,10 +491,7 @@ class _MainShellState extends ConsumerState<MainShell>
     );
   }
 
-  Widget _buildTransformedShell({
-    required bool hasSong,
-    required double drawerWidth,
-  }) {
+  Widget _buildTransformedShell({required double drawerWidth}) {
     final progress = _drawerController.value;
     final scale = 1 - ((1 - _drawerMinScale) * progress);
     final blur = _drawerMaxBlur * progress;
@@ -536,36 +529,16 @@ class _MainShellState extends ConsumerState<MainShell>
                         onCollapseRequested: _collapseMiniPlayer,
                         onExpandRequested: _expandMiniPlayer,
                       ),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(
-                          end: hasSong && _isMiniPlayerCollapsed ? 1 : 0,
-                        ),
-                        duration: const Duration(milliseconds: 460),
-                        curve: Curves.easeInOutCubic,
-                        builder: (context, value, child) {
-                          final fadeProgress = Curves.easeInCubic.transform(
-                            value,
-                          );
-                          return ColoredBox(
-                            color: Color.lerp(
-                              AppTheme.miniPlayerBg,
-                              Theme.of(context).scaffoldBackgroundColor,
-                              fadeProgress,
-                            )!,
-                            child: child,
-                          );
-                        },
-                        child: GestureDetector(
-                          key: _bottomNavKey,
-                          behavior: HitTestBehavior.opaque,
-                          onHorizontalDragUpdate: _handleBottomNavDragUpdate,
-                          child: AppBottomNav(
-                            currentIndex: _currentTab,
-                            onTabChanged: (index) {
-                              _closeDrawer();
-                              _onTabChanged(index);
-                            },
-                          ),
+                      GestureDetector(
+                        key: _bottomNavKey,
+                        behavior: HitTestBehavior.opaque,
+                        onHorizontalDragUpdate: _handleBottomNavDragUpdate,
+                        child: AppBottomNav(
+                          currentIndex: _currentTab,
+                          onTabChanged: (index) {
+                            _closeDrawer();
+                            _onTabChanged(index);
+                          },
                         ),
                       ),
                     ],
