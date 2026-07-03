@@ -1,5 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import '../config/theme.dart';
 import '../services/app_cache_service.dart';
@@ -119,32 +121,26 @@ class AlbumVisualPalette {
     required String coverArtId,
     required String coverUrl,
     Brightness brightness = Brightness.light,
+    bool fallbackOnError = true,
   }) async {
     if (coverArtId.isEmpty || coverUrl.isEmpty) {
       return fallbackFor(brightness);
     }
 
     final cacheKey = '${coverArtId}_${brightness.name}';
-    final provider = CachedNetworkImageProvider(
-      coverUrl,
-      cacheKey: coverArtId,
-      maxWidth: 112,
-      maxHeight: 112,
-    );
-
     try {
       return await _paletteCache.putIfAbsent(
         cacheKey,
         () => _resolveUncached(
           coverArtId: coverArtId,
           cacheKey: cacheKey,
-          provider: provider,
+          coverUrl: coverUrl,
           brightness: brightness,
         ),
       );
     } catch (_) {
       _paletteCache.remove(cacheKey);
-      await provider.evict();
+      if (!fallbackOnError) rethrow;
       return fallbackFor(brightness);
     }
   }
@@ -152,7 +148,7 @@ class AlbumVisualPalette {
   static Future<AlbumVisualPalette> _resolveUncached({
     required String coverArtId,
     required String cacheKey,
-    required CachedNetworkImageProvider provider,
+    required String coverUrl,
     required Brightness brightness,
   }) async {
     final diskCache = await (_diskPaletteCache ??= AppCacheService.instance
@@ -164,8 +160,12 @@ class AlbumVisualPalette {
       return savedPalette;
     }
 
+    final imageFile = await _coverFile(
+      coverArtId: coverArtId,
+      coverUrl: coverUrl,
+    );
     final scheme = await ColorScheme.fromImageProvider(
-      provider: provider,
+      provider: ResizeImage(FileImage(imageFile), width: 112, height: 112),
       brightness: brightness,
       dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
     );
@@ -190,6 +190,17 @@ class AlbumVisualPalette {
     await AppCacheService.instance.writeJson('visual_palettes', diskCache);
 
     return palette;
+  }
+
+  static Future<File> _coverFile({
+    required String coverArtId,
+    required String coverUrl,
+  }) async {
+    final cached = await DefaultCacheManager().getFileFromCache(coverArtId);
+    if (cached?.file case final file? when await file.exists()) {
+      return file;
+    }
+    return DefaultCacheManager().getSingleFile(coverUrl, key: coverArtId);
   }
 
   static AlbumVisualPalette? _paletteFromJson(Object? value) {

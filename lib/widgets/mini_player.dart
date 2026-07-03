@@ -56,6 +56,7 @@ class MiniPlayer extends ConsumerWidget {
     final coverUrl = (api != null && song.coverArt.isNotEmpty)
         ? api.getCoverArtUrl(song.coverArt)
         : '';
+    final coverSourceId = api == null ? '' : '${api.baseUrl}|${api.username}';
     final colorMode = ref.watch(miniPlayerColorProvider);
     final brightness = Theme.of(context).brightness;
     final palette = colorMode == MiniPlayerColorMode.dynamicAlbum
@@ -64,6 +65,7 @@ class MiniPlayer extends ConsumerWidget {
                 _miniPlayerPaletteProvider(
                   _MiniPlayerPaletteRequest(
                     coverArtId: song.coverArt,
+                    coverSourceId: coverSourceId,
                     coverUrl: coverUrl,
                     brightness: brightness,
                   ),
@@ -390,11 +392,13 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
 
 class _MiniPlayerPaletteRequest {
   final String coverArtId;
+  final String coverSourceId;
   final String coverUrl;
   final Brightness brightness;
 
   const _MiniPlayerPaletteRequest({
     required this.coverArtId,
+    required this.coverSourceId,
     required this.coverUrl,
     required this.brightness,
   });
@@ -403,12 +407,12 @@ class _MiniPlayerPaletteRequest {
   bool operator ==(Object other) {
     return other is _MiniPlayerPaletteRequest &&
         other.coverArtId == coverArtId &&
-        other.coverUrl == coverUrl &&
+        other.coverSourceId == coverSourceId &&
         other.brightness == brightness;
   }
 
   @override
-  int get hashCode => Object.hash(coverArtId, coverUrl, brightness);
+  int get hashCode => Object.hash(coverArtId, coverSourceId, brightness);
 }
 
 final _miniPlayerPaletteProvider = FutureProvider.autoDispose
@@ -417,6 +421,7 @@ final _miniPlayerPaletteProvider = FutureProvider.autoDispose
         coverArtId: request.coverArtId,
         coverUrl: request.coverUrl,
         brightness: request.brightness,
+        fallbackOnError: false,
       );
     });
 

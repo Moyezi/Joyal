@@ -48,7 +48,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、收藏可选择本地图片，不改变列表、顶栏和 Dock 空间关系。
 - 毛玻璃统一由 `glass_effect_provider.dart` 管强度，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览。
 - 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制，个性化可切换“默认颜色/动态取色”；默认保持 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠悬浮封面圆形外框需同步遵循，并继续走 `FrostedGlass` 的 blur 强度。
-- 个性化“毛玻璃”里的迷你播放栏预览必须跟随 `MiniPlayerColorMode`，不要硬编码成默认色；真实迷你播放栏动态取色若封面解析失败，应有稳定的 `coverArtId` 兜底色，避免观感退回默认胶囊。
+- 个性化“毛玻璃”里的迷你播放栏预览必须跟随 `MiniPlayerColorMode`，不要硬编码成默认色；真实迷你播放栏动态取色未拿到封面 palette 前可暂用中性 fallback，不要用 `coverArtId` hash 伪造候选色，避免与真实封面色调不符。
 - 个性化毛玻璃预览用类似 iOS 后台的横向堆叠卡，滑动时触发选择振动；预览背景固定冷色底图和两个大渐变圆。不要用整卡 `Opacity` 包住 `BackdropFilter`。
 - `GlassTopBar` 保持可独立渲染；主页面从 provider 读取 blur 后通过参数传入，不让顶栏 widget 强依赖外层 `ProviderScope`。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；流动光影用 `CustomPainter` + `sin/cos`，避免每帧全屏高斯模糊；静态渐变应停止动画控制器。
@@ -84,7 +84,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 设置入口：主页右滑侧边栏左下角设置按钮 -> `SettingsHubScreen`。刷新曲库走 `libraryProvider.notifier.refreshLibrary()`，未连接不误报成功。
 - 缓存统计/清理由 `CacheRepository` 和各 bucket 管理，耗时目录统计用 `Isolate.run`，避免阻塞 UI。离线下载只跳转下载管理，避免误删。
 - 图片显示优先 `CachedDiskImage`：先用稳定 `cacheKey` 查磁盘再走网络。专辑/歌曲封面 key 用稳定 `coverArtId`；歌手头像不要用 `String.hashCode` 做持久 key。
-- Subsonic 封面 URL 会因随机 salt/token 变化；新封面/头像 UI 不要直接用 `CachedNetworkImage`。
+- Subsonic 封面 URL 会因随机 salt/token 变化；新封面/头像 UI 不要直接用 `CachedNetworkImage`。异步取色、provider family、磁盘缓存等身份 key 必须使用稳定来源（如 `coverArtId + baseUrl + username + brightness`），不要把带随机 token 的 `coverUrl` 放进 equality/hash，否则会反复重建请求并长期拿不到封面色。
 - `AppCacheService` 管理小型 JSON 缓存。不要在实例方法里用捕获实例字段的 `Isolate.run(() => jsonEncode(value))`。
 - 自动清理 Slider 档位：500MB / 1GB / 2GB / 5GB / 无限制。上限写 secure storage，并同步写 `cache_settings` JSON 兜底；启动先加载设置再允许刷新统计。
 
