@@ -134,46 +134,61 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
           children: [
             SizedBox(
               height: 156,
-              child: PageView.builder(
-                controller: _pageController,
-                clipBehavior: Clip.none,
-                itemCount: GlassEffectTarget.values.length,
-                onPageChanged: (index) {
-                  HapticFeedback.selectionClick();
-                  setState(() {
-                    _selectedTarget = GlassEffectTarget.values[index];
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final target = GlassEffectTarget.values[index];
-                  return AnimatedBuilder(
-                    animation: _pageController,
-                    builder: (context, child) {
-                      final page = _pageController.hasClients
-                          ? (_pageController.page ??
-                                _pageController.initialPage.toDouble())
-                          : _pageController.initialPage.toDouble();
-                      final distance = (page - index).abs().clamp(0.0, 1.0);
-                      final scale = 1 - distance * 0.08;
-                      final verticalOffset = distance * 14;
-                      final opacity = 1 - distance * 0.22;
-                      return Opacity(
-                        opacity: opacity,
-                        child: Transform.translate(
-                          offset: Offset(0, verticalOffset),
-                          child: Transform.scale(scale: scale, child: child),
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: _GlassPreview(
-                        target: target,
-                        blurSigma: glassState.blurFor(target),
-                      ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const Center(child: _GlassPreviewCircleBackdrop()),
+                    PageView.builder(
+                      controller: _pageController,
+                      clipBehavior: Clip.hardEdge,
+                      itemCount: GlassEffectTarget.values.length,
+                      onPageChanged: (index) {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _selectedTarget = GlassEffectTarget.values[index];
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final target = GlassEffectTarget.values[index];
+                        return AnimatedBuilder(
+                          animation: _pageController,
+                          builder: (context, child) {
+                            final page = _pageController.hasClients
+                                ? (_pageController.page ??
+                                      _pageController.initialPage.toDouble())
+                                : _pageController.initialPage.toDouble();
+                            final distance = (page - index).abs().clamp(
+                              0.0,
+                              1.0,
+                            );
+                            final scale = 1 - distance * 0.08;
+                            final verticalOffset = distance * 14;
+                            final opacity = 1 - distance * 0.22;
+                            return Opacity(
+                              opacity: opacity,
+                              child: Transform.translate(
+                                offset: Offset(0, verticalOffset),
+                                child: Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                              ),
+                            );
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: _GlassPreview(
+                              target: target,
+                              blurSigma: glassState.blurFor(target),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: AppTheme.spacingMD),
@@ -251,37 +266,28 @@ class _GlassPreview extends StatelessWidget {
 
     return SizedBox(
       height: 148,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const _GlassPreviewBackdrop(),
-            Center(
-              child: SizedBox(
-                width: _previewWidthFor(target),
-                height: _previewHeightFor(target),
-                child: FrostedGlass(
-                  blurSigma: blurSigma,
-                  borderRadius: radius,
-                  tintColor: tintColor,
-                  tintOpacity: tintOpacity,
-                  borderColor: target == GlassEffectTarget.miniPlayer
-                      ? Colors.white
-                      : context.primaryColor,
-                  borderOpacity: isDark ? 0.08 : 0.06,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.16),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                  child: _GlassPreviewContent(target: target),
-                ),
+      child: Center(
+        child: SizedBox(
+          width: _previewWidthFor(target),
+          height: _previewHeightFor(target),
+          child: FrostedGlass(
+            blurSigma: blurSigma,
+            borderRadius: radius,
+            tintColor: tintColor,
+            tintOpacity: tintOpacity,
+            borderColor: target == GlassEffectTarget.miniPlayer
+                ? Colors.white
+                : context.primaryColor,
+            borderOpacity: isDark ? 0.08 : 0.06,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.16),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
-            ),
-          ],
+            ],
+            child: _GlassPreviewContent(target: target),
+          ),
         ),
       ),
     );
@@ -306,80 +312,17 @@ class _GlassPreview extends StatelessWidget {
   }
 }
 
-class _GlassPreviewBackdrop extends StatelessWidget {
-  const _GlassPreviewBackdrop();
+class _GlassPreviewCircleBackdrop extends StatelessWidget {
+  const _GlassPreviewCircleBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            context.backgroundColor,
-            context.surfaceHighlightColor,
-            context.backgroundColor,
-          ],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 24,
-            top: 20,
-            child: _PreviewStripe(
-              width: 140,
-              color: context.primaryColor,
-              alpha: 0.08,
-            ),
-          ),
-          Positioned(
-            right: 18,
-            top: 44,
-            child: _PreviewStripe(
-              width: 116,
-              color: context.secondaryColor,
-              alpha: 0.14,
-            ),
-          ),
-          Positioned(
-            left: 72,
-            bottom: 24,
-            child: _PreviewStripe(
-              width: 190,
-              color: context.primaryColor,
-              alpha: 0.07,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PreviewStripe extends StatelessWidget {
-  final double width;
-  final Color color;
-  final double alpha;
-
-  const _PreviewStripe({
-    required this.width,
-    required this.color,
-    required this.alpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: -0.34,
-      child: Container(
-        width: width,
-        height: 28,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          color: color.withValues(alpha: alpha),
-        ),
+    return Container(
+      width: 128,
+      height: 128,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFE74C3C),
       ),
     );
   }
