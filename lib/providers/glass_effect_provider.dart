@@ -8,7 +8,8 @@ enum GlassEffectTarget {
   topBar('top_bar', '顶栏', 10),
   miniPlayer('mini_player', '迷你播放栏', 18),
   searchBar('search_bar', '搜索框', 16),
-  bottomNav('bottom_nav', '导航栏', 18);
+  bottomNav('bottom_nav', '导航栏', 18),
+  songCard('song_card', '歌曲卡片', 14);
 
   const GlassEffectTarget(this.storageName, this.label, this.defaultBlur);
 

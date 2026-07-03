@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/scroll_utils.dart';
 import 'album_cover.dart';
+import 'frosted_glass.dart';
 
 class PlayQueueSheet extends ConsumerStatefulWidget {
   final String title;
@@ -181,7 +183,7 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
   }
 }
 
-class QueueSongCard extends StatelessWidget {
+class QueueSongCard extends ConsumerWidget {
   final Song song;
   final int index;
   final String coverUrl;
@@ -198,75 +200,94 @@ class QueueSongCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Material(
-        color: isCurrent ? context.surfaceColor : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                ClipOval(
-                  child: AlbumCover(
-                    coverArtUrl: coverUrl,
-                    cacheKey: song.coverArt,
-                    size: 48,
-                    borderRadius: 24,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.songCard),
+      ),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderRadius = BorderRadius.circular(18);
+    final content = Material(
+      color: Colors.transparent,
+      borderRadius: borderRadius,
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipOval(
+                child: AlbumCover(
+                  coverArtUrl: coverUrl,
+                  cacheKey: song.coverArt,
+                  size: 48,
+                  borderRadius: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textTitleMedium.copyWith(
+                        fontWeight: isCurrent
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${song.artist} · ${song.album}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textBodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (isCurrent)
+                SizedBox(
+                  width: 34,
+                  child: Icon(
+                    Icons.graphic_eq_rounded,
+                    color: context.primaryColor,
+                  ),
+                )
+              else
+                SizedBox(
+                  width: 34,
+                  child: Text(
+                    '${index + 1}',
+                    textAlign: TextAlign.center,
+                    style: context.textCaption,
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.textTitleMedium.copyWith(
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${song.artist} · ${song.album}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.textBodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (isCurrent)
-                  SizedBox(
-                    width: 34,
-                    child: Icon(
-                      Icons.graphic_eq_rounded,
-                      color: context.primaryColor,
-                    ),
-                  )
-                else
-                  SizedBox(
-                    width: 34,
-                    child: Text(
-                      '${index + 1}',
-                      textAlign: TextAlign.center,
-                      style: context.textCaption,
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: isCurrent
+          ? FrostedGlass(
+              blurSigma: blurSigma,
+              borderRadius: borderRadius,
+              tintColor: context.surfaceColor,
+              tintOpacity: isDark ? 0.64 : 0.72,
+              borderColor: context.primaryColor,
+              borderOpacity: isDark ? 0.08 : 0.06,
+              child: content,
+            )
+          : content,
     );
   }
 }

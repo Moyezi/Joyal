@@ -248,6 +248,7 @@ class _GlassPreview extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tintColor = switch (target) {
       GlassEffectTarget.miniPlayer => AppTheme.miniPlayerBg,
+      GlassEffectTarget.songCard => context.surfaceColor,
       _ => context.surfaceColor,
     };
     final tintOpacity = switch (target) {
@@ -255,12 +256,14 @@ class _GlassPreview extends StatelessWidget {
       GlassEffectTarget.topBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
+      GlassEffectTarget.songCard => isDark ? 0.64 : 0.72,
     };
     final radius = switch (target) {
       GlassEffectTarget.topBar => BorderRadius.circular(18),
       GlassEffectTarget.searchBar => BorderRadius.circular(18),
       GlassEffectTarget.bottomNav => BorderRadius.circular(34),
       GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
+      GlassEffectTarget.songCard => BorderRadius.circular(18),
     };
 
     return SizedBox(
@@ -299,6 +302,7 @@ class _GlassPreview extends StatelessWidget {
       GlassEffectTarget.miniPlayer => 304,
       GlassEffectTarget.searchBar => 280,
       GlassEffectTarget.bottomNav => 304,
+      GlassEffectTarget.songCard => 304,
     };
   }
 
@@ -308,6 +312,7 @@ class _GlassPreview extends StatelessWidget {
       GlassEffectTarget.miniPlayer => 76,
       GlassEffectTarget.searchBar => 54,
       GlassEffectTarget.bottomNav => 64,
+      GlassEffectTarget.songCard => 68,
     };
   }
 }
@@ -468,6 +473,49 @@ class _GlassPreviewContent extends StatelessWidget {
                 color: AppTheme.miniPlayerBg,
               ),
             ),
+          ],
+        ),
+      ),
+      GlassEffectTarget.songCard => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.18),
+              ),
+              child: const Icon(Icons.graphic_eq_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '正在播放的歌曲',
+                    style: context.textTitleMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '首页、曲库、收藏共用',
+                    style: context.textBodySmall.copyWith(
+                      color: context.secondaryColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.more_horiz_rounded, color: context.secondaryColor),
           ],
         ),
       ),

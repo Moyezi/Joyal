@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
+import '../providers/glass_effect_provider.dart';
+import 'frosted_glass.dart';
 
 /// A single row in a tracklist, following the design spec:
 /// - Track number or animated spectrum icon when playing
 /// - Song title (bold) and artist (grey)
 /// - Duration on the right
 /// - Highlighted background when this song is currently playing
-class SongTile extends StatelessWidget {
+class SongTile extends ConsumerWidget {
   final Song song;
   final int index;
   final bool isPlaying;
@@ -28,7 +31,78 @@ class SongTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.songCard),
+      ),
+    );
+    final borderRadius = BorderRadius.circular(AppTheme.radiusMedium);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: isPlaying
+                ? const _PlayingIndicator()
+                : Text(
+                    '${index + 1}'.padLeft(2, '0'),
+                    textAlign: TextAlign.center,
+                    style: context.textBodyMedium,
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  style: isPlaying
+                      ? context.textTitleMedium.copyWith(
+                          color: context.primaryColor,
+                        )
+                      : context.textBodyLarge,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${song.artist}  •  ${song.formattedDuration}',
+                  style: context.textBodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (isDownloaded) ...[
+            const Icon(
+              Icons.check_circle_rounded,
+              color: Color(0xFF24A148),
+              size: 19,
+            ),
+            const SizedBox(width: 6),
+          ],
+          GestureDetector(
+            onTap: onMore,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Icon(
+                Icons.more_horiz,
+                color: context.secondaryColor,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -36,79 +110,18 @@ class SongTile extends StatelessWidget {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeInOut,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isPlaying ? context.surfaceHighlightColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        ),
-        child: Row(
-          children: [
-            // ── Track number or playing indicator ──
-            SizedBox(
-              width: 32,
-              child: isPlaying
-                  ? const _PlayingIndicator()
-                  : Text(
-                      '${index + 1}'.padLeft(2, '0'),
-                      textAlign: TextAlign.center,
-                      style: context.textBodyMedium,
-                    ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // ── Song info ──
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    style: isPlaying
-                        ? context.textTitleMedium.copyWith(
-                            color: context.primaryColor,
-                          )
-                        : context.textBodyLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${song.artist}  •  ${song.formattedDuration}',
-                    style: context.textBodyMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 8),
-
-            if (isDownloaded) ...[
-              const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF24A148),
-                size: 19,
-              ),
-              const SizedBox(width: 6),
-            ],
-
-            // ── More actions ──
-            GestureDetector(
-              onTap: onMore,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Icon(
-                  Icons.more_horiz,
-                  color: context.secondaryColor,
-                  size: 20,
-                ),
-              ),
-            ),
-          ],
-        ),
+        decoration: BoxDecoration(borderRadius: borderRadius),
+        child: isPlaying
+            ? FrostedGlass(
+                blurSigma: blurSigma,
+                borderRadius: borderRadius,
+                tintColor: context.surfaceColor,
+                tintOpacity: isDark ? 0.64 : 0.72,
+                borderColor: context.primaryColor,
+                borderOpacity: isDark ? 0.08 : 0.06,
+                child: content,
+              )
+            : content,
       ),
     );
   }
