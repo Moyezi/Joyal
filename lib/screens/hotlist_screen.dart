@@ -27,6 +27,9 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isRefreshing = false;
 
+  double _topBarExtent(BuildContext context) =>
+      _headerHeight + MediaQuery.viewPaddingOf(context).top;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -53,7 +56,10 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
       index: index,
       itemExtent: _tileExtent,
       leadingExtent:
-          _headerHeight + 8 + albumsSectionExtent + _sectionHeaderExtent,
+          _topBarExtent(context) +
+          8 +
+          albumsSectionExtent +
+          _sectionHeaderExtent,
     );
   }
 
@@ -100,6 +106,11 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     final currentSongId = ref.watch(
       playerProvider.select((value) => value.currentSong?.id),
     );
+    final hasPageBackground = ref.watch(
+      pageBackgroundProvider.select(
+        (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
+      ),
+    );
     final starredIds = state.starredSongs.map((song) => song.id).toSet();
     final downloadedIds = ref
         .watch(downloadRecordsProvider)
@@ -107,146 +118,141 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
           data: (records) => records.map((record) => record.song.id).toSet(),
           orElse: () => <String>{},
         );
+    final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: PageCustomBackground(
-                target: PageBackgroundTarget.favorites,
-              ),
-            ),
-            Positioned.fill(
-              child: state.isLoadingStarred && albums.isEmpty && songs.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.only(top: _headerHeight),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : albums.isEmpty && songs.isEmpty
-                  ? Padding(
-                      padding: EdgeInsets.only(top: _headerHeight),
-                      child: Center(
-                        child: Text('还没有收藏内容', style: context.textBodyMedium),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: PageCustomBackground(target: PageBackgroundTarget.favorites),
+          ),
+          Positioned.fill(
+            child: state.isLoadingStarred && albums.isEmpty && songs.isEmpty
+                ? Padding(
+                    padding: EdgeInsets.only(top: topBarExtent),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : albums.isEmpty && songs.isEmpty
+                ? Padding(
+                    padding: EdgeInsets.only(top: topBarExtent),
+                    child: Center(
+                      child: Text('还没有收藏内容', style: context.textBodyMedium),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _refreshStarred,
+                    child: ListView(
+                      controller: _scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        topBarExtent + 8,
+                        12,
+                        hasSong ? 172 : 68,
                       ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _refreshStarred,
-                      child: ListView(
-                        controller: _scrollController,
-                        padding: EdgeInsets.fromLTRB(
-                          12,
-                          _headerHeight + 8,
-                          12,
-                          hasSong ? 172 : 68,
-                        ),
-                        children: [
-                          if (albums.isNotEmpty) ...[
-                            Text('收藏专辑', style: context.textTitleLarge),
-                            const SizedBox(height: 8),
-                            ...albums.map(
-                              (album) => SizedBox(
-                                height: _tileExtent,
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.album_outlined),
-                                  title: Text(album.name),
-                                  subtitle: Text(album.artist),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          AlbumDetailScreen(album: album),
-                                    ),
+                      children: [
+                        if (albums.isNotEmpty) ...[
+                          Text('收藏专辑', style: context.textTitleLarge),
+                          const SizedBox(height: 8),
+                          ...albums.map(
+                            (album) => SizedBox(
+                              height: _tileExtent,
+                              child: ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.album_outlined),
+                                title: Text(album.name),
+                                subtitle: Text(album.artist),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        AlbumDetailScreen(album: album),
                                   ),
                                 ),
                               ),
                             ),
-                          ],
-                          if (songs.isNotEmpty) ...[
-                            if (albums.isNotEmpty) const SizedBox(height: 20),
-                            ...songs.asMap().entries.map(
-                              (entry) => SizedBox(
-                                height: _tileExtent,
-                                child: SongTile(
-                                  song: entry.value,
-                                  index: entry.key,
-                                  isPlaying: entry.value.id == currentSongId,
-                                  isDownloaded: downloadedIds.contains(
-                                    entry.value.id,
-                                  ),
-                                  onTap: () => ref
-                                      .read(playerProvider.notifier)
-                                      .playPlaylist(
-                                        songs,
-                                        startIndex: entry.key,
-                                      ),
-                                  onMore: () {
-                                    final song = entry.value;
-                                    final isStarred = starredIds.contains(
-                                      song.id,
-                                    );
-                                    SongActionsSheet.show(
-                                      context,
-                                      songTitle: song.title,
-                                      songArtist: song.artist,
-                                      isStarred: isStarred,
-                                      onPlayNext: () {
-                                        ref
-                                            .read(playerProvider.notifier)
-                                            .playNext(song);
-                                      },
-                                      onToggleFavorite: () {
-                                        ref
-                                            .read(libraryProvider.notifier)
-                                            .setSongStarred(
-                                              song,
-                                              starred: !isStarred,
-                                            );
-                                      },
-                                      downloadService: ref.read(
-                                        downloadServiceProvider,
-                                      ),
-                                      songId: song.id,
-                                      song: song,
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ],
+                          ),
                         ],
-                      ),
+                        if (songs.isNotEmpty) ...[
+                          if (albums.isNotEmpty) const SizedBox(height: 20),
+                          ...songs.asMap().entries.map(
+                            (entry) => SizedBox(
+                              height: _tileExtent,
+                              child: SongTile(
+                                song: entry.value,
+                                index: entry.key,
+                                isPlaying: entry.value.id == currentSongId,
+                                isDownloaded: downloadedIds.contains(
+                                  entry.value.id,
+                                ),
+                                onTap: () => ref
+                                    .read(playerProvider.notifier)
+                                    .playPlaylist(songs, startIndex: entry.key),
+                                onMore: () {
+                                  final song = entry.value;
+                                  final isStarred = starredIds.contains(
+                                    song.id,
+                                  );
+                                  SongActionsSheet.show(
+                                    context,
+                                    songTitle: song.title,
+                                    songArtist: song.artist,
+                                    isStarred: isStarred,
+                                    onPlayNext: () {
+                                      ref
+                                          .read(playerProvider.notifier)
+                                          .playNext(song);
+                                    },
+                                    onToggleFavorite: () {
+                                      ref
+                                          .read(libraryProvider.notifier)
+                                          .setSongStarred(
+                                            song,
+                                            starred: !isStarred,
+                                          );
+                                    },
+                                    downloadService: ref.read(
+                                      downloadServiceProvider,
+                                    ),
+                                    songId: song.id,
+                                    song: song,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-            ),
-            GlassTopBar(
-              height: _headerHeight,
-              child: GlassTopBarTitleRow(
-                title: '收藏',
-                actions: [
-                  if (hasSong)
-                    IconButton(
-                      tooltip: '定位到当前歌曲',
-                      onPressed: _locateCurrentSong,
-                      icon: const Icon(Icons.my_location_rounded),
-                    ),
-                  IconButton(
-                    tooltip: '刷新收藏',
-                    onPressed: _isRefreshing || state.isLoadingStarred
-                        ? null
-                        : _refreshStarred,
-                    icon: _isRefreshing || state.isLoadingStarred
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh_rounded),
                   ),
-                ],
-              ),
+          ),
+          GlassTopBar(
+            height: _headerHeight,
+            hasPageBackground: hasPageBackground,
+            child: GlassTopBarTitleRow(
+              title: '收藏',
+              actions: [
+                if (hasSong)
+                  IconButton(
+                    tooltip: '定位到当前歌曲',
+                    onPressed: _locateCurrentSong,
+                    icon: const Icon(Icons.my_location_rounded),
+                  ),
+                IconButton(
+                  tooltip: '刷新收藏',
+                  onPressed: _isRefreshing || state.isLoadingStarred
+                      ? null
+                      : _refreshStarred,
+                  icon: _isRefreshing || state.isLoadingStarred
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

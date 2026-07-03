@@ -100,9 +100,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return '晚上好';
   }
 
+  double _topBarExtent(BuildContext context) =>
+      _headerHeight + MediaQuery.viewPaddingOf(context).top;
+
   @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
+    final hasPageBackground = ref.watch(
+      pageBackgroundProvider.select(
+        (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
+      ),
+    );
 
     // 每次重建后尝试上报排除矩形（防抖：同一帧内不重复调度）
     if (!_exclusionRectPending) {
@@ -114,23 +122,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
 
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(
-              child: PageCustomBackground(target: PageBackgroundTarget.home),
-            ),
-            Positioned.fill(child: _buildBody(libraryState)),
-            GlassTopBar(
-              height: _headerHeight,
-              searchAnimation: _animController,
-              onSearchTap: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
-              child: _buildHeader(),
-            ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: PageCustomBackground(target: PageBackgroundTarget.home),
+          ),
+          Positioned.fill(child: _buildBody(libraryState)),
+          GlassTopBar(
+            height: _headerHeight,
+            hasPageBackground: hasPageBackground,
+            searchAnimation: _animController,
+            onSearchTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+            child: _buildHeader(),
+          ),
+        ],
       ),
     );
   }
@@ -180,9 +187,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Widget _buildBody(LibraryState state) {
+    final topBarExtent = _topBarExtent(context);
     if (state.isLoading && state.albums.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.only(top: _headerHeight),
+      return Padding(
+        padding: EdgeInsets.only(top: topBarExtent),
         child: Center(child: CircularProgressIndicator()),
       );
     }
@@ -209,7 +217,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         controller: _scrollController,
         slivers: [
           // ── 顶部问候 ──
-          const SliverToBoxAdapter(child: SizedBox(height: _headerHeight)),
+          SliverToBoxAdapter(child: SizedBox(height: topBarExtent)),
           SliverToBoxAdapter(child: _buildSearch()),
 
           // ── 最近添加（横向滚动） ──
@@ -304,7 +312,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildError(String msg) {
     return Padding(
-      padding: const EdgeInsets.only(top: _headerHeight),
+      padding: EdgeInsets.only(top: _topBarExtent(context)),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppTheme.spacingXL),
@@ -336,7 +344,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget _buildEmpty() {
     return ListView(
       children: [
-        const SizedBox(height: _headerHeight),
+        SizedBox(height: _topBarExtent(context)),
         _buildSearch(),
         const SizedBox(height: 80),
         Center(

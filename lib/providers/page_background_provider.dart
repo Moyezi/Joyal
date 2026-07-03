@@ -17,22 +17,27 @@ enum PageBackgroundTarget {
 }
 
 class PageBackgroundState {
-  final Map<PageBackgroundTarget, String> imagePaths;
+  final String? imagePath;
+  final double blurSigma;
   final bool isLoading;
 
   const PageBackgroundState({
-    this.imagePaths = const {},
+    this.imagePath,
+    this.blurSigma = 0,
     this.isLoading = true,
   });
 
-  String? pathFor(PageBackgroundTarget target) => imagePaths[target];
+  String? pathFor(PageBackgroundTarget target) => imagePath;
 
   PageBackgroundState copyWith({
-    Map<PageBackgroundTarget, String>? imagePaths,
+    String? imagePath,
+    double? blurSigma,
     bool? isLoading,
+    bool clearImagePath = false,
   }) {
     return PageBackgroundState(
-      imagePaths: imagePaths ?? this.imagePaths,
+      imagePath: clearImagePath ? null : imagePath ?? this.imagePath,
+      blurSigma: blurSigma ?? this.blurSigma,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -43,57 +48,72 @@ class PageBackgroundNotifier extends StateNotifier<PageBackgroundState> {
     _load();
   }
 
+  static const _keyPath = 'page_background_path';
+  static const _keyBlurSigma = 'page_background_blur_sigma';
   static const _keyPrefix = 'page_background_path_';
 
   final FlutterSecureStorage _storage;
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _load() async {
-    final paths = <PageBackgroundTarget, String>{};
-    for (final target in PageBackgroundTarget.values) {
-      final path = await _storage.read(key: _keyFor(target));
-      if (path == null || path.isEmpty) continue;
-      if (await File(path).exists()) {
-        paths[target] = path;
-      } else {
-        await _storage.delete(key: _keyFor(target));
-      }
+    String? imagePath = await _storage.read(key: _keyPath);
+    if (imagePath == null ||
+        imagePath.isEmpty ||
+        !await File(imagePath).exists()) {
+      await _storage.delete(key: _keyPath);
+      imagePath = await _migrateLegacyPath();
     }
-    state = PageBackgroundState(imagePaths: paths, isLoading: false);
+
+    final blurText = await _storage.read(key: _keyBlurSigma);
+    final blurSigma = (double.tryParse(blurText ?? '') ?? 0)
+        .clamp(0.0, 24.0)
+        .toDouble();
+    state = PageBackgroundState(
+      imagePath: imagePath,
+      blurSigma: blurSigma,
+      isLoading: false,
+    );
   }
 
   Future<bool> pickFor(PageBackgroundTarget target) async {
+    return pick();
+  }
+
+  Future<bool> pick() async {
     final image = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 92,
     );
     if (image == null) return false;
 
-    final oldPath = state.pathFor(target);
-    final savedPath = await _copyToAppStorage(image, target);
-    await _storage.write(key: _keyFor(target), value: savedPath);
+    final oldPath = state.imagePath;
+    final savedPath = await _copyToAppStorage(image);
+    await _storage.write(key: _keyPath, value: savedPath);
     await _deleteFileIfExists(oldPath);
 
-    final next = Map<PageBackgroundTarget, String>.from(state.imagePaths)
-      ..[target] = savedPath;
-    state = state.copyWith(imagePaths: next, isLoading: false);
+    state = state.copyWith(imagePath: savedPath, isLoading: false);
     return true;
   }
 
   Future<void> clear(PageBackgroundTarget target) async {
-    final oldPath = state.pathFor(target);
-    await _storage.delete(key: _keyFor(target));
-    await _deleteFileIfExists(oldPath);
-
-    final next = Map<PageBackgroundTarget, String>.from(state.imagePaths)
-      ..remove(target);
-    state = state.copyWith(imagePaths: next, isLoading: false);
+    await clearShared();
   }
 
-  Future<String> _copyToAppStorage(
-    XFile image,
-    PageBackgroundTarget target,
-  ) async {
+  Future<void> clearShared() async {
+    final oldPath = state.imagePath;
+    await _storage.delete(key: _keyPath);
+    await _deleteFileIfExists(oldPath);
+
+    state = state.copyWith(clearImagePath: true, isLoading: false);
+  }
+
+  Future<void> setBlurSigma(double value) async {
+    final next = value.clamp(0.0, 24.0).toDouble();
+    await _storage.write(key: _keyBlurSigma, value: next.toStringAsFixed(1));
+    state = state.copyWith(blurSigma: next, isLoading: false);
+  }
+
+  Future<String> _copyToAppStorage(XFile image) async {
     final directory = await getApplicationSupportDirectory();
     final backgroundsDir = Directory('${directory.path}/page_backgrounds');
     if (!await backgroundsDir.exists()) {
@@ -103,10 +123,24 @@ class PageBackgroundNotifier extends StateNotifier<PageBackgroundState> {
     final extension = _extensionFor(image.path);
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     final destination = File(
-      '${backgroundsDir.path}/${target.storageName}_$timestamp$extension',
+      '${backgroundsDir.path}/shared_$timestamp$extension',
     );
     await image.saveTo(destination.path);
     return destination.path;
+  }
+
+  Future<String?> _migrateLegacyPath() async {
+    for (final target in PageBackgroundTarget.values) {
+      final key = _keyFor(target);
+      final path = await _storage.read(key: key);
+      if (path == null || path.isEmpty) continue;
+      if (await File(path).exists()) {
+        await _storage.write(key: _keyPath, value: path);
+        return path;
+      }
+      await _storage.delete(key: key);
+    }
+    return null;
   }
 
   Future<void> _deleteFileIfExists(String? path) async {
