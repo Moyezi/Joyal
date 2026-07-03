@@ -19,7 +19,7 @@ const double _miniPlayerHeight = 104;
 const double _miniPlayerCapsuleHeight = 88;
 const double _miniCoverSize = 72;
 const double _collapsedCoverImageSize = 62;
-const double _miniCoverLeftInset = 26;
+const double _miniCoverLeftInset = 23;
 const double _miniCoverRightInset = 18;
 const double _miniPlayerHorizontalInset = 14;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
@@ -74,6 +74,7 @@ class MiniPlayer extends ConsumerWidget {
     final chrome = _MiniPlayerChrome.resolve(
       mode: colorMode,
       palette: palette,
+      coverArtId: song.coverArt,
       brightness: brightness,
     );
 
@@ -440,9 +441,10 @@ class _MiniPlayerChrome {
   static _MiniPlayerChrome resolve({
     required MiniPlayerColorMode mode,
     required AlbumVisualPalette? palette,
+    required String coverArtId,
     required Brightness brightness,
   }) {
-    if (mode != MiniPlayerColorMode.dynamicAlbum || palette == null) {
+    if (mode != MiniPlayerColorMode.dynamicAlbum) {
       return const _MiniPlayerChrome(
         tintColor: AppTheme.miniPlayerBg,
         tintOpacity: 0.78,
@@ -453,25 +455,68 @@ class _MiniPlayerChrome {
       );
     }
 
-    final source = Color.lerp(palette.top, palette.bottom, 0.42)!;
+    final effectivePalette =
+        palette ?? _fallbackPaletteFromCoverArt(coverArtId, brightness);
+    final accent = effectivePalette.waveformAccentFor(brightness);
+    final source = Color.lerp(
+      Color.lerp(effectivePalette.top, effectivePalette.bottom, 0.42)!,
+      accent,
+      brightness == Brightness.dark ? 0.38 : 0.28,
+    )!;
     final tint = _withMaximumLuminance(
       Color.lerp(
         source,
         Colors.black,
-        brightness == Brightness.dark ? 0.44 : 0.54,
+        brightness == Brightness.dark ? 0.14 : 0.28,
       )!,
-      0.26,
+      brightness == Brightness.dark ? 0.40 : 0.46,
     );
-    final accent = palette.waveformAccentFor(brightness);
-    final border = Color.lerp(accent, Colors.white, 0.26)!;
+    final border = Color.lerp(accent, Colors.white, 0.22)!;
 
     return _MiniPlayerChrome(
       tintColor: tint,
-      tintOpacity: brightness == Brightness.dark ? 0.74 : 0.70,
+      tintOpacity: brightness == Brightness.dark ? 0.86 : 0.80,
       borderColor: border,
-      borderOpacity: 0.16,
+      borderOpacity: 0.20,
       playButtonForeground: tint,
       collapsedFrameColor: tint,
+    );
+  }
+
+  static AlbumVisualPalette _fallbackPaletteFromCoverArt(
+    String coverArtId,
+    Brightness brightness,
+  ) {
+    if (coverArtId.isEmpty) return AlbumVisualPalette.fallbackFor(brightness);
+
+    final hash = coverArtId.codeUnits.fold<int>(
+      0,
+      (value, unit) => (value * 31 + unit) & 0x7fffffff,
+    );
+    final hue = (hash % 360).toDouble();
+    final saturation = brightness == Brightness.dark ? 0.58 : 0.50;
+    final baseLightness = brightness == Brightness.dark ? 0.30 : 0.64;
+    final accentLightness = brightness == Brightness.dark ? 0.58 : 0.42;
+    final base = HSLColor.fromAHSL(1, hue, saturation, baseLightness).toColor();
+    final secondary = HSLColor.fromAHSL(
+      1,
+      (hue + 28) % 360,
+      saturation * 0.86,
+      baseLightness * 0.88,
+    ).toColor();
+    final accent = HSLColor.fromAHSL(
+      1,
+      (hue + 12) % 360,
+      (saturation + 0.12).clamp(0, 1).toDouble(),
+      accentLightness,
+    ).toColor();
+
+    return AlbumVisualPalette(
+      top: base,
+      bottom: secondary,
+      waveformAccent: accent,
+      waveformAccentSoft: Color.lerp(accent, base, 0.48)!,
+      waveformTrack: Color.lerp(base, Colors.black, 0.34)!,
     );
   }
 

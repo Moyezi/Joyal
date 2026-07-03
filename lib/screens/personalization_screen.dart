@@ -270,7 +270,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
   }
 }
 
-class _GlassPreview extends StatelessWidget {
+class _GlassPreview extends ConsumerWidget {
   final GlassEffectTarget target;
   final double blurSigma;
   final Alignment alignment;
@@ -282,15 +282,27 @@ class _GlassPreview extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final miniPlayerColorMode = ref.watch(miniPlayerColorProvider);
+    final previewMiniTint =
+        miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
+        ? _previewDynamicMiniPlayerTint(isDark)
+        : AppTheme.miniPlayerBg;
+    final previewMiniAccent =
+        miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
+        ? _previewDynamicMiniPlayerAccent(isDark)
+        : Colors.white;
     final tintColor = switch (target) {
-      GlassEffectTarget.miniPlayer => AppTheme.miniPlayerBg,
+      GlassEffectTarget.miniPlayer => previewMiniTint,
       GlassEffectTarget.songCard => context.surfaceColor,
       _ => context.surfaceColor,
     };
     final tintOpacity = switch (target) {
-      GlassEffectTarget.miniPlayer => 0.78,
+      GlassEffectTarget.miniPlayer =>
+        miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
+            ? (isDark ? 0.86 : 0.80)
+            : 0.78,
       GlassEffectTarget.topBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
@@ -317,7 +329,7 @@ class _GlassPreview extends StatelessWidget {
             tintColor: tintColor,
             tintOpacity: tintOpacity,
             borderColor: target == GlassEffectTarget.miniPlayer
-                ? Colors.white
+                ? previewMiniAccent
                 : context.primaryColor,
             borderOpacity: isDark ? 0.08 : 0.06,
             boxShadow: [
@@ -327,7 +339,10 @@ class _GlassPreview extends StatelessWidget {
                 offset: const Offset(0, 10),
               ),
             ],
-            child: _GlassPreviewContent(target: target),
+            child: _GlassPreviewContent(
+              target: target,
+              miniPlayerTint: previewMiniTint,
+            ),
           ),
         ),
       ),
@@ -352,6 +367,14 @@ class _GlassPreview extends StatelessWidget {
       GlassEffectTarget.bottomNav => 64,
       GlassEffectTarget.songCard => 68,
     };
+  }
+
+  Color _previewDynamicMiniPlayerTint(bool isDark) {
+    return isDark ? const Color(0xFF214F58) : const Color(0xFF4F8D94);
+  }
+
+  Color _previewDynamicMiniPlayerAccent(bool isDark) {
+    return isDark ? const Color(0xFF8DDADF) : const Color(0xFF2F6F76);
   }
 }
 
@@ -409,8 +432,12 @@ class _GlassPreviewOrbPainter extends CustomPainter {
 
 class _GlassPreviewContent extends StatelessWidget {
   final GlassEffectTarget target;
+  final Color miniPlayerTint;
 
-  const _GlassPreviewContent({required this.target});
+  const _GlassPreviewContent({
+    required this.target,
+    required this.miniPlayerTint,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -506,9 +533,9 @@ class _GlassPreviewContent extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.play_arrow_rounded,
-                color: AppTheme.miniPlayerBg,
+                color: miniPlayerTint,
               ),
             ),
           ],
