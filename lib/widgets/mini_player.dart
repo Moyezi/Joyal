@@ -19,6 +19,9 @@ const double _miniCoverRightInset = 18;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
 const Duration _miniLyricsMinRollDuration = Duration(milliseconds: 90);
 const Duration _miniLyricsShortRollDuration = Duration(milliseconds: 160);
+const Curve _miniLyricsRollPositionCurve = Cubic(0.16, 1.0, 0.3, 1.0);
+const Curve _miniLyricsRollFadeOutCurve = Cubic(0.55, 0.0, 1.0, 0.45);
+const Curve _miniLyricsRollFadeInCurve = Cubic(0.0, 0.55, 0.45, 1.0);
 
 class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onTap;
@@ -444,13 +447,12 @@ class _MiniLyricsState extends State<_MiniLyrics>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final t = Curves.easeOutCubic.transform(_controller.value);
         return _RollingMiniLyricsText(
           previousCurrent: previous.current,
           previousNext: previous.next,
           current: pair.current,
           next: pair.next,
-          progress: t,
+          progress: _controller.value,
         );
       },
     );
@@ -572,6 +574,9 @@ class _RollingMiniLyricsText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final promotedText = previousNext.isNotEmpty ? previousNext : current;
+    final rollProgress = _miniLyricsRollPositionCurve.transform(progress);
+    final fadeOutProgress = _miniLyricsRollFadeOutCurve.transform(progress);
+    final fadeInProgress = _miniLyricsRollFadeInCurve.transform(progress);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -605,17 +610,17 @@ class _RollingMiniLyricsText extends StatelessWidget {
         final oldCurrentTop = _lerp(
           previousLayout.currentTop,
           previousLayout.exitTop,
-          progress,
+          rollProgress,
         );
         final promotedTop = _lerp(
           promotedStartTop,
           targetLayout.currentTop,
-          progress,
+          rollProgress,
         );
         final nextTop = _lerp(
           targetLayout.enterTop,
           targetLayout.nextTop,
-          progress,
+          rollProgress,
         );
 
         return ClipRect(
@@ -629,7 +634,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
                   right: 0,
                   top: oldCurrentTop,
                   child: Opacity(
-                    opacity: (1 - progress).clamp(0, 1),
+                    opacity: (1 - fadeOutProgress).clamp(0, 1),
                     child: _CurrentLyricText(displayPreviousCurrent),
                   ),
                 ),
@@ -638,7 +643,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
                   right: 0,
                   top: promotedTop,
                   child: Opacity(
-                    opacity: (0.62 + progress * 0.38).clamp(0, 1),
+                    opacity: (0.62 + fadeInProgress * 0.38).clamp(0, 1),
                     child: _CurrentLyricText(displayPromotedText),
                   ),
                 ),
@@ -648,7 +653,7 @@ class _RollingMiniLyricsText extends StatelessWidget {
                     right: 0,
                     top: nextTop,
                     child: Opacity(
-                      opacity: progress.clamp(0, 1),
+                      opacity: fadeInProgress.clamp(0, 1),
                       child: _NextLyricText(next),
                     ),
                   ),
