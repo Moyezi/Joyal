@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -140,7 +139,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const Center(child: _GlassPreviewTriangleBackdrop()),
+                    const _GlassPreviewOrbBackdrop(),
                     PageView.builder(
                       controller: _pageController,
                       clipBehavior: Clip.hardEdge,
@@ -166,19 +165,15 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                             );
                             final scale = 1 - distance * 0.08;
                             final verticalOffset = distance * 14;
-                            final opacity = 1 - distance * 0.22;
                             final alignmentX = (page - index).clamp(-1.0, 1.0);
-                            return Opacity(
-                              opacity: opacity,
-                              child: Transform.translate(
-                                offset: Offset(0, verticalOffset),
-                                child: Transform.scale(
-                                  scale: scale,
-                                  child: _GlassPreview(
-                                    target: target,
-                                    blurSigma: glassState.blurFor(target),
-                                    alignment: Alignment(alignmentX, 0),
-                                  ),
+                            return Transform.translate(
+                              offset: Offset(0, verticalOffset),
+                              child: Transform.scale(
+                                scale: scale,
+                                child: _GlassPreview(
+                                  target: target,
+                                  blurSigma: glassState.blurFor(target),
+                                  alignment: Alignment(alignmentX, 0),
                                 ),
                               ),
                             );
@@ -317,38 +312,56 @@ class _GlassPreview extends StatelessWidget {
   }
 }
 
-class _GlassPreviewTriangleBackdrop extends StatelessWidget {
-  const _GlassPreviewTriangleBackdrop();
+class _GlassPreviewOrbBackdrop extends StatelessWidget {
+  const _GlassPreviewOrbBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return Transform.rotate(
-      angle: 37 * math.pi / 180,
-      child: const SizedBox(
-        width: 136,
-        height: 136,
-        child: CustomPaint(painter: _RightTrianglePainter()),
-      ),
-    );
+    return const CustomPaint(painter: _GlassPreviewOrbPainter());
   }
 }
 
-class _RightTrianglePainter extends CustomPainter {
-  const _RightTrianglePainter();
+class _GlassPreviewOrbPainter extends CustomPainter {
+  const _GlassPreviewOrbPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFE74C3C);
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(0, size.height)
-      ..lineTo(size.width, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF26384A),
+    );
+
+    final topLeftCenter = Offset(size.width * 0.10, size.height * -0.08);
+    final topLeftRadius = size.shortestSide * 0.96;
+    final topLeftBounds = Rect.fromCircle(
+      center: topLeftCenter,
+      radius: topLeftRadius,
+    );
+    final topLeftPaint = Paint()
+      ..shader = const RadialGradient(
+        center: Alignment(-0.20, -0.24),
+        radius: 1.05,
+        colors: [Color(0xFFFF2D6D), Color(0xFFC61F4F)],
+      ).createShader(topLeftBounds);
+    canvas.drawCircle(topLeftCenter, topLeftRadius, topLeftPaint);
+
+    final bottomRightCenter = Offset(size.width * 0.92, size.height * 1.18);
+    final bottomRightRadius = size.shortestSide * 1.08;
+    final bottomRightBounds = Rect.fromCircle(
+      center: bottomRightCenter,
+      radius: bottomRightRadius,
+    );
+    final bottomRightPaint = Paint()
+      ..shader = const RadialGradient(
+        center: Alignment(-0.35, -0.45),
+        radius: 1.12,
+        colors: [Color(0xFF39A6A3), Color(0xFF1F6B6D)],
+      ).createShader(bottomRightBounds);
+    canvas.drawCircle(bottomRightCenter, bottomRightRadius, bottomRightPaint);
   }
 
   @override
-  bool shouldRepaint(covariant _RightTrianglePainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GlassPreviewOrbPainter oldDelegate) => false;
 }
 
 class _GlassPreviewContent extends StatelessWidget {

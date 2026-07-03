@@ -48,7 +48,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - `PersonalizationScreen` 可为首页、曲库、收藏选择本地图片作页面背景；用 `image_picker` 选择后复制到应用支持目录，再由 `PageBackgroundNotifier` 保存路径。主页面通过 `PageCustomBackground` 在内容 `Stack` 底层铺图并按亮暗模式加遮罩，不改变列表、顶栏和 Dock 的空间关系。
 - 毛玻璃统一由 `lib/providers/glass_effect_provider.dart` 管强度，`GlassEffectTarget` 当前包含 `topBar`、`miniPlayer`、`searchBar`、`bottomNav`；通用容器用 `FrostedGlass`。新增毛玻璃 UI 时优先复用该 provider/widget，并在个性化“毛玻璃”栏位里提供调节和对应效果预览。
-- 个性化“毛玻璃”栏位用类似 iOS 后台的横向堆叠预览卡切换调节对象，滑动切换时触发选择振动反馈；不要再加一排对象选择按钮。预览背景固定为不随滑动变化的红色直角三角形（`#e74c3c`，顺时针旋转 37 度），各待调组件只渲染自身毛玻璃效果并透过它观察该背景；组件显示不全时应贴着毛玻璃栏边界开始露出并由栏位边界裁剪，不要让组件自己画出整栏边界。顶栏预览应像搜索框胶囊，只保留两行文字，不显示搜索图标。
+- 个性化“毛玻璃”栏位用类似 iOS 后台的横向堆叠预览卡切换调节对象，滑动切换时触发选择振动反馈；不要再加一排对象选择按钮。预览背景固定为不随滑动变化的冷色底图，左上和右下各放一个带颜色渐变的大圆，类似毛玻璃示意图；各待调组件只渲染自身毛玻璃效果并透过它观察该背景。组件显示不全时应贴着毛玻璃栏边界开始露出并由栏位边界裁剪，不要让组件自己画出整栏边界。滑动过程中要保留各组件当前毛玻璃参数，不要用整卡 `Opacity` 包住 `BackdropFilter`，避免拖动时毛玻璃消失、停止后闪现。顶栏预览应像搜索框胶囊，只保留两行文字，不显示搜索图标。
 - `GlassTopBar` 保持可独立渲染，实际主页面从 `glassEffectProvider` 读取顶栏模糊强度后通过参数传入；不要让单独的顶栏 widget 强依赖外层 `ProviderScope`。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；切歌时要平滑过渡，不要让光斑瞬移；静态渐变应停止动画控制器。
 
