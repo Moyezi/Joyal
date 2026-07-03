@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../providers/glass_effect_provider.dart';
+import '../providers/mini_player_color_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/visual_effect_provider.dart';
 import '../utils/app_toast.dart';
@@ -48,6 +49,10 @@ class PersonalizationScreen extends ConsumerWidget {
           Text('毛玻璃', style: context.textTitleLarge),
           const SizedBox(height: AppTheme.spacingSM),
           const _GlassEffectTile(),
+          const SizedBox(height: AppTheme.spacingLG),
+          Text('迷你播放栏', style: context.textTitleLarge),
+          const SizedBox(height: AppTheme.spacingSM),
+          const _MiniPlayerColorTile(),
           const SizedBox(height: AppTheme.spacingLG),
           Text('播放背景', style: context.textTitleLarge),
           const SizedBox(height: AppTheme.spacingSM),
@@ -90,6 +95,39 @@ class PersonalizationScreen extends ConsumerWidget {
     await ref.read(pageBackgroundProvider.notifier).clearShared();
     if (!context.mounted) return;
     showAppToast(context, '页面背景已清除');
+  }
+}
+
+class _MiniPlayerColorTile extends ConsumerWidget {
+  const _MiniPlayerColorTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMode = ref.watch(miniPlayerColorProvider);
+
+    return Column(
+      children: [
+        _BackgroundStyleTile(
+          icon: Icons.dark_mode_outlined,
+          title: MiniPlayerColorMode.defaultColor.label,
+          subtitle: MiniPlayerColorMode.defaultColor.description,
+          selected: selectedMode == MiniPlayerColorMode.defaultColor,
+          onTap: () => ref
+              .read(miniPlayerColorProvider.notifier)
+              .setMode(MiniPlayerColorMode.defaultColor),
+        ),
+        const SizedBox(height: AppTheme.spacingMD),
+        _BackgroundStyleTile(
+          icon: Icons.palette_outlined,
+          title: MiniPlayerColorMode.dynamicAlbum.label,
+          subtitle: MiniPlayerColorMode.dynamicAlbum.description,
+          selected: selectedMode == MiniPlayerColorMode.dynamicAlbum,
+          onTap: () => ref
+              .read(miniPlayerColorProvider.notifier)
+              .setMode(MiniPlayerColorMode.dynamicAlbum),
+        ),
+      ],
+    );
   }
 }
 

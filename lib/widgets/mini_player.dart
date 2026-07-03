@@ -7,7 +7,9 @@ import '../config/theme.dart';
 import '../models/lyrics.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/lyrics_provider.dart';
+import '../providers/mini_player_color_provider.dart';
 import '../providers/player_provider.dart';
+import 'album_visual_palette.dart';
 import 'cached_disk_image.dart';
 import 'frosted_glass.dart';
 import 'now_playing_transition.dart';
@@ -17,7 +19,7 @@ const double _miniPlayerHeight = 104;
 const double _miniPlayerCapsuleHeight = 88;
 const double _miniCoverSize = 72;
 const double _collapsedCoverImageSize = 62;
-const double _miniCoverLeftInset = 18;
+const double _miniCoverLeftInset = 26;
 const double _miniCoverRightInset = 18;
 const double _miniPlayerHorizontalInset = 14;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
@@ -54,6 +56,26 @@ class MiniPlayer extends ConsumerWidget {
     final coverUrl = (api != null && song.coverArt.isNotEmpty)
         ? api.getCoverArtUrl(song.coverArt)
         : '';
+    final colorMode = ref.watch(miniPlayerColorProvider);
+    final brightness = Theme.of(context).brightness;
+    final palette = colorMode == MiniPlayerColorMode.dynamicAlbum
+        ? ref
+              .watch(
+                _miniPlayerPaletteProvider(
+                  _MiniPlayerPaletteRequest(
+                    coverArtId: song.coverArt,
+                    coverUrl: coverUrl,
+                    brightness: brightness,
+                  ),
+                ),
+              )
+              .valueOrNull
+        : null;
+    final chrome = _MiniPlayerChrome.resolve(
+      mode: colorMode,
+      palette: palette,
+      brightness: brightness,
+    );
 
     final cover = _buildMiniCover(coverUrl, song.coverArt);
     final lyrics = _MiniLyrics(
@@ -103,6 +125,7 @@ class MiniPlayer extends ConsumerWidget {
                         cover: cover,
                         showCover: false,
                         lyrics: lyrics,
+                        chrome: chrome,
                         onTap: onTap,
                         onCollapseRequested: onCollapseRequested,
                       ),
@@ -123,6 +146,7 @@ class MiniPlayer extends ConsumerWidget {
                           progress: progress,
                           padding: coverPadding,
                           imageSize: imageSize,
+                          chrome: chrome,
                         ),
                       ),
                     ),
@@ -168,6 +192,7 @@ class _ExpandedMiniPlayer extends ConsumerStatefulWidget {
   final Widget cover;
   final bool showCover;
   final Widget lyrics;
+  final _MiniPlayerChrome chrome;
   final VoidCallback? onTap;
   final VoidCallback? onCollapseRequested;
 
@@ -177,6 +202,7 @@ class _ExpandedMiniPlayer extends ConsumerStatefulWidget {
     required this.cover,
     this.showCover = true,
     required this.lyrics,
+    required this.chrome,
     this.onTap,
     this.onCollapseRequested,
   });
@@ -238,10 +264,10 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
         child: FrostedGlass(
           blurSigma: blurSigma,
           borderRadius: BorderRadius.circular(44),
-          tintColor: AppTheme.miniPlayerBg,
-          tintOpacity: 0.78,
-          borderColor: Colors.white,
-          borderOpacity: 0.08,
+          tintColor: widget.chrome.tintColor,
+          tintOpacity: widget.chrome.tintOpacity,
+          borderColor: widget.chrome.borderColor,
+          borderOpacity: widget.chrome.borderOpacity,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
@@ -276,7 +302,7 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
                 },
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: AppTheme.miniPlayerBg,
+                  foregroundColor: widget.chrome.playButtonForeground,
                   minimumSize: const Size(58, 58),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(19),
@@ -304,6 +330,7 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
   final double progress;
   final double padding;
   final double imageSize;
+  final _MiniPlayerChrome chrome;
 
   const _MiniPlayerMorphingCover({
     required this.trackId,
@@ -312,6 +339,7 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
     required this.progress,
     required this.padding,
     required this.imageSize,
+    required this.chrome,
   });
 
   @override
@@ -322,7 +350,12 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppTheme.miniPlayerBg.withValues(alpha: progress),
+          color: chrome.collapsedFrameColor.withValues(alpha: progress),
+          border: Border.all(
+            color: chrome.borderColor.withValues(
+              alpha: chrome.borderOpacity * progress,
+            ),
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18 * progress),
@@ -352,6 +385,103 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MiniPlayerPaletteRequest {
+  final String coverArtId;
+  final String coverUrl;
+  final Brightness brightness;
+
+  const _MiniPlayerPaletteRequest({
+    required this.coverArtId,
+    required this.coverUrl,
+    required this.brightness,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MiniPlayerPaletteRequest &&
+        other.coverArtId == coverArtId &&
+        other.coverUrl == coverUrl &&
+        other.brightness == brightness;
+  }
+
+  @override
+  int get hashCode => Object.hash(coverArtId, coverUrl, brightness);
+}
+
+final _miniPlayerPaletteProvider = FutureProvider.autoDispose
+    .family<AlbumVisualPalette, _MiniPlayerPaletteRequest>((ref, request) {
+      return AlbumVisualPalette.resolve(
+        coverArtId: request.coverArtId,
+        coverUrl: request.coverUrl,
+        brightness: request.brightness,
+      );
+    });
+
+class _MiniPlayerChrome {
+  final Color tintColor;
+  final double tintOpacity;
+  final Color borderColor;
+  final double borderOpacity;
+  final Color playButtonForeground;
+  final Color collapsedFrameColor;
+
+  const _MiniPlayerChrome({
+    required this.tintColor,
+    required this.tintOpacity,
+    required this.borderColor,
+    required this.borderOpacity,
+    required this.playButtonForeground,
+    required this.collapsedFrameColor,
+  });
+
+  static _MiniPlayerChrome resolve({
+    required MiniPlayerColorMode mode,
+    required AlbumVisualPalette? palette,
+    required Brightness brightness,
+  }) {
+    if (mode != MiniPlayerColorMode.dynamicAlbum || palette == null) {
+      return const _MiniPlayerChrome(
+        tintColor: AppTheme.miniPlayerBg,
+        tintOpacity: 0.78,
+        borderColor: Colors.white,
+        borderOpacity: 0.08,
+        playButtonForeground: AppTheme.miniPlayerBg,
+        collapsedFrameColor: AppTheme.miniPlayerBg,
+      );
+    }
+
+    final source = Color.lerp(palette.top, palette.bottom, 0.42)!;
+    final tint = _withMaximumLuminance(
+      Color.lerp(
+        source,
+        Colors.black,
+        brightness == Brightness.dark ? 0.44 : 0.54,
+      )!,
+      0.26,
+    );
+    final accent = palette.waveformAccentFor(brightness);
+    final border = Color.lerp(accent, Colors.white, 0.26)!;
+
+    return _MiniPlayerChrome(
+      tintColor: tint,
+      tintOpacity: brightness == Brightness.dark ? 0.74 : 0.70,
+      borderColor: border,
+      borderOpacity: 0.16,
+      playButtonForeground: tint,
+      collapsedFrameColor: tint,
+    );
+  }
+
+  static Color _withMaximumLuminance(Color color, double target) {
+    if (color.computeLuminance() <= target) return color;
+    for (var step = 1; step <= 12; step++) {
+      final adjusted = Color.lerp(color, Colors.black, step / 12)!;
+      if (adjusted.computeLuminance() <= target) return adjusted;
+    }
+    return Colors.black;
   }
 }
 
