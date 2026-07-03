@@ -493,6 +493,9 @@ class _MainShellState extends ConsumerState<MainShell>
         final progress = _drawerController.value;
         final scale = 1 - ((1 - _drawerMinScale) * progress);
         final previewBorderRadius = BorderRadius.circular(28 * progress);
+        final previewClipBehavior = progress > 0.001
+            ? Clip.antiAliasWithSaveLayer
+            : Clip.none;
 
         return Transform.translate(
           offset: Offset(drawerWidth * progress, 0),
@@ -501,7 +504,7 @@ class _MainShellState extends ConsumerState<MainShell>
             alignment: Alignment.centerLeft,
             child: ClipRRect(
               borderRadius: previewBorderRadius,
-              clipBehavior: Clip.antiAlias,
+              clipBehavior: previewClipBehavior,
               child: Stack(
                 children: [
                   RepaintBoundary(child: child!),
