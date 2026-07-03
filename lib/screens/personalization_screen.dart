@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -139,7 +140,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    const Center(child: _GlassPreviewCircleBackdrop()),
+                    const Center(child: _GlassPreviewTriangleBackdrop()),
                     PageView.builder(
                       controller: _pageController,
                       clipBehavior: Clip.hardEdge,
@@ -166,24 +167,22 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                             final scale = 1 - distance * 0.08;
                             final verticalOffset = distance * 14;
                             final opacity = 1 - distance * 0.22;
+                            final alignmentX = (page - index).clamp(-1.0, 1.0);
                             return Opacity(
                               opacity: opacity,
                               child: Transform.translate(
                                 offset: Offset(0, verticalOffset),
                                 child: Transform.scale(
                                   scale: scale,
-                                  child: child,
+                                  child: _GlassPreview(
+                                    target: target,
+                                    blurSigma: glassState.blurFor(target),
+                                    alignment: Alignment(alignmentX, 0),
+                                  ),
                                 ),
                               ),
                             );
                           },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                            child: _GlassPreview(
-                              target: target,
-                              blurSigma: glassState.blurFor(target),
-                            ),
-                          ),
                         );
                       },
                     ),
@@ -241,8 +240,13 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
 class _GlassPreview extends StatelessWidget {
   final GlassEffectTarget target;
   final double blurSigma;
+  final Alignment alignment;
 
-  const _GlassPreview({required this.target, required this.blurSigma});
+  const _GlassPreview({
+    required this.target,
+    required this.blurSigma,
+    this.alignment = Alignment.center,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -266,7 +270,8 @@ class _GlassPreview extends StatelessWidget {
 
     return SizedBox(
       height: 148,
-      child: Center(
+      child: Align(
+        alignment: alignment,
         child: SizedBox(
           width: _previewWidthFor(target),
           height: _previewHeightFor(target),
@@ -312,20 +317,38 @@ class _GlassPreview extends StatelessWidget {
   }
 }
 
-class _GlassPreviewCircleBackdrop extends StatelessWidget {
-  const _GlassPreviewCircleBackdrop();
+class _GlassPreviewTriangleBackdrop extends StatelessWidget {
+  const _GlassPreviewTriangleBackdrop();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 128,
-      height: 128,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Color(0xFFE74C3C),
+    return Transform.rotate(
+      angle: 37 * math.pi / 180,
+      child: const SizedBox(
+        width: 136,
+        height: 136,
+        child: CustomPaint(painter: _RightTrianglePainter()),
       ),
     );
   }
+}
+
+class _RightTrianglePainter extends CustomPainter {
+  const _RightTrianglePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFFE74C3C);
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, size.height)
+      ..lineTo(size.width, size.height)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RightTrianglePainter oldDelegate) => false;
 }
 
 class _GlassPreviewContent extends StatelessWidget {
