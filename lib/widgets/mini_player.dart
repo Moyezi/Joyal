@@ -74,7 +74,6 @@ class MiniPlayer extends ConsumerWidget {
     final chrome = _MiniPlayerChrome.resolve(
       mode: colorMode,
       palette: palette,
-      coverArtId: song.coverArt,
       brightness: brightness,
     );
 
@@ -441,7 +440,6 @@ class _MiniPlayerChrome {
   static _MiniPlayerChrome resolve({
     required MiniPlayerColorMode mode,
     required AlbumVisualPalette? palette,
-    required String coverArtId,
     required Brightness brightness,
   }) {
     if (mode != MiniPlayerColorMode.dynamicAlbum) {
@@ -456,7 +454,7 @@ class _MiniPlayerChrome {
     }
 
     final effectivePalette =
-        palette ?? _fallbackPaletteFromCoverArt(coverArtId, brightness);
+        palette ?? AlbumVisualPalette.fallbackFor(brightness);
     final accent = effectivePalette.waveformAccentFor(brightness);
     final source = Color.lerp(
       Color.lerp(effectivePalette.top, effectivePalette.bottom, 0.42)!,
@@ -480,43 +478,6 @@ class _MiniPlayerChrome {
       borderOpacity: 0.20,
       playButtonForeground: tint,
       collapsedFrameColor: tint,
-    );
-  }
-
-  static AlbumVisualPalette _fallbackPaletteFromCoverArt(
-    String coverArtId,
-    Brightness brightness,
-  ) {
-    if (coverArtId.isEmpty) return AlbumVisualPalette.fallbackFor(brightness);
-
-    final hash = coverArtId.codeUnits.fold<int>(
-      0,
-      (value, unit) => (value * 31 + unit) & 0x7fffffff,
-    );
-    final hue = (hash % 360).toDouble();
-    final saturation = brightness == Brightness.dark ? 0.58 : 0.50;
-    final baseLightness = brightness == Brightness.dark ? 0.30 : 0.64;
-    final accentLightness = brightness == Brightness.dark ? 0.58 : 0.42;
-    final base = HSLColor.fromAHSL(1, hue, saturation, baseLightness).toColor();
-    final secondary = HSLColor.fromAHSL(
-      1,
-      (hue + 28) % 360,
-      saturation * 0.86,
-      baseLightness * 0.88,
-    ).toColor();
-    final accent = HSLColor.fromAHSL(
-      1,
-      (hue + 12) % 360,
-      (saturation + 0.12).clamp(0, 1).toDouble(),
-      accentLightness,
-    ).toColor();
-
-    return AlbumVisualPalette(
-      top: base,
-      bottom: secondary,
-      waveformAccent: accent,
-      waveformAccentSoft: Color.lerp(accent, base, 0.48)!,
-      waveformTrack: Color.lerp(base, Colors.black, 0.34)!,
     );
   }
 
