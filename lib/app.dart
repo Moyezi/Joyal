@@ -470,9 +470,11 @@ class _MainShellState extends ConsumerState<MainShell>
                   top: 0,
                   bottom: 0,
                   width: drawerWidth,
-                  child: HomeSidebar(
-                    onSettingsTap: _openSettingsHub,
-                    onPersonalizationTap: _openPersonalization,
+                  child: RepaintBoundary(
+                    child: HomeSidebar(
+                      onSettingsTap: _openSettingsHub,
+                      onPersonalizationTap: _openPersonalization,
+                    ),
                   ),
                 ),
                 _buildTransformedShell(drawerWidth: drawerWidth),
@@ -493,36 +495,41 @@ class _MainShellState extends ConsumerState<MainShell>
         final progress = _drawerController.value;
         final scale = 1 - ((1 - _drawerMinScale) * progress);
         final previewBorderRadius = BorderRadius.circular(28 * progress);
-        final previewClipBehavior = progress > 0.001
-            ? Clip.antiAliasWithSaveLayer
-            : Clip.none;
+        final shouldClipPreview = progress > 0.001;
+        final preview = Stack(
+          children: [
+            RepaintBoundary(child: child!),
+            if (progress > 0)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _handleDrawerPreviewTap,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.10 * progress),
+                      borderRadius: previewBorderRadius,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
 
         return Transform.translate(
           offset: Offset(drawerWidth * progress, 0),
           child: Transform.scale(
             scale: scale,
             alignment: Alignment.centerLeft,
-            child: ClipRRect(
-              borderRadius: previewBorderRadius,
-              clipBehavior: previewClipBehavior,
-              child: Stack(
-                children: [
-                  RepaintBoundary(child: child!),
-                  if (progress > 0)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _handleDrawerPreviewTap,
-                        child: ColoredBox(
-                          color: Colors.black.withValues(
-                            alpha: 0.10 * progress,
-                          ),
-                        ),
-                      ),
+            child: shouldClipPreview
+                ? Material(
+                    type: MaterialType.transparency,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: previewBorderRadius,
                     ),
-                ],
-              ),
-            ),
+                    clipBehavior: Clip.antiAlias,
+                    child: preview,
+                  )
+                : preview,
           ),
         );
       },
