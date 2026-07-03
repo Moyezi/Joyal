@@ -495,6 +495,7 @@ class _MainShellState extends ConsumerState<MainShell>
     final progress = _drawerController.value;
     final scale = 1 - ((1 - _drawerMinScale) * progress);
     final blur = _drawerMaxBlur * progress;
+    final previewBorderRadius = BorderRadius.circular(28 * progress);
 
     return Transform.translate(
       offset: Offset(drawerWidth * progress, 0),
@@ -502,7 +503,8 @@ class _MainShellState extends ConsumerState<MainShell>
         scale: scale,
         alignment: Alignment.centerLeft,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(28 * progress),
+          borderRadius: previewBorderRadius,
+          clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
               Positioned.fill(
@@ -550,10 +552,16 @@ class _MainShellState extends ConsumerState<MainShell>
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: _handleDrawerPreviewTap,
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                      child: ColoredBox(
-                        color: Colors.black.withValues(alpha: 0.08 * progress),
+                    child: ClipRRect(
+                      borderRadius: previewBorderRadius,
+                      clipBehavior: Clip.antiAlias,
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                        child: ColoredBox(
+                          color: Colors.black.withValues(
+                            alpha: 0.08 * progress,
+                          ),
+                        ),
                       ),
                     ),
                   ),

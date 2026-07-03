@@ -36,6 +36,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 首页“每日推荐”从 `LibraryState.songs` 中按当天日期稳定随机选 24 首，栏内展示 3 首；“查看更多”复用 `PlayQueueSheet` 抽屉，歌曲卡片复用 `QueueSongCard`。点击推荐歌曲应以这 24 首建立真实播放队列。
 - 首页“随机专辑”从 `LibraryState.albums` 中按当天日期稳定随机选 8 张（双列 4 行）；标题右侧灰色“查看更多”切换到底部导航的曲库页并选中“专辑”Tab。首页专辑区底部文案固定为 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约占屏幕 70%，右侧保留主页预览；主页内容、MiniPlayer 和 Dock 随进度右移、轻微缩小并模糊。手势由 `_MainShellState` 驱动，“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
+- 侧边栏打开时，右侧主页预览的缩放层、暗色遮罩和 `BackdropFilter` 毛玻璃层要共享同一套圆角裁剪；尤其左上/左下角不能被滤镜或覆盖层抹平成直角。
 - 侧边栏只放真实状态和明确标记为“预留”的占位内容；底部固定按钮行放设置、个性化（刷子图标）和主题切换，分别进入 `SettingsHubScreen`、`PersonalizationScreen` 或循环主题。侧边栏内容区可滚动，底部按钮固定，避免小屏溢出。
 
 ## 主题与视觉
