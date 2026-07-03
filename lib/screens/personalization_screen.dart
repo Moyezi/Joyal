@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
@@ -101,6 +102,22 @@ class _GlassEffectTile extends ConsumerStatefulWidget {
 
 class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
   GlassEffectTarget _selectedTarget = GlassEffectTarget.miniPlayer;
+  late final PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(
+      initialPage: GlassEffectTarget.values.indexOf(_selectedTarget),
+      viewportFraction: 0.78,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,23 +132,58 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _GlassPreview(target: _selectedTarget, blurSigma: blurSigma),
-            const SizedBox(height: AppTheme.spacingMD),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final target in GlassEffectTarget.values)
-                  ChoiceChip(
-                    label: Text(target.label),
-                    selected: target == _selectedTarget,
-                    onSelected: (_) => setState(() {
-                      _selectedTarget = target;
-                    }),
-                  ),
-              ],
+            SizedBox(
+              height: 156,
+              child: PageView.builder(
+                controller: _pageController,
+                clipBehavior: Clip.none,
+                itemCount: GlassEffectTarget.values.length,
+                onPageChanged: (index) {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    _selectedTarget = GlassEffectTarget.values[index];
+                  });
+                },
+                itemBuilder: (context, index) {
+                  final target = GlassEffectTarget.values[index];
+                  return AnimatedBuilder(
+                    animation: _pageController,
+                    builder: (context, child) {
+                      final page = _pageController.hasClients
+                          ? (_pageController.page ??
+                                _pageController.initialPage.toDouble())
+                          : _pageController.initialPage.toDouble();
+                      final distance = (page - index).abs().clamp(0.0, 1.0);
+                      final scale = 1 - distance * 0.08;
+                      final verticalOffset = distance * 14;
+                      final opacity = 1 - distance * 0.22;
+                      return Opacity(
+                        opacity: opacity,
+                        child: Transform.translate(
+                          offset: Offset(0, verticalOffset),
+                          child: Transform.scale(scale: scale, child: child),
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: _GlassPreview(
+                        target: target,
+                        blurSigma: glassState.blurFor(target),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: AppTheme.spacingMD),
+            Text(
+              _selectedTarget.label,
+              style: context.textTitleMedium.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingSM),
             Row(
               children: [
                 Icon(
@@ -186,19 +238,19 @@ class _GlassPreview extends StatelessWidget {
     };
     final tintOpacity = switch (target) {
       GlassEffectTarget.miniPlayer => 0.78,
-      GlassEffectTarget.topBar => isDark ? 0.62 : 0.58,
+      GlassEffectTarget.topBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
     };
     final radius = switch (target) {
-      GlassEffectTarget.topBar => BorderRadius.circular(16),
+      GlassEffectTarget.topBar => BorderRadius.circular(18),
       GlassEffectTarget.searchBar => BorderRadius.circular(18),
       GlassEffectTarget.bottomNav => BorderRadius.circular(34),
       GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
     };
 
     return SizedBox(
-      height: 132,
+      height: 148,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         child: Stack(
@@ -246,7 +298,7 @@ class _GlassPreview extends StatelessWidget {
 
   double _previewHeightFor(GlassEffectTarget target) {
     return switch (target) {
-      GlassEffectTarget.topBar => 64,
+      GlassEffectTarget.topBar => 54,
       GlassEffectTarget.miniPlayer => 76,
       GlassEffectTarget.searchBar => 54,
       GlassEffectTarget.bottomNav => 64,
@@ -342,19 +394,32 @@ class _GlassPreviewContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (target) {
       GlassEffectTarget.topBar => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 '晚上好',
-                style: context.textTitleLarge,
+                style: context.textTitleMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            ),
-            Icon(Icons.search_rounded, color: context.primaryColor),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                '继续享受你的音乐',
+                style: context.textBodySmall.copyWith(
+                  color: context.secondaryColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
       GlassEffectTarget.searchBar => Padding(

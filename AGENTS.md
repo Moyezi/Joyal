@@ -48,6 +48,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量使用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - `PersonalizationScreen` 可为首页、曲库、收藏选择本地图片作页面背景；用 `image_picker` 选择后复制到应用支持目录，再由 `PageBackgroundNotifier` 保存路径。主页面通过 `PageCustomBackground` 在内容 `Stack` 底层铺图并按亮暗模式加遮罩，不改变列表、顶栏和 Dock 的空间关系。
 - 毛玻璃统一由 `lib/providers/glass_effect_provider.dart` 管强度，`GlassEffectTarget` 当前包含 `topBar`、`miniPlayer`、`searchBar`、`bottomNav`；通用容器用 `FrostedGlass`。新增毛玻璃 UI 时优先复用该 provider/widget，并在个性化“毛玻璃”栏位里提供调节和对应效果预览。
+- 个性化“毛玻璃”栏位用类似 iOS 后台的横向堆叠预览卡切换调节对象，滑动切换时触发选择振动反馈；不要再加一排对象选择按钮。顶栏预览应像搜索框胶囊，只保留两行文字，不显示搜索图标。
 - `GlassTopBar` 保持可独立渲染，实际主页面从 `glassEffectProvider` 读取顶栏模糊强度后通过参数传入；不要让单独的顶栏 widget 强依赖外层 `ProviderScope`。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；`VisualEffectNotifier` 持久化 `BackgroundVisualStyle`（流动光影/静态渐变）。流动光影用 `CustomPainter` + `sin/cos` 闭环轨迹绘制柔和光晕，避免每帧全屏 `BackdropFilter` 高斯模糊导致掉帧；切歌时要平滑过渡，不要让光斑瞬移；静态渐变应停止动画控制器。
 
@@ -102,7 +103,6 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 认证解析、模型解析、播放器状态仍缺单元测试。
 - 空查询 `search3.view` 枚举全库需继续在不同 Navidrome/Subsonic 服务上验证。
-- Web CORS、iOS 真机局域网权限提示、不同服务端响应版本需要实机联调。
 - 旧文件里可能有中文乱码；不要因为 PowerShell 显示乱码就批量重写无关代码。需要读中文文件时优先显式使用 UTF-8。
 - 用户通常通过实机截图反馈 UI；改动后优先构建 arm64 Release APK 供复核。
 - 添加 UI 操作前先确认 provider/service 已有对应能力，不把占位 UI 描述为完成。
