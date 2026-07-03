@@ -3,15 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/theme.dart';
 import '../models/lyrics.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/mini_player_color_provider.dart';
 import '../providers/player_provider.dart';
-import 'album_visual_palette.dart';
 import 'cached_disk_image.dart';
 import 'frosted_glass.dart';
+import 'mini_player_chrome.dart';
 import 'now_playing_transition.dart';
 
 const double _miniLyricsHeight = 76;
@@ -62,8 +61,8 @@ class MiniPlayer extends ConsumerWidget {
     final palette = colorMode == MiniPlayerColorMode.dynamicAlbum
         ? ref
               .watch(
-                _miniPlayerPaletteProvider(
-                  _MiniPlayerPaletteRequest(
+                miniPlayerPaletteProvider(
+                  MiniPlayerPaletteRequest(
                     coverArtId: song.coverArt,
                     coverSourceId: coverSourceId,
                     coverUrl: coverUrl,
@@ -73,7 +72,7 @@ class MiniPlayer extends ConsumerWidget {
               )
               .valueOrNull
         : null;
-    final chrome = _MiniPlayerChrome.resolve(
+    final chrome = MiniPlayerChrome.resolve(
       mode: colorMode,
       palette: palette,
       brightness: brightness,
@@ -194,7 +193,7 @@ class _ExpandedMiniPlayer extends ConsumerStatefulWidget {
   final Widget cover;
   final bool showCover;
   final Widget lyrics;
-  final _MiniPlayerChrome chrome;
+  final MiniPlayerChrome chrome;
   final VoidCallback? onTap;
   final VoidCallback? onCollapseRequested;
 
@@ -296,8 +295,16 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
                 )
               else
                 const SizedBox(width: _miniCoverLeftInset + _miniCoverSize),
-              const SizedBox(width: 9),
-              Expanded(child: widget.lyrics),
+              const SizedBox(width: 1),
+              Expanded(
+                child: Transform.translate(
+                  offset: const Offset(-2, 0),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: widget.lyrics,
+                  ),
+                ),
+              ),
               IconButton(
                 onPressed: () {
                   ref.read(playerProvider.notifier).togglePlayPause();
@@ -332,7 +339,7 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
   final double progress;
   final double padding;
   final double imageSize;
-  final _MiniPlayerChrome chrome;
+  final MiniPlayerChrome chrome;
 
   const _MiniPlayerMorphingCover({
     required this.trackId,
@@ -387,112 +394,6 @@ class _MiniPlayerMorphingCover extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _MiniPlayerPaletteRequest {
-  final String coverArtId;
-  final String coverSourceId;
-  final String coverUrl;
-  final Brightness brightness;
-
-  const _MiniPlayerPaletteRequest({
-    required this.coverArtId,
-    required this.coverSourceId,
-    required this.coverUrl,
-    required this.brightness,
-  });
-
-  @override
-  bool operator ==(Object other) {
-    return other is _MiniPlayerPaletteRequest &&
-        other.coverArtId == coverArtId &&
-        other.coverSourceId == coverSourceId &&
-        other.brightness == brightness;
-  }
-
-  @override
-  int get hashCode => Object.hash(coverArtId, coverSourceId, brightness);
-}
-
-final _miniPlayerPaletteProvider = FutureProvider.autoDispose
-    .family<AlbumVisualPalette, _MiniPlayerPaletteRequest>((ref, request) {
-      return AlbumVisualPalette.resolve(
-        coverArtId: request.coverArtId,
-        coverUrl: request.coverUrl,
-        brightness: request.brightness,
-        fallbackOnError: false,
-      );
-    });
-
-class _MiniPlayerChrome {
-  final Color tintColor;
-  final double tintOpacity;
-  final Color borderColor;
-  final double borderOpacity;
-  final Color playButtonForeground;
-  final Color collapsedFrameColor;
-
-  const _MiniPlayerChrome({
-    required this.tintColor,
-    required this.tintOpacity,
-    required this.borderColor,
-    required this.borderOpacity,
-    required this.playButtonForeground,
-    required this.collapsedFrameColor,
-  });
-
-  static _MiniPlayerChrome resolve({
-    required MiniPlayerColorMode mode,
-    required AlbumVisualPalette? palette,
-    required Brightness brightness,
-  }) {
-    if (mode != MiniPlayerColorMode.dynamicAlbum) {
-      return const _MiniPlayerChrome(
-        tintColor: AppTheme.miniPlayerBg,
-        tintOpacity: 0.78,
-        borderColor: Colors.white,
-        borderOpacity: 0.08,
-        playButtonForeground: AppTheme.miniPlayerBg,
-        collapsedFrameColor: AppTheme.miniPlayerBg,
-      );
-    }
-
-    final effectivePalette =
-        palette ?? AlbumVisualPalette.fallbackFor(brightness);
-    final accent = effectivePalette.waveformAccentFor(brightness);
-    final source = Color.lerp(
-      Color.lerp(effectivePalette.top, effectivePalette.bottom, 0.42)!,
-      accent,
-      brightness == Brightness.dark ? 0.38 : 0.28,
-    )!;
-    final tint = _withMaximumLuminance(
-      Color.lerp(
-        source,
-        Colors.black,
-        brightness == Brightness.dark ? 0.14 : 0.28,
-      )!,
-      brightness == Brightness.dark ? 0.40 : 0.46,
-    );
-    final border = Color.lerp(accent, Colors.white, 0.22)!;
-
-    return _MiniPlayerChrome(
-      tintColor: tint,
-      tintOpacity: brightness == Brightness.dark ? 0.86 : 0.80,
-      borderColor: border,
-      borderOpacity: 0.20,
-      playButtonForeground: tint,
-      collapsedFrameColor: tint,
-    );
-  }
-
-  static Color _withMaximumLuminance(Color color, double target) {
-    if (color.computeLuminance() <= target) return color;
-    for (var step = 1; step <= 12; step++) {
-      final adjusted = Color.lerp(color, Colors.black, step / 12)!;
-      if (adjusted.computeLuminance() <= target) return adjusted;
-    }
-    return Colors.black;
   }
 }
 

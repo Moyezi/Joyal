@@ -10,10 +10,12 @@ import '../config/theme_context.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/mini_player_color_provider.dart';
 import '../providers/page_background_provider.dart';
+import '../providers/player_provider.dart';
 import '../providers/visual_effect_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/dynamic_album_background.dart';
 import '../widgets/frosted_glass.dart';
+import '../widgets/mini_player_chrome.dart';
 
 class PersonalizationScreen extends ConsumerWidget {
   const PersonalizationScreen({super.key});
@@ -284,14 +286,41 @@ class _GlassPreview extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brightness = Theme.of(context).brightness;
     final miniPlayerColorMode = ref.watch(miniPlayerColorProvider);
+    final song = ref.watch(playerProvider.select((state) => state.currentSong));
+    final api = ref.watch(subsonicApiProvider);
+    final coverUrl = (api != null && song != null && song.coverArt.isNotEmpty)
+        ? api.getCoverArtUrl(song.coverArt)
+        : '';
+    final coverSourceId = api == null ? '' : '${api.baseUrl}|${api.username}';
+    final palette =
+        miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum && song != null
+        ? ref
+              .watch(
+                miniPlayerPaletteProvider(
+                  MiniPlayerPaletteRequest(
+                    coverArtId: song.coverArt,
+                    coverSourceId: coverSourceId,
+                    coverUrl: coverUrl,
+                    brightness: brightness,
+                  ),
+                ),
+              )
+              .valueOrNull
+        : null;
+    final previewChrome = MiniPlayerChrome.resolve(
+      mode: miniPlayerColorMode,
+      palette: palette,
+      brightness: brightness,
+    );
     final previewMiniTint =
         miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
-        ? _previewDynamicMiniPlayerTint(isDark)
+        ? previewChrome.tintColor
         : AppTheme.miniPlayerBg;
     final previewMiniAccent =
         miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
-        ? _previewDynamicMiniPlayerAccent(isDark)
+        ? previewChrome.borderColor
         : Colors.white;
     final tintColor = switch (target) {
       GlassEffectTarget.miniPlayer => previewMiniTint,
@@ -301,7 +330,7 @@ class _GlassPreview extends ConsumerWidget {
     final tintOpacity = switch (target) {
       GlassEffectTarget.miniPlayer =>
         miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
-            ? (isDark ? 0.86 : 0.80)
+            ? previewChrome.tintOpacity
             : 0.78,
       GlassEffectTarget.topBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
@@ -367,14 +396,6 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.bottomNav => 64,
       GlassEffectTarget.songCard => 68,
     };
-  }
-
-  Color _previewDynamicMiniPlayerTint(bool isDark) {
-    return isDark ? const Color(0xFF214F58) : const Color(0xFF4F8D94);
-  }
-
-  Color _previewDynamicMiniPlayerAccent(bool isDark) {
-    return isDark ? const Color(0xFF8DDADF) : const Color(0xFF2F6F76);
   }
 }
 
@@ -533,10 +554,7 @@ class _GlassPreviewContent extends StatelessWidget {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                Icons.play_arrow_rounded,
-                color: miniPlayerTint,
-              ),
+              child: Icon(Icons.play_arrow_rounded, color: miniPlayerTint),
             ),
           ],
         ),
