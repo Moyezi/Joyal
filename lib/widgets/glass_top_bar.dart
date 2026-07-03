@@ -14,6 +14,7 @@ class GlassTopBar extends StatelessWidget {
   final Animation<double>? searchAnimation;
   final VoidCallback? onSearchTap;
   final bool hasPageBackground;
+  final double blurSigma;
 
   const GlassTopBar({
     super.key,
@@ -22,6 +23,7 @@ class GlassTopBar extends StatelessWidget {
     this.searchAnimation,
     this.onSearchTap,
     this.hasPageBackground = false,
+    this.blurSigma = 10,
   });
 
   @override
@@ -45,7 +47,7 @@ class GlassTopBar extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
               child: const SizedBox.expand(),
             ),
             DecoratedBox(

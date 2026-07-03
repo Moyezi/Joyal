@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// 自定义底部导航栏：主页 / 曲库 / 我的。
-class AppBottomNav extends StatelessWidget {
+import '../providers/glass_effect_provider.dart';
+import 'frosted_glass.dart';
+
+class AppBottomNav extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTabChanged;
 
@@ -12,25 +15,34 @@ class AppBottomNav extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final shadowAlpha = theme.brightness == Brightness.dark ? 0.22 : 0.08;
+    final isDark = theme.brightness == Brightness.dark;
+    final shadowAlpha = isDark ? 0.22 : 0.08;
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.bottomNav),
+      ),
+    );
+
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            borderRadius: BorderRadius.circular(34),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: shadowAlpha),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
+        child: FrostedGlass(
+          blurSigma: blurSigma,
+          borderRadius: BorderRadius.circular(34),
+          tintColor: theme.scaffoldBackgroundColor,
+          tintOpacity: isDark ? 0.76 : 0.68,
+          borderColor: theme.colorScheme.onSurface,
+          borderOpacity: isDark ? 0.08 : 0.06,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: shadowAlpha),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
             child: Row(

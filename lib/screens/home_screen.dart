@@ -7,10 +7,12 @@ import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/album.dart';
 import '../models/song.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
+import '../widgets/frosted_glass.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/page_custom_background.dart';
 import '../widgets/play_queue_sheet.dart';
@@ -111,6 +113,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
       ),
     );
+    final topBarBlur = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.topBar),
+      ),
+    );
 
     // 每次重建后尝试上报排除矩形（防抖：同一帧内不重复调度）
     if (!_exclusionRectPending) {
@@ -131,6 +138,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           GlassTopBar(
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
+            blurSigma: topBarBlur,
             searchAnimation: _animController,
             onSearchTap: () => Navigator.of(
               context,
@@ -485,35 +493,56 @@ class _RecentCard extends ConsumerWidget {
   }
 }
 
-class _HomeSearchBar extends StatelessWidget {
+class _HomeSearchBar extends ConsumerWidget {
   final VoidCallback onTap;
 
   const _HomeSearchBar({required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.surfaceColor,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.searchBar),
+      ),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return FrostedGlass(
+      blurSigma: blurSigma,
       borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: SizedBox(
-          height: 54,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Icon(Icons.search_rounded, color: context.primaryColor),
-                SizedBox(width: 12),
-                Text('搜索歌曲、专辑或艺人', style: context.textBodyMedium),
-                Spacer(),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 20,
-                  color: context.secondaryColor,
-                ),
-              ],
+      tintColor: context.surfaceColor,
+      tintOpacity: isDark ? 0.72 : 0.62,
+      borderColor: context.primaryColor,
+      borderOpacity: isDark ? 0.08 : 0.05,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: SizedBox(
+            height: 54,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.search_rounded, color: context.primaryColor),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '搜索歌曲、专辑或艺人',
+                      style: context.textBodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 20,
+                    color: context.secondaryColor,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../models/lyrics.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
 import 'cached_disk_image.dart';
+import 'frosted_glass.dart';
 import 'now_playing_transition.dart';
 
 const double _miniLyricsHeight = 76;
@@ -212,6 +214,11 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.miniPlayer),
+      ),
+    );
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -228,9 +235,13 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
         ),
         width: double.infinity,
         height: _miniPlayerCapsuleHeight,
-        decoration: BoxDecoration(
-          color: AppTheme.miniPlayerBg,
+        child: FrostedGlass(
+          blurSigma: blurSigma,
           borderRadius: BorderRadius.circular(44),
+          tintColor: AppTheme.miniPlayerBg,
+          tintOpacity: 0.78,
+          borderColor: Colors.white,
+          borderOpacity: 0.08,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
@@ -238,47 +249,48 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
               offset: const Offset(0, 10),
             ),
           ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            if (widget.showCover)
-              Padding(
-                padding: const EdgeInsets.only(left: _miniCoverLeftInset),
-                child: RotatingNowPlayingCover(
-                  trackId: widget.trackId,
-                  isPlaying: widget.isPlaying,
-                  child: ClipOval(
-                    child: SizedBox(
-                      width: _miniCoverSize,
-                      height: _miniCoverSize,
-                      child: widget.cover,
+          child: Row(
+            children: [
+              if (widget.showCover)
+                Padding(
+                  padding: const EdgeInsets.only(left: _miniCoverLeftInset),
+                  child: RotatingNowPlayingCover(
+                    trackId: widget.trackId,
+                    isPlaying: widget.isPlaying,
+                    child: ClipOval(
+                      child: SizedBox(
+                        width: _miniCoverSize,
+                        height: _miniCoverSize,
+                        child: widget.cover,
+                      ),
                     ),
                   ),
+                )
+              else
+                const SizedBox(width: _miniCoverLeftInset + _miniCoverSize),
+              const SizedBox(width: 9),
+              Expanded(child: widget.lyrics),
+              IconButton(
+                onPressed: () {
+                  ref.read(playerProvider.notifier).togglePlayPause();
+                },
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppTheme.miniPlayerBg,
+                  minimumSize: const Size(58, 58),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(19),
+                  ),
                 ),
-              )
-            else
-              const SizedBox(width: _miniCoverLeftInset + _miniCoverSize),
-            const SizedBox(width: 9),
-            Expanded(child: widget.lyrics),
-            IconButton(
-              onPressed: () {
-                ref.read(playerProvider.notifier).togglePlayPause();
-              },
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTheme.miniPlayerBg,
-                minimumSize: const Size(58, 58),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(19),
+                icon: Icon(
+                  playerState.isPlaying
+                      ? Icons.pause
+                      : Icons.play_arrow_rounded,
                 ),
               ),
-              icon: Icon(
-                playerState.isPlaying ? Icons.pause : Icons.play_arrow_rounded,
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
+              const SizedBox(width: 12),
+            ],
+          ),
         ),
       ),
     );

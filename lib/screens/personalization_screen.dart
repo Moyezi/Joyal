@@ -6,10 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/visual_effect_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/dynamic_album_background.dart';
+import '../widgets/frosted_glass.dart';
 
 class PersonalizationScreen extends ConsumerWidget {
   const PersonalizationScreen({super.key});
@@ -41,6 +43,10 @@ class PersonalizationScreen extends ConsumerWidget {
             onBlurChanged: (value) =>
                 ref.read(pageBackgroundProvider.notifier).setBlurSigma(value),
           ),
+          const SizedBox(height: AppTheme.spacingLG),
+          Text('毛玻璃', style: context.textTitleLarge),
+          const SizedBox(height: AppTheme.spacingSM),
+          const _GlassEffectTile(),
           const SizedBox(height: AppTheme.spacingLG),
           Text('播放背景', style: context.textTitleLarge),
           const SizedBox(height: AppTheme.spacingSM),
@@ -83,6 +89,382 @@ class PersonalizationScreen extends ConsumerWidget {
     await ref.read(pageBackgroundProvider.notifier).clearShared();
     if (!context.mounted) return;
     showAppToast(context, '页面背景已清除');
+  }
+}
+
+class _GlassEffectTile extends ConsumerStatefulWidget {
+  const _GlassEffectTile();
+
+  @override
+  ConsumerState<_GlassEffectTile> createState() => _GlassEffectTileState();
+}
+
+class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
+  GlassEffectTarget _selectedTarget = GlassEffectTarget.miniPlayer;
+
+  @override
+  Widget build(BuildContext context) {
+    final glassState = ref.watch(glassEffectProvider);
+    final blurSigma = glassState.blurFor(_selectedTarget);
+
+    return Material(
+      color: context.surfaceColor,
+      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _GlassPreview(target: _selectedTarget, blurSigma: blurSigma),
+            const SizedBox(height: AppTheme.spacingMD),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final target in GlassEffectTarget.values)
+                  ChoiceChip(
+                    label: Text(target.label),
+                    selected: target == _selectedTarget,
+                    onSelected: (_) => setState(() {
+                      _selectedTarget = target;
+                    }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingMD),
+            Row(
+              children: [
+                Icon(
+                  Icons.blur_on_rounded,
+                  size: 20,
+                  color: context.secondaryColor,
+                ),
+                const SizedBox(width: AppTheme.spacingSM),
+                Expanded(
+                  child: Slider(
+                    value: blurSigma.clamp(0.0, 30.0).toDouble(),
+                    min: 0,
+                    max: 30,
+                    divisions: 15,
+                    label: blurSigma.toStringAsFixed(0),
+                    onChanged: (value) => ref
+                        .read(glassEffectProvider.notifier)
+                        .setBlur(_selectedTarget, value),
+                  ),
+                ),
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    blurSigma == 0 ? '关闭' : blurSigma.toStringAsFixed(0),
+                    textAlign: TextAlign.end,
+                    style: context.textBodySmall.copyWith(
+                      color: context.secondaryColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassPreview extends StatelessWidget {
+  final GlassEffectTarget target;
+  final double blurSigma;
+
+  const _GlassPreview({required this.target, required this.blurSigma});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tintColor = switch (target) {
+      GlassEffectTarget.miniPlayer => AppTheme.miniPlayerBg,
+      _ => context.surfaceColor,
+    };
+    final tintOpacity = switch (target) {
+      GlassEffectTarget.miniPlayer => 0.78,
+      GlassEffectTarget.topBar => isDark ? 0.62 : 0.58,
+      GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
+      GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
+    };
+    final radius = switch (target) {
+      GlassEffectTarget.topBar => BorderRadius.circular(16),
+      GlassEffectTarget.searchBar => BorderRadius.circular(18),
+      GlassEffectTarget.bottomNav => BorderRadius.circular(34),
+      GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
+    };
+
+    return SizedBox(
+      height: 132,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const _GlassPreviewBackdrop(),
+            Center(
+              child: SizedBox(
+                width: _previewWidthFor(target),
+                height: _previewHeightFor(target),
+                child: FrostedGlass(
+                  blurSigma: blurSigma,
+                  borderRadius: radius,
+                  tintColor: tintColor,
+                  tintOpacity: tintOpacity,
+                  borderColor: target == GlassEffectTarget.miniPlayer
+                      ? Colors.white
+                      : context.primaryColor,
+                  borderOpacity: isDark ? 0.08 : 0.06,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.16),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                  child: _GlassPreviewContent(target: target),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  double _previewWidthFor(GlassEffectTarget target) {
+    return switch (target) {
+      GlassEffectTarget.topBar => 280,
+      GlassEffectTarget.miniPlayer => 304,
+      GlassEffectTarget.searchBar => 280,
+      GlassEffectTarget.bottomNav => 304,
+    };
+  }
+
+  double _previewHeightFor(GlassEffectTarget target) {
+    return switch (target) {
+      GlassEffectTarget.topBar => 64,
+      GlassEffectTarget.miniPlayer => 76,
+      GlassEffectTarget.searchBar => 54,
+      GlassEffectTarget.bottomNav => 64,
+    };
+  }
+}
+
+class _GlassPreviewBackdrop extends StatelessWidget {
+  const _GlassPreviewBackdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            context.backgroundColor,
+            context.surfaceHighlightColor,
+            context.backgroundColor,
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            left: 24,
+            top: 20,
+            child: _PreviewStripe(
+              width: 140,
+              color: context.primaryColor,
+              alpha: 0.08,
+            ),
+          ),
+          Positioned(
+            right: 18,
+            top: 44,
+            child: _PreviewStripe(
+              width: 116,
+              color: context.secondaryColor,
+              alpha: 0.14,
+            ),
+          ),
+          Positioned(
+            left: 72,
+            bottom: 24,
+            child: _PreviewStripe(
+              width: 190,
+              color: context.primaryColor,
+              alpha: 0.07,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewStripe extends StatelessWidget {
+  final double width;
+  final Color color;
+  final double alpha;
+
+  const _PreviewStripe({
+    required this.width,
+    required this.color,
+    required this.alpha,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: -0.34,
+      child: Container(
+        width: width,
+        height: 28,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: color.withValues(alpha: alpha),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassPreviewContent extends StatelessWidget {
+  final GlassEffectTarget target;
+
+  const _GlassPreviewContent({required this.target});
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (target) {
+      GlassEffectTarget.topBar => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '晚上好',
+                style: context.textTitleLarge,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.search_rounded, color: context.primaryColor),
+          ],
+        ),
+      ),
+      GlassEffectTarget.searchBar => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Icon(Icons.search_rounded, color: context.primaryColor),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '搜索歌曲、专辑或艺人',
+                style: context.textBodyMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_rounded,
+              size: 20,
+              color: context.secondaryColor,
+            ),
+          ],
+        ),
+      ),
+      GlassEffectTarget.bottomNav => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: const [
+          _PreviewNavItem(icon: Icons.home, label: '首页', active: true),
+          _PreviewNavItem(icon: Icons.library_music_outlined, label: '曲库'),
+          _PreviewNavItem(
+            icon: Icons.local_fire_department_outlined,
+            label: '收藏',
+          ),
+        ],
+      ),
+      GlassEffectTarget.miniPlayer => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.18),
+              ),
+              child: const Icon(Icons.music_note, color: Colors.white70),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '当前句歌词',
+                style: context.textTitleMedium.copyWith(color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: AppTheme.miniPlayerBg,
+              ),
+            ),
+          ],
+        ),
+      ),
+    };
+  }
+}
+
+class _PreviewNavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+
+  const _PreviewNavItem({
+    required this.icon,
+    required this.label,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? context.primaryColor
+        : context.primaryColor.withValues(alpha: 0.45);
+    return SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 24, color: color),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

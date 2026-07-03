@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
@@ -140,6 +141,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
       ),
     );
+    final topBarBlur = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.topBar),
+      ),
+    );
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
@@ -168,6 +174,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           GlassTopBar(
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
+            blurSigma: topBarBlur,
             child: Column(
               children: [
                 GlassTopBarTitleRow(

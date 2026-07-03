@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme_context.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
@@ -109,6 +110,11 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     final hasPageBackground = ref.watch(
       pageBackgroundProvider.select(
         (state) => state.imagePath != null && state.imagePath!.isNotEmpty,
+      ),
+    );
+    final topBarBlur = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
     final starredIds = state.starredSongs.map((song) => song.id).toSet();
@@ -228,6 +234,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
           GlassTopBar(
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
+            blurSigma: topBarBlur,
             child: GlassTopBarTitleRow(
               title: '收藏',
               actions: [
