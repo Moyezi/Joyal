@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -86,7 +84,6 @@ class _MainShellState extends ConsumerState<MainShell>
 
   static const double _drawerWidthFactor = 0.70;
   static const double _drawerOpenThreshold = 0.35;
-  static const double _drawerMaxBlur = 8;
   static const double _drawerMinScale = 0.94;
   static const double _drawerFlingVelocity = 420;
   static const Duration _tabSwitchDuration = Duration(milliseconds: 260);
@@ -121,9 +118,6 @@ class _MainShellState extends ConsumerState<MainShell>
       upperBound: 1.0,
       value: 0.0,
     );
-    _drawerController.addListener(() {
-      if (mounted) setState(() {});
-    });
     _androidMediaBridge = AndroidMediaBridge(
       resolveCoverArtPath: (state) async {
         final song = state.currentSong;
@@ -492,84 +486,90 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   Widget _buildTransformedShell({required double drawerWidth}) {
-    final progress = _drawerController.value;
-    final scale = 1 - ((1 - _drawerMinScale) * progress);
-    final blur = _drawerMaxBlur * progress;
-    final previewBorderRadius = BorderRadius.circular(28 * progress);
+    return AnimatedBuilder(
+      animation: _drawerController,
+      child: _buildShellContent(),
+      builder: (context, child) {
+        final progress = _drawerController.value;
+        final scale = 1 - ((1 - _drawerMinScale) * progress);
+        final previewBorderRadius = BorderRadius.circular(28 * progress);
 
-    return Transform.translate(
-      offset: Offset(drawerWidth * progress, 0),
-      child: Transform.scale(
-        scale: scale,
-        alignment: Alignment.centerLeft,
-        child: ClipRRect(
-          borderRadius: previewBorderRadius,
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (index) {
-                    if (index == _currentTab) return;
-                    setState(() => _currentTab = index);
-                  },
-                  children: _screens,
-                ),
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      MiniPlayer(
-                        isCollapsed: _isMiniPlayerCollapsed,
-                        onTap: _openNowPlaying,
-                        onCollapseRequested: _collapseMiniPlayer,
-                        onExpandRequested: _expandMiniPlayer,
-                      ),
-                      GestureDetector(
-                        key: _bottomNavKey,
+        return Transform.translate(
+          offset: Offset(drawerWidth * progress, 0),
+          child: Transform.scale(
+            scale: scale,
+            alignment: Alignment.centerLeft,
+            child: ClipRRect(
+              borderRadius: previewBorderRadius,
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  RepaintBoundary(child: child!),
+                  if (progress > 0)
+                    Positioned.fill(
+                      child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onHorizontalDragUpdate: _handleBottomNavDragUpdate,
-                        child: AppBottomNav(
-                          currentIndex: _currentTab,
-                          onTabChanged: (index) {
-                            _closeDrawer();
-                            _onTabChanged(index);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (progress > 0)
-                Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _handleDrawerPreviewTap,
-                    child: ClipRRect(
-                      borderRadius: previewBorderRadius,
-                      clipBehavior: Clip.antiAlias,
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+                        onTap: _handleDrawerPreviewTap,
                         child: ColoredBox(
                           color: Colors.black.withValues(
-                            alpha: 0.08 * progress,
+                            alpha: 0.10 * progress,
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-            ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShellContent() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (index) {
+              if (index == _currentTab) return;
+              setState(() => _currentTab = index);
+            },
+            children: _screens,
           ),
         ),
-      ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MiniPlayer(
+                  isCollapsed: _isMiniPlayerCollapsed,
+                  onTap: _openNowPlaying,
+                  onCollapseRequested: _collapseMiniPlayer,
+                  onExpandRequested: _expandMiniPlayer,
+                ),
+                GestureDetector(
+                  key: _bottomNavKey,
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: _handleBottomNavDragUpdate,
+                  child: AppBottomNav(
+                    currentIndex: _currentTab,
+                    onTabChanged: (index) {
+                      _closeDrawer();
+                      _onTabChanged(index);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
