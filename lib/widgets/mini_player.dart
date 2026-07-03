@@ -19,6 +19,9 @@ const double _miniPlayerCapsuleHeight = 88;
 const double _miniCoverSize = 72;
 const double _collapsedCoverImageSize = 62;
 const double _miniCoverLeftInset = 23;
+const double _miniCoverExpandedLeftInset = _miniCoverLeftInset - 12;
+const double _miniCoverLyricsGap = 12;
+const double _miniLyricsHorizontalCalibration = -2;
 const double _miniCoverRightInset = 18;
 const double _miniPlayerHorizontalInset = 14;
 const Duration _miniLyricsDefaultRollDuration = Duration(milliseconds: 520);
@@ -96,63 +99,18 @@ class MiniPlayer extends ConsumerWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
-              final collapsedLeft = math.max(
-                _miniCoverLeftInset,
-                width - _miniCoverRightInset - _miniCoverSize,
-              );
-              final xProgress = Curves.easeOutCubic.transform(progress);
-              final fadeProgress = Curves.easeInCubic.transform(progress);
-              final left = _lerp(_miniCoverLeftInset, collapsedLeft, xProgress);
-              final top =
-                  (_miniPlayerHeight - _miniCoverSize) / 2 -
-                  math.sin(progress * math.pi) * 8;
-              final imageSize = _lerp(
-                _miniCoverSize,
-                _collapsedCoverImageSize,
-                Curves.easeOutCubic.transform(progress),
-              );
-              final coverPadding = (_miniCoverSize - imageSize) / 2;
-
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  IgnorePointer(
-                    ignoring: isCollapsed,
-                    child: Opacity(
-                      opacity: (1 - fadeProgress).clamp(0.0, 1.0),
-                      child: _ExpandedMiniPlayer(
-                        trackId: song.id,
-                        isPlaying: playerState.isPlaying,
-                        cover: cover,
-                        showCover: false,
-                        lyrics: lyrics,
-                        chrome: chrome,
-                        onTap: onTap,
-                        onCollapseRequested: onCollapseRequested,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: left,
-                    top: top,
-                    child: IgnorePointer(
-                      ignoring: !isCollapsed,
-                      child: GestureDetector(
-                        onTap: onExpandRequested,
-                        behavior: HitTestBehavior.opaque,
-                        child: _MiniPlayerMorphingCover(
-                          trackId: song.id,
-                          isPlaying: playerState.isPlaying,
-                          cover: cover,
-                          progress: progress,
-                          padding: coverPadding,
-                          imageSize: imageSize,
-                          chrome: chrome,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              return _MorphingMiniPlayer(
+                availableWidth: width,
+                progress: progress,
+                isCollapsed: isCollapsed,
+                trackId: song.id,
+                isPlaying: playerState.isPlaying,
+                cover: cover,
+                lyrics: lyrics,
+                chrome: chrome,
+                onTap: onTap,
+                onCollapseRequested: onCollapseRequested,
+                onExpandRequested: onExpandRequested,
               );
             },
           ),
@@ -160,8 +118,6 @@ class MiniPlayer extends ConsumerWidget {
       },
     );
   }
-
-  double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
 
   Widget _buildMiniCover(String url, String cacheKey) {
     if (url.isEmpty) {
@@ -187,33 +143,38 @@ class MiniPlayer extends ConsumerWidget {
   }
 }
 
-class _ExpandedMiniPlayer extends ConsumerStatefulWidget {
+class _MorphingMiniPlayer extends ConsumerStatefulWidget {
+  final double availableWidth;
+  final double progress;
+  final bool isCollapsed;
   final String trackId;
   final bool isPlaying;
   final Widget cover;
-  final bool showCover;
   final Widget lyrics;
   final MiniPlayerChrome chrome;
   final VoidCallback? onTap;
   final VoidCallback? onCollapseRequested;
+  final VoidCallback? onExpandRequested;
 
-  const _ExpandedMiniPlayer({
+  const _MorphingMiniPlayer({
+    required this.availableWidth,
+    required this.progress,
+    required this.isCollapsed,
     required this.trackId,
     required this.isPlaying,
     required this.cover,
-    this.showCover = true,
     required this.lyrics,
     required this.chrome,
     this.onTap,
     this.onCollapseRequested,
+    this.onExpandRequested,
   });
 
   @override
-  ConsumerState<_ExpandedMiniPlayer> createState() =>
-      _ExpandedMiniPlayerState();
+  ConsumerState<_MorphingMiniPlayer> createState() => _MorphingMiniPlayerState();
 }
 
-class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
+class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
   static const double _collapseDragDistance = 42;
   static const double _collapseFlingVelocity = 320;
   double _dragDx = 0;
@@ -246,163 +207,169 @@ class _ExpandedMiniPlayerState extends ConsumerState<_ExpandedMiniPlayer> {
         (state) => state.blurFor(GlassEffectTarget.miniPlayer),
       ),
     );
+    final progress = widget.progress.clamp(0.0, 1.0);
+    final expandedLeft = _miniPlayerHorizontalInset;
+    const expandedTop = 8.0;
+    final expandedWidth = math.max(
+      _miniCoverSize,
+      widget.availableWidth - _miniPlayerHorizontalInset * 2,
+    );
+    const expandedHeight = _miniPlayerCapsuleHeight;
+    final collapsedLeft = math.max(
+      _miniCoverLeftInset,
+      widget.availableWidth - _miniCoverRightInset - _miniCoverSize,
+    );
+    final collapsedTop = (_miniPlayerHeight - _miniCoverSize) / 2;
+    final left = _lerp(expandedLeft, collapsedLeft, progress);
+    final top = _lerp(expandedTop, collapsedTop, progress);
+    final width = _lerp(expandedWidth, _miniCoverSize, progress);
+    final height = _lerp(expandedHeight, _miniCoverSize, progress);
+    final radius = _lerp(44, _miniCoverSize / 2, progress);
+    final imageSize = _lerp(_miniCoverSize, _collapsedCoverImageSize, progress);
+    final expandedCoverTop = (expandedHeight - _miniCoverSize) / 2;
+    final coverLeft = _lerp(
+      _miniCoverExpandedLeftInset,
+      (_miniCoverSize - imageSize) / 2,
+      progress,
+    );
+    final coverTop = _lerp(
+      expandedCoverTop,
+      (_miniCoverSize - imageSize) / 2,
+      progress,
+    );
+    final contentLeft =
+        _miniCoverExpandedLeftInset +
+        _miniCoverSize +
+        _miniCoverLyricsGap -
+        _miniLyricsHorizontalCalibration;
+    final isSettledCollapsed = widget.isCollapsed && progress > 0.98;
 
-    return GestureDetector(
-      onTap: widget.onTap,
-      onHorizontalDragStart: _handleHorizontalDragStart,
-      onHorizontalDragUpdate: _handleHorizontalDragUpdate,
-      onHorizontalDragEnd: _handleHorizontalDragEnd,
-      onHorizontalDragCancel: _handleHorizontalDragCancel,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(
-          _miniPlayerHorizontalInset,
-          8,
-          _miniPlayerHorizontalInset,
-          8,
-        ),
-        width: double.infinity,
-        height: _miniPlayerCapsuleHeight,
-        child: FrostedGlass(
-          blurSigma: blurSigma,
-          borderRadius: BorderRadius.circular(44),
-          tintColor: widget.chrome.tintColor,
-          tintOpacity: widget.chrome.tintOpacity,
-          borderColor: widget.chrome.borderColor,
-          borderOpacity: widget.chrome.borderOpacity,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 24,
-              offset: const Offset(0, 10),
-            ),
-          ],
-          child: Row(
-            children: [
-              if (widget.showCover)
-                Padding(
-                  padding: const EdgeInsets.only(left: _miniCoverLeftInset),
-                  child: RotatingNowPlayingCover(
-                    trackId: widget.trackId,
-                    isPlaying: widget.isPlaying,
-                    child: ClipOval(
-                      child: SizedBox(
-                        width: _miniCoverSize,
-                        height: _miniCoverSize,
-                        child: widget.cover,
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned(
+          left: left,
+          top: top,
+          width: width,
+          height: height,
+          child: GestureDetector(
+            onTap: isSettledCollapsed ? widget.onExpandRequested : widget.onTap,
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: isSettledCollapsed
+                ? null
+                : _handleHorizontalDragStart,
+            onHorizontalDragUpdate: isSettledCollapsed
+                ? null
+                : _handleHorizontalDragUpdate,
+            onHorizontalDragEnd: isSettledCollapsed
+                ? null
+                : _handleHorizontalDragEnd,
+            onHorizontalDragCancel: isSettledCollapsed
+                ? null
+                : _handleHorizontalDragCancel,
+            child: FrostedGlass(
+              blurSigma: blurSigma,
+              borderRadius: BorderRadius.circular(radius),
+              tintColor: Color.lerp(
+                widget.chrome.tintColor,
+                widget.chrome.collapsedFrameColor,
+                progress,
+              )!,
+              tintOpacity: widget.chrome.tintOpacity,
+              borderColor: widget.chrome.borderColor,
+              borderOpacity: widget.chrome.borderOpacity,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 24,
+                  offset: Offset(0, _lerp(10, 8, progress)),
+                ),
+              ],
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  Positioned(
+                    left: contentLeft,
+                    top: 0,
+                    width: math.max(0, expandedWidth - contentLeft),
+                    height: expandedHeight,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Transform.translate(
+                            offset: const Offset(
+                              _miniLyricsHorizontalCalibration,
+                              0,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 2),
+                              child: widget.lyrics,
+                            ),
+                          ),
+                        ),
+                        NowPlayingSharedHero(
+                          tag: nowPlayingPlayButtonHeroTag,
+                          crossFadeOnPop: true,
+                          child: SizedBox(
+                            width: 58,
+                            height: 58,
+                            child: IconButton(
+                              onPressed: () {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .togglePlayPause();
+                              },
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor:
+                                    widget.chrome.playButtonForeground,
+                                minimumSize: const Size(58, 58),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(19),
+                                ),
+                              ),
+                              icon: Icon(
+                                playerState.isPlaying
+                                    ? Icons.pause
+                                    : Icons.play_arrow_rounded,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    left: coverLeft,
+                    top: coverTop,
+                    child: Hero(
+                      tag: nowPlayingCoverHeroTag,
+                      createRectTween: (begin, end) =>
+                          NowPlayingCoverRectTween(begin: begin, end: end),
+                      child: RotatingNowPlayingCover(
+                        trackId: widget.trackId,
+                        isPlaying: widget.isPlaying,
+                        child: ClipOval(
+                          child: SizedBox(
+                            width: imageSize,
+                            height: imageSize,
+                            child: widget.cover,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                )
-              else
-                const SizedBox(width: _miniCoverLeftInset + _miniCoverSize),
-              const SizedBox(width: 1),
-              Expanded(
-                child: Transform.translate(
-                  offset: const Offset(-2, 0),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 2),
-                    child: widget.lyrics,
-                  ),
-                ),
+                ],
               ),
-              NowPlayingSharedHero(
-                tag: nowPlayingPlayButtonHeroTag,
-                crossFadeOnPop: true,
-                child: SizedBox(
-                  width: 58,
-                  height: 58,
-                  child: IconButton(
-                    onPressed: () {
-                      ref.read(playerProvider.notifier).togglePlayPause();
-                    },
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: widget.chrome.playButtonForeground,
-                      minimumSize: const Size(58, 58),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(19),
-                      ),
-                    ),
-                    icon: Icon(
-                      playerState.isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow_rounded,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
-}
 
-class _MiniPlayerMorphingCover extends StatelessWidget {
-  final String trackId;
-  final bool isPlaying;
-  final Widget cover;
-  final double progress;
-  final double padding;
-  final double imageSize;
-  final MiniPlayerChrome chrome;
-
-  const _MiniPlayerMorphingCover({
-    required this.trackId,
-    required this.isPlaying,
-    required this.cover,
-    required this.progress,
-    required this.padding,
-    required this.imageSize,
-    required this.chrome,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: _miniCoverSize,
-      height: _miniCoverSize,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: chrome.collapsedFrameColor.withValues(alpha: progress),
-          border: Border.all(
-            color: chrome.borderColor.withValues(
-              alpha: chrome.borderOpacity * progress,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18 * progress),
-              blurRadius: 24 * progress,
-              offset: Offset(0, 8 * progress),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(padding),
-          child: Hero(
-            tag: nowPlayingCoverHeroTag,
-            createRectTween: (begin, end) =>
-                NowPlayingCoverRectTween(begin: begin, end: end),
-            child: RotatingNowPlayingCover(
-              trackId: trackId,
-              isPlaying: isPlaying,
-              child: ClipOval(
-                child: SizedBox(
-                  width: imageSize,
-                  height: imageSize,
-                  child: cover,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
 }
 
 class _MiniLyrics extends StatefulWidget {
