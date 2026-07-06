@@ -62,6 +62,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 启动从安全存储恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建再刷新曲库。启动遮罩覆盖凭据读取和本地播放会话恢复，避免 MiniPlayer/Dock 闪现。
 - `refreshLibrary()` 并行刷新专辑、全量歌曲和收藏。专辑用 `getAlbumList2.view` 分页；全量歌曲用空查询 `search3.view` + `songOffset` 分页。
 - 曲库页刷新走 `refreshLibrary()`；发现页顶栏刷新当前仍走 `fetchStarred()` 刷新收藏歌曲，未连接时提示，刷新后用 `showAppToast(...)` 明确成功或失败。
+- 曲库页歌曲排序按钮放右上角，与定位当前歌曲、刷新同一行；排序依据包含歌曲名首字母、播放次数、歌曲语言。歌曲名首字母排序遇到中文标题时按开头第一个汉字的拼音首字母排序；点击播放队列和定位当前歌曲都必须使用当前排序后的歌曲列表。
 - 收藏采用共享状态和乐观更新，失败回滚；发现页的“收藏歌曲”区块无需手动刷新即可同步。
 - 播放器使用 `just_audio` 多曲目音源序列；搜索、发现轮播、收藏歌曲、专辑、全曲库歌曲都用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。
 - `ListeningStatsNotifier` 只记录本机已听过的去重歌曲 id；侧边栏“听歌概览”进度 = 已听歌曲数 / 当前曲库全部歌曲数，不描述成服务端统计。

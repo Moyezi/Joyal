@@ -10,6 +10,7 @@ class Song {
   final int? size;
   final String contentType;
   final String suffix;
+  final int playCount;
 
   const Song({
     required this.id,
@@ -23,6 +24,7 @@ class Song {
     this.size,
     required this.contentType,
     required this.suffix,
+    this.playCount = 0,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class Song {
       size: (json['size'] as num?)?.toInt(),
       contentType: json['contentType'] as String? ?? '',
       suffix: json['suffix'] as String? ?? '',
+      playCount: (json['playCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -53,6 +56,7 @@ class Song {
     'size': size,
     'contentType': contentType,
     'suffix': suffix,
+    'playCount': playCount,
   };
 
   /// Formatted duration string (e.g. "3:42")

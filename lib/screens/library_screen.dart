@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lpinyin/lpinyin.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../models/music_classification.dart';
+import '../models/song.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/music_classification_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
@@ -16,6 +20,16 @@ import '../widgets/page_custom_background.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
+
+enum _LibrarySongSort {
+  titleInitial('歌曲名首字母'),
+  playCount('播放次数'),
+  language('歌曲语言');
+
+  const _LibrarySongSort(this.label);
+
+  final String label;
+}
 
 class LibraryScreen extends ConsumerStatefulWidget {
   final ValueListenable<int>? tabRequest;
@@ -37,6 +51,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
   bool _isRefreshing = false;
+  _LibrarySongSort _songSort = _LibrarySongSort.titleInitial;
 
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
@@ -74,7 +89,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   Future<void> _locateCurrentSong() async {
     final currentSong = ref.read(playerProvider).currentSong;
-    final songs = ref.read(libraryProvider).songs;
+    final songs = _sortedSongs(ref.read(libraryProvider).songs);
     final index = currentSong == null
         ? -1
         : songs.indexWhere((song) => song.id == currentSong.id);
@@ -132,6 +147,62 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     showAppToast(context, '曲库已刷新', replaceCurrent: true);
   }
 
+  List<Song> _sortedSongs(List<Song> songs) {
+    final sorted = [...songs];
+    final classifications = ref
+        .read(musicClassificationProvider)
+        .classifications;
+    sorted.sort((a, b) {
+      final result = switch (_songSort) {
+        _LibrarySongSort.titleInitial => _compareByTitleInitial(a, b),
+        _LibrarySongSort.playCount => _compareByPlayCount(a, b),
+        _LibrarySongSort.language => _compareByLanguage(a, b, classifications),
+      };
+      if (result != 0) return result;
+      return _compareText(a.artist, b.artist);
+    });
+    return sorted;
+  }
+
+  int _compareByTitleInitial(Song a, Song b) {
+    final result = _compareText(_sortInitial(a.title), _sortInitial(b.title));
+    if (result != 0) return result;
+    return _compareText(a.title, b.title);
+  }
+
+  int _compareByPlayCount(Song a, Song b) {
+    final result = b.playCount.compareTo(a.playCount);
+    if (result != 0) return result;
+    return _compareText(a.title, b.title);
+  }
+
+  int _compareByLanguage(
+    Song a,
+    Song b,
+    Map<String, SongClassification> classifications,
+  ) {
+    final languageA = classifications[a.id]?.language ?? '未分类';
+    final languageB = classifications[b.id]?.language ?? '未分类';
+    final result = _compareText(languageA, languageB);
+    if (result != 0) return result;
+    return _compareByTitleInitial(a, b);
+  }
+
+  String _sortInitial(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return '#';
+    final firstChar = String.fromCharCode(text.runes.first);
+    if (ChineseHelper.isChinese(firstChar)) {
+      final shortPinyin = PinyinHelper.getShortPinyin(firstChar);
+      if (shortPinyin.isNotEmpty) return shortPinyin[0].toLowerCase();
+    }
+    return firstChar.toLowerCase();
+  }
+
+  int _compareText(String a, String b) {
+    return a.trim().toLowerCase().compareTo(b.trim().toLowerCase());
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
@@ -146,6 +217,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
+    ref.watch(
+      musicClassificationProvider.select((state) => state.classifications),
+    );
+    final sortedSongs = _sortedSongs(state.songs);
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
@@ -160,6 +235,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               children: [
                 _SongsView(
                   state: state,
+                  songs: sortedSongs,
                   controller: _songsController,
                   topPadding: topBarExtent,
                 ),
@@ -197,6 +273,43 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             )
                           : const Icon(Icons.refresh_rounded),
                     ),
+                    PopupMenuButton<_LibrarySongSort>(
+                      tooltip: '排序',
+                      initialValue: _songSort,
+                      icon: const Icon(Icons.sort_rounded),
+                      onSelected: (value) {
+                        setState(() => _songSort = value);
+                        if (_songsController.hasClients) {
+                          _songsController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutCubic,
+                          );
+                        }
+                      },
+                      itemBuilder: (context) {
+                        return _LibrarySongSort.values.map((sort) {
+                          return PopupMenuItem<_LibrarySongSort>(
+                            value: sort,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  sort == _songSort
+                                      ? Icons.check_rounded
+                                      : Icons.sort_rounded,
+                                  size: 18,
+                                  color: sort == _songSort
+                                      ? context.primaryColor
+                                      : context.secondaryColor,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(sort.label),
+                              ],
+                            ),
+                          );
+                        }).toList();
+                      },
+                    ),
                   ],
                 ),
                 TabBar(
@@ -224,18 +337,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
 class _SongsView extends ConsumerWidget {
   final LibraryState state;
+  final List<Song> songs;
   final ScrollController controller;
   final double topPadding;
 
   const _SongsView({
     required this.state,
+    required this.songs,
     required this.controller,
     required this.topPadding,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (state.songs.isEmpty) {
+    if (songs.isEmpty) {
       return _EmptyState(
         topPadding: topPadding,
         loading: state.isLoadingSongs,
@@ -264,9 +379,9 @@ class _SongsView extends ConsumerWidget {
       controller: controller,
       itemExtent: _LibraryScreenState._songExtent,
       padding: EdgeInsets.fromLTRB(12, topPadding + 8, 12, hasSong ? 172 : 68),
-      itemCount: state.songs.length,
+      itemCount: songs.length,
       itemBuilder: (context, index) {
-        final song = state.songs[index];
+        final song = songs[index];
         final isStarred = starredIds.contains(song.id);
         return SongTile(
           song: song,
@@ -275,7 +390,7 @@ class _SongsView extends ConsumerWidget {
           isDownloaded: downloadedIds.contains(song.id),
           onTap: () => ref
               .read(playerProvider.notifier)
-              .playPlaylist(state.songs, startIndex: index),
+              .playPlaylist(songs, startIndex: index),
           onMore: () => SongActionsSheet.show(
             context,
             songTitle: song.title,
