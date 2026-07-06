@@ -225,20 +225,22 @@ class _MusicClassificationScreenState
             children: [
               Expanded(
                 child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(context),
                   onPressed: state.isTestingConnection ? null : _testConnection,
                   child: state.isTestingConnection
                       ? const SizedBox.square(
                           dimension: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('测试连接'),
+                      : const _ButtonLabel('测试连接'),
                 ),
               ),
               const SizedBox(width: AppTheme.spacingSM),
               Expanded(
                 child: FilledButton(
+                  style: _filledPillButtonStyle(context),
                   onPressed: _save,
-                  child: const Text('保存配置'),
+                  child: const _ButtonLabel('保存配置'),
                 ),
               ),
             ],
@@ -247,7 +249,11 @@ class _MusicClassificationScreenState
           Row(
             children: [
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(
+                    context,
+                    foregroundColor: context.favoriteRedColor,
+                  ),
                   onPressed: () async {
                     await ref
                         .read(musicClassificationProvider.notifier)
@@ -255,14 +261,13 @@ class _MusicClassificationScreenState
                     if (!context.mounted) return;
                     showAppToast(context, 'API Key 已清除');
                   },
-                  child: Text(
-                    '清除 API Key',
-                    style: TextStyle(color: context.favoriteRedColor),
-                  ),
+                  child: const _ButtonLabel('清除 API Key'),
                 ),
               ),
+              const SizedBox(width: AppTheme.spacingSM),
               Expanded(
-                child: TextButton(
+                child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(context),
                   onPressed: () async {
                     await ref
                         .read(musicClassificationProvider.notifier)
@@ -271,7 +276,7 @@ class _MusicClassificationScreenState
                     setState(() => _initializedFields = false);
                     showAppToast(context, '已恢复默认配置');
                   },
-                  child: const Text('恢复默认配置'),
+                  child: const _ButtonLabel('恢复默认配置'),
                 ),
               ),
             ],
@@ -283,11 +288,12 @@ class _MusicClassificationScreenState
             children: [
               Expanded(
                 child: FilledButton.icon(
+                  style: _filledPillButtonStyle(context),
                   onPressed: state.isRunning
                       ? null
                       : () => _startClassification(),
                   icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('开始智能分类'),
+                  label: const _ButtonLabel('开始智能分类'),
                 ),
               ),
             ],
@@ -297,6 +303,10 @@ class _MusicClassificationScreenState
             children: [
               Expanded(
                 child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(
+                    context,
+                    horizontalPadding: AppTheme.spacingXS,
+                  ),
                   onPressed: state.isRunning
                       ? () => ref
                             .read(musicClassificationProvider.notifier)
@@ -306,27 +316,35 @@ class _MusicClassificationScreenState
                             .read(musicClassificationProvider.notifier)
                             .resume()
                       : null,
-                  child: Text(state.isPaused ? '继续' : '暂停'),
+                  child: _ButtonLabel(state.isPaused ? '继续' : '暂停'),
                 ),
               ),
               const SizedBox(width: AppTheme.spacingSM),
               Expanded(
                 child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(
+                    context,
+                    horizontalPadding: AppTheme.spacingXS,
+                  ),
                   onPressed: state.isRunning || state.isPaused
                       ? () => ref
                             .read(musicClassificationProvider.notifier)
                             .cancel()
                       : null,
-                  child: const Text('取消'),
+                  child: const _ButtonLabel('取消'),
                 ),
               ),
               const SizedBox(width: AppTheme.spacingSM),
               Expanded(
                 child: OutlinedButton(
+                  style: _outlinedPillButtonStyle(
+                    context,
+                    horizontalPadding: AppTheme.spacingXS,
+                  ),
                   onPressed: state.isRunning
                       ? null
                       : () => _startClassification(force: true),
-                  child: const Text('全部重分'),
+                  child: const _ButtonLabel('全部重分'),
                 ),
               ),
             ],
@@ -350,6 +368,45 @@ class _MusicClassificationScreenState
       ClassificationTaskStatus.idle =>
         state.hasApiKey ? '准备开始智能分类' : 'DeepSeek API 尚未配置',
     };
+  }
+}
+
+ButtonStyle _filledPillButtonStyle(BuildContext context) {
+  return FilledButton.styleFrom(
+    minimumSize: const Size(0, 58),
+    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+    shape: const StadiumBorder(),
+    textStyle: context.textTitleMedium,
+  );
+}
+
+ButtonStyle _outlinedPillButtonStyle(
+  BuildContext context, {
+  Color? foregroundColor,
+  double horizontalPadding = AppTheme.spacingMD,
+}) {
+  final color = foregroundColor ?? context.primaryColor;
+  return OutlinedButton.styleFrom(
+    foregroundColor: color,
+    minimumSize: const Size(0, 58),
+    padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+    shape: const StadiumBorder(),
+    side: BorderSide(color: color, width: 1.4),
+    textStyle: context.textTitleMedium,
+  );
+}
+
+class _ButtonLabel extends StatelessWidget {
+  final String text;
+
+  const _ButtonLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(text, maxLines: 1, softWrap: false),
+    );
   }
 }
 
