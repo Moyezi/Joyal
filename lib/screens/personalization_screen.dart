@@ -519,10 +519,7 @@ class _GlassPreviewContent extends StatelessWidget {
         children: const [
           _PreviewNavItem(icon: Icons.home, label: '首页', active: true),
           _PreviewNavItem(icon: Icons.library_music_outlined, label: '曲库'),
-          _PreviewNavItem(
-            icon: Icons.local_fire_department_outlined,
-            label: '收藏',
-          ),
+          _PreviewNavItem(icon: Icons.explore_outlined, label: '发现'),
         ],
       ),
       GlassEffectTarget.miniPlayer => Padding(
@@ -588,7 +585,7 @@ class _GlassPreviewContent extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '首页、曲库、收藏共用',
+                    '首页、曲库、发现共用',
                     style: context.textBodySmall.copyWith(
                       color: context.secondaryColor,
                     ),
@@ -706,7 +703,7 @@ class _PageBackgroundTile extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          hasImage ? '首页、曲库、收藏共用此背景' : '从手机内部存储选择图片',
+                          hasImage ? '首页、曲库、发现共用此背景' : '从手机内部存储选择图片',
                           style: context.textBodySmall.copyWith(
                             color: context.secondaryColor,
                           ),
@@ -780,7 +777,7 @@ class _PageBackgroundPreview extends ConsumerWidget {
       return DynamicAlbumBackground(
         coverArtId: '',
         coverUrl: '',
-        child: _PreviewLabel(title: '背景预览', subtitle: '选择图片后会应用到首页、曲库和收藏'),
+        child: _PreviewLabel(title: '背景预览', subtitle: '选择图片后会应用到首页、曲库和发现'),
       );
     }
 

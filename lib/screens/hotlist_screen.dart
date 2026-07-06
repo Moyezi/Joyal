@@ -1,18 +1,26 @@
+import 'dart:math';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../models/music_classification.dart';
+import '../models/song.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/music_classification_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
+import '../widgets/album_cover.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/page_custom_background.dart';
-import '../widgets/song_actions_sheet.dart';
-import '../widgets/song_tile.dart';
-import 'album_detail_screen.dart';
+import '../widgets/play_queue_sheet.dart';
+import 'music_classification_screen.dart';
+import 'search_screen.dart';
 
 class HotlistScreen extends ConsumerStatefulWidget {
   const HotlistScreen({super.key});
@@ -24,8 +32,9 @@ class HotlistScreen extends ConsumerStatefulWidget {
 class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   static const double _headerHeight = 76;
   static const double _tileExtent = 72;
-  static const double _sectionHeaderExtent = 36;
+  static const double _discoverCarouselHeight = 330;
   final ScrollController _scrollController = ScrollController();
+  final PageController _carouselController = PageController();
   bool _isRefreshing = false;
 
   double _topBarExtent(BuildContext context) =>
@@ -34,6 +43,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _carouselController.dispose();
     super.dispose();
   }
 
@@ -49,18 +59,11 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     }
     if (!_scrollController.hasClients) return;
 
-    final albumsSectionExtent = state.starredAlbums.isEmpty
-        ? 0.0
-        : _sectionHeaderExtent + state.starredAlbums.length * _tileExtent + 20;
     scrollIndexToCenter(
       controller: _scrollController,
       index: index,
       itemExtent: _tileExtent,
-      leadingExtent:
-          _topBarExtent(context) +
-          8 +
-          albumsSectionExtent +
-          _sectionHeaderExtent,
+      leadingExtent: _topBarExtent(context) + 8 + _discoverCarouselHeight + 12,
     );
   }
 
@@ -101,8 +104,9 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(libraryProvider);
-    final albums = state.starredAlbums;
-    final songs = state.starredSongs;
+    final classification = ref.watch(musicClassificationProvider);
+    final starredSongs = state.starredSongs;
+    final discoverSongs = _discoverSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
     final currentSongId = ref.watch(
       playerProvider.select((value) => value.currentSong?.id),
@@ -117,13 +121,6 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
-    final starredIds = state.starredSongs.map((song) => song.id).toSet();
-    final downloadedIds = ref
-        .watch(downloadRecordsProvider)
-        .maybeWhen(
-          data: (records) => records.map((record) => record.song.id).toSet(),
-          orElse: () => <String>{},
-        );
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
@@ -133,16 +130,16 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
             child: PageCustomBackground(target: PageBackgroundTarget.favorites),
           ),
           Positioned.fill(
-            child: state.isLoadingStarred && albums.isEmpty && songs.isEmpty
+            child: state.isLoading && discoverSongs.isEmpty
                 ? Padding(
                     padding: EdgeInsets.only(top: topBarExtent),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                : albums.isEmpty && songs.isEmpty
+                : discoverSongs.isEmpty && starredSongs.isEmpty
                 ? Padding(
                     padding: EdgeInsets.only(top: topBarExtent),
                     child: Center(
-                      child: Text('还没有收藏内容', style: context.textBodyMedium),
+                      child: Text('还没有可发现的音乐', style: context.textBodyMedium),
                     ),
                   )
                 : RefreshIndicator(
@@ -156,77 +153,84 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
                         hasSong ? 172 : 68,
                       ),
                       children: [
-                        if (albums.isNotEmpty) ...[
-                          Text('收藏专辑', style: context.textTitleLarge),
-                          const SizedBox(height: 8),
-                          ...albums.map(
-                            (album) => SizedBox(
-                              height: _tileExtent,
-                              child: ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.album_outlined),
-                                title: Text(album.name),
-                                subtitle: Text(album.artist),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        AlbumDetailScreen(album: album),
+                        if (discoverSongs.isNotEmpty)
+                          SizedBox(
+                            height: _discoverCarouselHeight,
+                            child: _DiscoverSongCarousel(
+                              songs: discoverSongs,
+                              controller: _carouselController,
+                            ),
+                          ),
+                        _SectionHeader(title: '收藏歌曲'),
+                        if (starredSongs.isNotEmpty) ...[
+                          ...starredSongs.take(6).toList().asMap().entries.map((
+                            entry,
+                          ) {
+                            final song = entry.value;
+                            return QueueSongCard(
+                              song: song,
+                              index: entry.key,
+                              coverUrl: _coverUrl(song.coverArt),
+                              isCurrent: song.id == currentSongId,
+                              onTap: () => ref
+                                  .read(playerProvider.notifier)
+                                  .playPlaylist(
+                                    starredSongs,
+                                    startIndex: entry.key,
                                   ),
+                            );
+                          }),
+                          if (starredSongs.length > 6)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: () => PlayQueueSheet.show(
+                                  context,
+                                  title: '收藏歌曲',
+                                  songs: starredSongs,
+                                  onSongTap: (index) => ref
+                                      .read(playerProvider.notifier)
+                                      .playPlaylist(
+                                        starredSongs,
+                                        startIndex: index,
+                                      ),
                                 ),
+                                child: const Text('查看更多'),
+                              ),
+                            ),
+                        ] else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spacingMD,
+                              vertical: AppTheme.spacingLG,
+                            ),
+                            child: Text(
+                              '还没有收藏歌曲',
+                              style: context.textBodyMedium.copyWith(
+                                color: context.secondaryColor,
                               ),
                             ),
                           ),
-                        ],
-                        if (songs.isNotEmpty) ...[
-                          if (albums.isNotEmpty) const SizedBox(height: 20),
-                          ...songs.asMap().entries.map(
-                            (entry) => SizedBox(
-                              height: _tileExtent,
-                              child: SongTile(
-                                song: entry.value,
-                                index: entry.key,
-                                isPlaying: entry.value.id == currentSongId,
-                                isDownloaded: downloadedIds.contains(
-                                  entry.value.id,
-                                ),
-                                onTap: () => ref
-                                    .read(playerProvider.notifier)
-                                    .playPlaylist(songs, startIndex: entry.key),
-                                onMore: () {
-                                  final song = entry.value;
-                                  final isStarred = starredIds.contains(
-                                    song.id,
-                                  );
-                                  SongActionsSheet.show(
-                                    context,
-                                    songTitle: song.title,
-                                    songArtist: song.artist,
-                                    isStarred: isStarred,
-                                    onPlayNext: () {
-                                      ref
-                                          .read(playerProvider.notifier)
-                                          .playNext(song);
-                                    },
-                                    onToggleFavorite: () {
-                                      ref
-                                          .read(libraryProvider.notifier)
-                                          .setSongStarred(
-                                            song,
-                                            starred: !isStarred,
-                                          );
-                                    },
-                                    downloadService: ref.read(
-                                      downloadServiceProvider,
-                                    ),
-                                    songId: song.id,
-                                    song: song,
-                                  );
-                                },
-                              ),
+                        _ForYouDiscoverySection(
+                          allSongs: state.songs,
+                          starredSongs: starredSongs,
+                        ),
+                        _ClassificationStatusCard(
+                          statusText: _classificationStatusText(
+                            classification,
+                            state.songs.length,
+                          ),
+                          detailText: _classificationDetailText(
+                            classification,
+                            state.songs.length,
+                          ),
+                          progress: classification.progress,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const MusicClassificationScreen(),
                             ),
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
@@ -236,16 +240,32 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
             hasPageBackground: hasPageBackground,
             blurSigma: topBarBlur,
             child: GlassTopBarTitleRow(
-              title: '收藏',
+              title: '发现',
               actions: [
                 if (hasSong)
                   IconButton(
-                    tooltip: '定位到当前歌曲',
+                    tooltip: '定位到收藏歌曲',
                     onPressed: _locateCurrentSong,
                     icon: const Icon(Icons.my_location_rounded),
                   ),
                 IconButton(
-                  tooltip: '刷新收藏',
+                  tooltip: '搜索',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchScreen()),
+                  ),
+                  icon: const Icon(Icons.search_rounded),
+                ),
+                IconButton(
+                  tooltip: '智能分类状态',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const MusicClassificationScreen(),
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                ),
+                IconButton(
+                  tooltip: '刷新发现',
                   onPressed: _isRefreshing || state.isLoadingStarred
                       ? null
                       : _refreshStarred,
@@ -261,6 +281,564 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  String _coverUrl(String coverArtId) {
+    final api = ref.read(subsonicApiProvider);
+    if (api == null || coverArtId.isEmpty) return '';
+    return api.getCoverArtUrl(coverArtId);
+  }
+
+  List<Song> _discoverSongs(List<Song> songs) {
+    if (songs.isEmpty) return const [];
+    final today = DateTime.now();
+    final seed = today.year * 10000 + today.month * 100 + today.day + 17;
+    final shuffled = [...songs]..shuffle(Random(seed));
+    return shuffled.take(10).toList();
+  }
+
+  String _classificationStatusText(
+    MusicClassificationState state,
+    int songCount,
+  ) {
+    if (!state.hasApiKey) return '智能分类尚未开始';
+    return switch (state.status) {
+      ClassificationTaskStatus.running => '正在整理你的曲库',
+      ClassificationTaskStatus.paused => '分类任务已暂停',
+      ClassificationTaskStatus.completed => '曲库分类已完成',
+      ClassificationTaskStatus.failed => '分类任务需要处理',
+      ClassificationTaskStatus.idle =>
+        state.classifiedCount == 0 ? '智能分类尚未开始' : '智能分类已准备好',
+    };
+  }
+
+  String _classificationDetailText(
+    MusicClassificationState state,
+    int songCount,
+  ) {
+    if (!state.hasApiKey) {
+      return '配置 DeepSeek API 后，为曲库生成流派、情绪和场景分类。';
+    }
+    if (state.status == ClassificationTaskStatus.running ||
+        state.status == ClassificationTaskStatus.paused) {
+      return '已完成 ${state.completedCount} / ${state.totalCount} 首';
+    }
+    if (state.classifiedCount == 0) {
+      return '还有 $songCount 首歌曲等待分类。';
+    }
+    return '已为 ${state.classifiedCount} 首歌曲生成本地分类标签。';
+  }
+}
+
+class _DiscoverSongCarousel extends ConsumerStatefulWidget {
+  final List<Song> songs;
+  final PageController controller;
+
+  const _DiscoverSongCarousel({required this.songs, required this.controller});
+
+  @override
+  ConsumerState<_DiscoverSongCarousel> createState() =>
+      _DiscoverSongCarouselState();
+}
+
+class _ForYouDiscoverySection extends ConsumerWidget {
+  final List<Song> allSongs;
+  final List<Song> starredSongs;
+
+  const _ForYouDiscoverySection({
+    required this.allSongs,
+    required this.starredSongs,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (allSongs.isEmpty) return const SizedBox.shrink();
+    final classifier = ref.watch(musicClassificationProvider);
+    final notifier = ref.read(musicClassificationProvider.notifier);
+    final cards = <_DiscoveryCardData>[
+      _DiscoveryCardData(
+        title: '深夜独处',
+        subtitle: '平静 · 忧郁 · 低能量',
+        songs: notifier.songsForTag(allSongs, '深夜').take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '清晨轻听',
+        subtitle: '清晨 · 轻松 · 治愈',
+        songs: notifier.songsForTag(allSongs, '清晨').take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '被遗忘的收藏',
+        subtitle: '从收藏里重新听见',
+        songs: starredSongs.take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '随机漫游',
+        subtitle: '今天随机抽取的曲库片段',
+        songs: _stableShuffle(allSongs, 31).take(24).toList(),
+      ),
+    ].where((card) => card.songs.isNotEmpty).toList();
+
+    if (cards.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionHeader(title: '为你发现'),
+        SizedBox(
+          height: 116,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
+            itemCount: cards.length,
+            separatorBuilder: (_, _) =>
+                const SizedBox(width: AppTheme.spacingSM),
+            itemBuilder: (context, index) {
+              final card = cards[index];
+              return _DiscoveryPlaylistCard(
+                data: card,
+                enabled:
+                    classifier.classifiedCount > 0 ||
+                    card.title == '被遗忘的收藏' ||
+                    card.title == '随机漫游',
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  static List<Song> _stableShuffle(List<Song> songs, int offset) {
+    final today = DateTime.now();
+    final seed = today.year * 10000 + today.month * 100 + today.day + offset;
+    return [...songs]..shuffle(Random(seed));
+  }
+}
+
+class _DiscoveryCardData {
+  final String title;
+  final String subtitle;
+  final List<Song> songs;
+
+  const _DiscoveryCardData({
+    required this.title,
+    required this.subtitle,
+    required this.songs,
+  });
+}
+
+class _DiscoveryPlaylistCard extends ConsumerWidget {
+  final _DiscoveryCardData data;
+  final bool enabled;
+
+  const _DiscoveryPlaylistCard({required this.data, required this.enabled});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return SizedBox(
+      width: 188,
+      child: Material(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          onTap: !enabled
+              ? null
+              : () => PlayQueueSheet.show(
+                  context,
+                  title: data.title,
+                  songs: data.songs,
+                  onSongTap: (index) => ref
+                      .read(playerProvider.notifier)
+                      .playPlaylist(data.songs, startIndex: index),
+                ),
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingMD),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 20,
+                  color: context.primaryColor,
+                ),
+                const Spacer(),
+                Text(
+                  data.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textTitleMedium,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${data.songs.length} 首歌曲 · ${data.subtitle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textBodySmall,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ClassificationStatusCard extends StatelessWidget {
+  final String statusText;
+  final String detailText;
+  final double progress;
+  final VoidCallback onTap;
+
+  const _ClassificationStatusCard({
+    required this.statusText,
+    required this.detailText,
+    required this.progress,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingMD,
+        AppTheme.spacingLG,
+        AppTheme.spacingMD,
+        0,
+      ),
+      child: Material(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingMD),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: context.backgroundColor,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: context.primaryColor,
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingMD),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(statusText, style: context.textTitleMedium),
+                      const SizedBox(height: 3),
+                      Text(
+                        detailText,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.textBodySmall,
+                      ),
+                      if (progress > 0 && progress < 1) ...[
+                        const SizedBox(height: AppTheme.spacingSM),
+                        LinearProgressIndicator(value: progress),
+                      ],
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverSongCarouselState extends ConsumerState<_DiscoverSongCarousel> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final songs = widget.songs;
+    return Column(
+      children: [
+        Expanded(
+          child: AnimatedBuilder(
+            animation: widget.controller,
+            builder: (context, _) {
+              final page = widget.controller.hasClients
+                  ? widget.controller.page ?? _currentIndex.toDouble()
+                  : _currentIndex.toDouble();
+              final nearest = page.round();
+              final offsets = <int>[-3, -2, -1, 0, 1, 2, 3]
+                ..sort((a, b) => b.abs().compareTo(a.abs()));
+
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final centerSize = constraints.maxWidth * 0.65;
+                  final viewportCenter = constraints.maxWidth / 2;
+                  final cardCenterY = constraints.maxHeight / 2;
+
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      PageView.builder(
+                        controller: widget.controller,
+                        onPageChanged: (index) {
+                          setState(() => _currentIndex = index);
+                        },
+                        itemCount: songs.length,
+                        itemBuilder: (_, _) => const SizedBox.expand(),
+                      ),
+                      for (final offset in offsets)
+                        _DepthCarouselCard(
+                          songs: songs,
+                          index: nearest + offset,
+                          relative: offset - (page - nearest),
+                          centerSize: centerSize,
+                          viewportCenter: viewportCenter,
+                          cardCenterY: cardCenterY,
+                          controller: widget.controller,
+                        ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        _DiscoverDots(count: songs.length, currentIndex: _currentIndex),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+}
+
+class _DepthCarouselCard extends ConsumerWidget {
+  final List<Song> songs;
+  final int index;
+  final double relative;
+  final double centerSize;
+  final double viewportCenter;
+  final double cardCenterY;
+  final PageController controller;
+
+  const _DepthCarouselCard({
+    required this.songs,
+    required this.index,
+    required this.relative,
+    required this.centerSize,
+    required this.viewportCenter,
+    required this.cardCenterY,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (index < 0 || index >= songs.length) return const SizedBox.shrink();
+
+    final distance = relative.abs().clamp(0.0, 3.0);
+    final scale = (1 - distance * 0.14).clamp(0.56, 1.0);
+    final opacity = (1 - distance * 0.22).clamp(0.34, 1.0);
+    final blur = distance == 0 ? 0.0 : distance * 0.7;
+    final size = centerSize * scale;
+    final x = viewportCenter - size / 2 + relative * centerSize * 0.37;
+    final y = cardCenterY - size / 2 + distance * 10;
+    final isCenter = distance < 0.5;
+    final currentSong = songs[index];
+
+    return Positioned(
+      left: x,
+      top: y,
+      width: size,
+      height: size,
+      child: GestureDetector(
+        onTap: isCenter
+            ? null
+            : () => controller.animateToPage(
+                index,
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+              ),
+        child: Opacity(
+          opacity: opacity,
+          child: ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: _DiscoverCoverCard(
+              song: currentSong,
+              isCenter: isCenter,
+              size: size,
+              onPlay: () => ref
+                  .read(playerProvider.notifier)
+                  .playPlaylist(songs, startIndex: index),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoverCoverCard extends ConsumerWidget {
+  final Song song;
+  final bool isCenter;
+  final double size;
+  final VoidCallback onPlay;
+
+  const _DiscoverCoverCard({
+    required this.song,
+    required this.isCenter,
+    required this.size,
+    required this.onPlay,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final api = ref.watch(subsonicApiProvider);
+    final coverUrl = api == null || song.coverArt.isEmpty
+        ? ''
+        : api.getCoverArtUrl(song.coverArt);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isCenter ? 0.24 : 0.12),
+            blurRadius: isCenter ? 34 : 20,
+            offset: Offset(0, isCenter ? 18 : 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AlbumCover(
+            coverArtUrl: coverUrl,
+            cacheKey: song.coverArt,
+            size: size,
+            borderRadius: 24,
+            showShadow: false,
+          ),
+          if (isCenter) ...[
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white.withValues(alpha: 0.06),
+                      Colors.black.withValues(alpha: 0.05),
+                      Colors.black.withValues(alpha: 0.58),
+                    ],
+                    stops: const [0, 0.46, 1],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 18,
+              right: 78,
+              bottom: 18,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textTitleMedium.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.textBodySmall.copyWith(
+                      color: Colors.white.withValues(alpha: 0.78),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: IconButton.filled(
+                tooltip: '播放',
+                onPressed: onPlay,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.92),
+                  foregroundColor: Colors.black87,
+                  fixedSize: const Size(52, 52),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded, size: 30),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DiscoverDots extends StatelessWidget {
+  final int count;
+  final int currentIndex;
+
+  const _DiscoverDots({required this.count, required this.currentIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            width: i == currentIndex ? 18 : 7,
+            height: 7,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: i == currentIndex
+                  ? const Color(0xFF6F63FF)
+                  : const Color(0xFFD7D8DF),
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingMD,
+        AppTheme.spacingLG,
+        AppTheme.spacingMD,
+        AppTheme.spacingSM,
+      ),
+      child: Text(title, style: context.textTitleLarge),
     );
   }
 }

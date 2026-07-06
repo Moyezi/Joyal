@@ -29,7 +29,7 @@ void main() {
     // Verify the three primary navigation tabs and home search entrance.
     expect(find.text('主页'), findsOneWidget);
     expect(find.text('曲库'), findsOneWidget);
-    expect(find.text('收藏'), findsOneWidget);
+    expect(find.text('发现'), findsOneWidget);
     expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
   });
 
@@ -83,12 +83,12 @@ void main() {
     },
   );
 
-  testWidgets('Favorites tab no longer shows My floating action button', (
+  testWidgets('Discover tab no longer shows My floating action button', (
     tester,
   ) async {
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.text('收藏'));
+    await tester.tap(find.text('发现'));
     await tester.pump();
 
     expect(find.byIcon(Icons.person_outline), findsNothing);

@@ -9,6 +9,7 @@ import '../providers/theme_provider.dart';
 import '../utils/app_toast.dart';
 import 'cache_management_screen.dart';
 import 'download_manager_screen.dart';
+import 'music_classification_screen.dart';
 import 'settings_screen.dart';
 
 class SettingsHubScreen extends ConsumerStatefulWidget {
@@ -75,6 +76,19 @@ class _SettingsHubScreenState extends ConsumerState<SettingsHubScreen> {
             title: '刷新曲库',
             subtitle: _isRefreshing ? '正在同步，请稍候' : '重新同步专辑、歌曲和收藏',
             onTap: _isRefreshing ? null : _refreshLibrary,
+          ),
+          const SizedBox(height: AppTheme.spacingMD),
+          _SettingsHubItem(
+            icon: Icons.auto_awesome_rounded,
+            title: '智能分类',
+            subtitle: '配置 DeepSeek，整理流派、情绪和场景标签',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MusicClassificationScreen(),
+                ),
+              );
+            },
           ),
           const SizedBox(height: AppTheme.spacingMD),
           _SettingsHubItem(

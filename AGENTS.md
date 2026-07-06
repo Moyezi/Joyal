@@ -16,22 +16,26 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 ## 关键路径
 
 - API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`、`lib/providers/listening_stats_provider.dart`。
-- 曲库/搜索/收藏：首页、曲库、收藏、搜索相关代码在 `lib/providers/library_provider.dart` 与 `lib/screens/home_screen.dart`、`library_screen.dart`、`hotlist_screen.dart`、`search_screen.dart`。
+- 曲库/搜索/发现：首页、曲库、发现（旧 `HotlistScreen` 文件名）、搜索相关代码在 `lib/providers/library_provider.dart` 与 `lib/screens/home_screen.dart`、`library_screen.dart`、`hotlist_screen.dart`、`search_screen.dart`。
 - 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`mini_player.dart`、`bottom_nav.dart`、`play_queue_sheet.dart`、`lib/screens/settings_hub_screen.dart`、`personalization_screen.dart`。
 - 视觉/毛玻璃/背景：`lib/providers/page_background_provider.dart`、`glass_effect_provider.dart`、`visual_effect_provider.dart`、`mini_player_color_provider.dart`、`lib/widgets/frosted_glass.dart`、`glass_top_bar.dart`、`page_custom_background.dart`、`dynamic_album_background.dart`、`album_visual_palette.dart`、`mini_player_chrome.dart`。
 - 播放页/歌词：`lib/screens/now_playing_screen.dart`、`lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/widgets/waveform_progress.dart`、`now_playing_transition.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
+- 智能分类：`lib/models/music_classification.dart`、`lib/services/deepseek_classification_service.dart`、`lib/services/music_classification_repository.dart`、`lib/providers/music_classification_provider.dart`、`lib/screens/music_classification_screen.dart`；发现页入口和卡片在 `hotlist_screen.dart`。
 - Android 媒体桥：`android/app/src/main/kotlin/com/example/joyal_music/`。
 
 ## 导航与界面约定
 
-- 主导航只有：首页、曲库、收藏；搜索从首页大搜索框或顶栏搜索图标进入。旧 widget 测试可能仍按 `主页` 文案断言。
+- 主导航只有：首页、曲库、发现；搜索从首页大搜索框或顶栏搜索图标进入。旧 widget 测试可能仍按 `主页` 文案断言。
 - 主页面用全屏 `Stack` 铺底，固定 `GlassTopBar` 覆盖状态栏，内容从状态栏下方开始并避让顶栏。曲库“歌曲/专辑” TabBar 是顶栏下方额外区域，不应改变标题/按钮位置。
 - 根页面由 `PageView` 承载主页面；`MiniPlayer` 与 `AppBottomNav` 是透明 Dock 上的悬浮胶囊。列表底部 padding 必须动态避让 Dock；有播放栏时额外避让 `MiniPlayer` 高度。
 - `AppBottomNav` 区域支持横向拖动切换页面，跨项触发选择振动，页面应从边缘滑入而不是瞬间替换。
 - `MiniPlayer` 右滑折叠为右下旋转专辑封面按钮，状态由 `_MainShellState` 管；底部 Dock 区域不触发主页侧边栏右滑。折叠/展开保持固定高度轨道，避免竖向瞬移；动画应让迷你栏整体朝右下悬浮框位置移动并收缩成圆形专辑封面，不用淡入淡出切换两套 UI。
-- 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`；“下一首播放”加入队列后要 toast 确认。
+- 歌曲列表行优先复用 `SongTile` + `SongActionsSheet`；“下一首播放”加入队列后要 toast 确认。“查看详情”弹窗承载歌曲文件信息和智能分类轻量修正入口。
 - 首页每日推荐：从 `LibraryState.songs` 按当天日期稳定随机选 24 首，栏内 3 首；“查看更多”复用 `PlayQueueSheet`，歌曲卡片复用 `QueueSongCard`，点击推荐歌曲以这 24 首建立真实播放队列。
+- 发现页仍在 `lib/screens/hotlist_screen.dart`，顶部是基于 `LibraryState.songs` 按日期稳定随机的歌曲 Cover Flow：中心封面约 65% 屏宽、24px 圆角，左右各 2～3 张逐级缩小、降低透明度并轻微模糊，卡片部分重叠形成平面克制的景深；不要做明显透视倾斜或传统旋转木马。分页圆点当前页蓝紫色、其他浅灰。中心卡右下播放按钮直接以轮播歌曲集合建立真实播放队列。
+- 发现页轮播下方保留“收藏歌曲”区块，复用首页每日推荐/播放队列的 `QueueSongCard` 样式；默认只露出少量歌曲，“查看更多”复用 `PlayQueueSheet`，点击收藏歌曲以当前收藏歌曲集合建立真实播放队列。
+- 发现页“为你发现”横向卡片优先用本地智能分类标签筛选歌曲；分类不足时只能退化到收藏/随机等真实本地集合，不要展示没有数据支撑的 AI 推荐。
 - 首页随机专辑：从 `LibraryState.albums` 按当天日期稳定随机选 8 张；“查看更多”切到曲库页并选中“专辑”Tab；底部文案固定 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约 70% 宽，主页内容、MiniPlayer、Dock 随进度右移/缩小/变暗。“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
 - 侧边栏动画优先流畅：用 `_drawerController` + `AnimatedBuilder` 驱动预览层，主页面内容作为静态 child/RepaintBoundary；开合过程中不要用全屏动态 `BackdropFilter`。
@@ -45,7 +49,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - `context.primaryColor` 是主文字色，不可做按钮/图标容器/圆形底等背景；深色模式用 `context.surfaceColor` 做底、`context.primaryColor` 做前景。
 - Toast 统一用 `showAppToast(...)`；宽度按文案自适应，优先 `BoxConstraints`，不要用 `TextPainter` 手算。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
-- 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、收藏可选择本地图片，不改变列表、顶栏和 Dock 空间关系。
+- 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、发现共用本地图片，不改变列表、顶栏和 Dock 空间关系；内部枚举仍叫 `PageBackgroundTarget.favorites`，显示文案应是“发现”。
 - 毛玻璃统一由 `glass_effect_provider.dart` 管强度，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览。
 - 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制，个性化可切换“默认颜色/动态取色”；默认保持 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠悬浮封面圆形外框需同步遵循，并继续走 `FrostedGlass` 的 blur 强度。
 - 真实迷你播放栏与个性化“毛玻璃”迷你播放栏预览共用 `mini_player_chrome.dart` 的动态取色解析；预览在动态取色模式下必须跟随当前播放歌曲封面，不要硬编码候选色。未拿到封面 palette 前可暂用中性 fallback，不要用 `coverArtId` hash 伪造候选色，避免与真实封面色调不符。
@@ -57,9 +61,9 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 启动从安全存储恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建再刷新曲库。启动遮罩覆盖凭据读取和本地播放会话恢复，避免 MiniPlayer/Dock 闪现。
 - `refreshLibrary()` 并行刷新专辑、全量歌曲和收藏。专辑用 `getAlbumList2.view` 分页；全量歌曲用空查询 `search3.view` + `songOffset` 分页。
-- 曲库页刷新走 `refreshLibrary()`，收藏页刷新走 `fetchStarred()`；防重复触发，未连接时提示，刷新后用 `showAppToast(...)` 明确成功或失败。
-- 收藏采用共享状态和乐观更新，失败回滚；收藏页无需手动刷新即可同步。
-- 播放器使用 `just_audio` 多曲目音源序列；搜索、收藏、专辑、全曲库歌曲都用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。
+- 曲库页刷新走 `refreshLibrary()`；发现页顶栏刷新当前仍走 `fetchStarred()` 刷新收藏歌曲，未连接时提示，刷新后用 `showAppToast(...)` 明确成功或失败。
+- 收藏采用共享状态和乐观更新，失败回滚；发现页的“收藏歌曲”区块无需手动刷新即可同步。
+- 播放器使用 `just_audio` 多曲目音源序列；搜索、发现轮播、收藏歌曲、专辑、全曲库歌曲都用当前集合建立真实队列。`PlayerNotifier.playAtIndex()` 是切歌和队列点选统一入口。
 - `ListeningStatsNotifier` 只记录本机已听过的去重歌曲 id；侧边栏“听歌概览”进度 = 已听歌曲数 / 当前曲库全部歌曲数，不描述成服务端统计。
 - 用户明确要求：不要恢复异常自动下一首、回跳和额外 seek 保护逻辑；播放链路尽量单纯从 Navidrome `stream.view&format=raw` 播放。
 - 切歌时后台预取当前歌曲和下一首歌词并写入本地 JSON 缓存；不承诺应用彻底关闭后恢复完整队列和进度。
@@ -67,6 +71,17 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - `LyricsScreen` 初始化后立即加载，不等横滑动画完成。歌词页不显示返回键和标题“歌词”，顶部只固定当前歌曲名和歌手。
 - 歌词页出现或横滑过渡中时，播放详情页外层下滑关闭手势禁用；退出歌词页走现有横滑/切换逻辑。
 - MiniPlayer 中间区域显示当前句和下一句歌词，不显示歌名/歌手；换句共用同一垂直轨道，动画时长按相邻歌词时间差调整。歌词边界通过 Row 布局、间距、外层 padding/transform 调整，不要在歌词内部 `ClipRect` 里负偏移文本导致左侧截断；当前实机校准为展开态圆形封面左移 `12px`、封面与歌词可视起点间距 `12px`，歌词显示窗口左边界左移 `2px`、右边界左移 `4px`。
+
+## 智能分类
+
+- DeepSeek API Key 只存 `flutter_secure_storage` 的 `deepseek_api_key`，不要写入 SQLite、JSON、日志、崩溃报告或 Git。设置页只显示“已保存”状态，不回显完整 key。
+- `MusicClassificationProvider` 管理配置、连接测试、批量分类、暂停/继续/取消、低置信度和强制重分。普通分类会跳过 manual 来源和元数据 hash/模型/词表版本未变化的结果。
+- 分类请求只发送歌曲文字元数据（当前 `Song` 模型已有的 id/title/artist/album），不上传音频、封面、Navidrome token、password、baseUrl 或流媒体 URL。
+- 固定词表在 `ClassificationVocabulary`；DeepSeek 返回必须校验到词表内，每类最多 3 个标签，能量值限定 0-100，年代当前因 `Song` 未解析年份统一为“年份未知”。
+- 当前第一版没有引入 SQLite 依赖；分类配置元数据和分类结果由 `MusicClassificationRepository` 通过 `AppCacheService` 写 `music_classification_store` JSON，本地库边界集中在 repository，后续换 SQLite 时不要改 UI/provider 合同。
+- 歌曲“查看详情”里的分类标签支持轻量手动修正：长按已有风格/情绪/场景 tag 触发振动并显示对应完整词表多选；点击语言行显示语言列表单选。保存走 `MusicClassificationNotifier.updateManualClassification()`，写为 `ClassificationSource.manual`，每类仍最多 3 个标签。
+- `MusicClassificationScreen` 是真实入口：设置 -> 智能分类，发现页顶部分类状态图标也进入此页。首次分类前若没有 API Key，应引导配置页，不把未配置状态描述为已接入。
+- “创建歌单”“相似歌曲”的完整 UI 仍未落地；如果新增按钮，必须先补 provider/service 能力，不能只做占位入口。
 
 ## 播放页与选曲模式
 

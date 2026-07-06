@@ -63,9 +63,9 @@ class AppBottomNav extends ConsumerWidget {
                   onTap: () => onTabChanged(1),
                 ),
                 _NavItem(
-                  icon: Icons.local_fire_department_outlined,
-                  activeIcon: Icons.local_fire_department,
-                  label: '收藏',
+                  icon: Icons.explore_outlined,
+                  activeIcon: Icons.explore,
+                  label: '发现',
                   isActive: currentIndex == 2,
                   onTap: () => onTabChanged(2),
                 ),

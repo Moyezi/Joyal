@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 enum PageBackgroundTarget {
   home('home', '首页'),
   library('library', '曲库'),
-  favorites('favorites', '收藏');
+  favorites('favorites', '发现');
 
   const PageBackgroundTarget(this.storageName, this.label);
 
