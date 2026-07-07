@@ -307,7 +307,7 @@ class _GlassPreview extends ConsumerWidget {
                   ),
                 ),
               )
-              .valueOrNull
+              .value
         : null;
     final previewChrome = MiniPlayerChrome.resolve(
       mode: miniPlayerColorMode,

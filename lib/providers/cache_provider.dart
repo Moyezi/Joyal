@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/cache_stats.dart';
@@ -137,7 +137,7 @@ final cacheProvider = StateNotifierProvider<CacheNotifier, CacheStats>((ref) {
   );
 
   ref.listen(downloadRecordsProvider, (_, next) {
-    final records = next.valueOrNull;
+    final records = next.value;
     if (records == null) return;
     final bytes = records.fold<int>(0, (sum, r) => sum + r.size);
     notifier.updateDownloadBytes(bytes);

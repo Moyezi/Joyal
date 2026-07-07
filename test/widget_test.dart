@@ -179,7 +179,7 @@ void main() {
   });
 }
 
-Widget _testApp({List<Override> overrides = const []}) {
+Widget _testApp({List<dynamic> overrides = const []}) {
   return ProviderScope(
     overrides: [
       authProvider.overrideWith((ref) => _TestAuthNotifier()),

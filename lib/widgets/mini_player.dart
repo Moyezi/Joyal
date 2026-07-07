@@ -73,7 +73,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                 ),
               )
-              .valueOrNull
+              .value
         : null;
     final chrome = MiniPlayerChrome.resolve(
       mode: colorMode,

@@ -242,7 +242,7 @@ final cacheRepositoryProvider = Provider<CacheRepository>((ref) {
 
   // Wire download size changes into the bucket.
   ref.listen(downloadRecordsProvider, (_, next) {
-    final records = next.valueOrNull;
+    final records = next.value;
     repo.downloadBucket.currentBytes =
         records?.fold<int>(0, (sum, r) => sum + r.size) ?? 0;
   });
