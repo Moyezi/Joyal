@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
@@ -32,9 +33,12 @@ class HotlistScreen extends ConsumerStatefulWidget {
 class _HotlistScreenState extends ConsumerState<HotlistScreen> {
   static const double _headerHeight = 76;
   static const double _tileExtent = 72;
-  static const double _discoverCarouselHeight = 330;
+  static const double _discoverCarouselHeight = 300;
+  static const int _carouselInitialPage = 10000;
   final ScrollController _scrollController = ScrollController();
-  final PageController _carouselController = PageController();
+  final PageController _carouselController = PageController(
+    initialPage: _carouselInitialPage,
+  );
   bool _isRefreshing = false;
 
   double _topBarExtent(BuildContext context) =>
@@ -563,9 +567,44 @@ class _ClassificationStatusCard extends StatelessWidget {
 class _DiscoverSongCarouselState extends ConsumerState<_DiscoverSongCarousel> {
   int _currentIndex = 0;
 
+  int _realIndexForPage(int page) {
+    final length = widget.songs.length;
+    if (length == 0) return 0;
+    return (page % length + length) % length;
+  }
+
+  void _dragBy(double delta) {
+    if (widget.songs.length <= 1 || !widget.controller.hasClients) return;
+    final pixels = max(0.0, widget.controller.position.pixels - delta);
+    widget.controller.jumpTo(pixels);
+  }
+
+  void _settleByVelocity(double velocity) {
+    if (widget.songs.length <= 1 || !widget.controller.hasClients) return;
+    final page =
+        widget.controller.page ?? widget.controller.initialPage.toDouble();
+    final speed = velocity.abs();
+    final direction = velocity < 0
+        ? 1
+        : velocity > 0
+        ? -1
+        : 0;
+    final pages = speed < 180 ? 0 : (speed / 1000).ceil().clamp(1, 3);
+    if (pages > 0) {
+      HapticFeedback.selectionClick();
+    }
+    widget.controller.animateToPage(
+      page.round() + direction * pages,
+      duration: Duration(milliseconds: 240 + pages * 28),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final songs = widget.songs;
+    if (songs.isEmpty) return const SizedBox.shrink();
+
     return Column(
       children: [
         Expanded(
@@ -583,39 +622,48 @@ class _DiscoverSongCarouselState extends ConsumerState<_DiscoverSongCarousel> {
                 builder: (context, constraints) {
                   final centerSize = constraints.maxWidth * 0.65;
                   final viewportCenter = constraints.maxWidth / 2;
-                  final cardCenterY = constraints.maxHeight / 2;
+                  final cardCenterY = constraints.maxHeight * 0.49;
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      PageView.builder(
-                        controller: widget.controller,
-                        onPageChanged: (index) {
-                          setState(() => _currentIndex = index);
-                        },
-                        itemCount: songs.length,
-                        itemBuilder: (_, _) => const SizedBox.expand(),
-                      ),
-                      for (final offset in offsets)
-                        _DepthCarouselCard(
-                          songs: songs,
-                          index: nearest + offset,
-                          relative: offset - (page - nearest),
-                          centerSize: centerSize,
-                          viewportCenter: viewportCenter,
-                          cardCenterY: cardCenterY,
+                  return GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragUpdate: (details) =>
+                        _dragBy(details.delta.dx),
+                    onHorizontalDragEnd: (details) =>
+                        _settleByVelocity(details.primaryVelocity ?? 0),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        PageView.builder(
                           controller: widget.controller,
+                          physics: const NeverScrollableScrollPhysics(),
+                          onPageChanged: (index) {
+                            setState(
+                              () => _currentIndex = _realIndexForPage(index),
+                            );
+                          },
+                          itemBuilder: (_, _) => const SizedBox.expand(),
                         ),
-                    ],
+                        for (final offset in offsets)
+                          _DepthCarouselCard(
+                            songs: songs,
+                            pageIndex: nearest + offset,
+                            relative: offset - (page - nearest),
+                            centerSize: centerSize,
+                            viewportCenter: viewportCenter,
+                            cardCenterY: cardCenterY,
+                            controller: widget.controller,
+                          ),
+                      ],
+                    ),
                   );
                 },
               );
             },
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 4),
         _DiscoverDots(count: songs.length, currentIndex: _currentIndex),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
       ],
     );
   }
@@ -623,7 +671,7 @@ class _DiscoverSongCarouselState extends ConsumerState<_DiscoverSongCarousel> {
 
 class _DepthCarouselCard extends ConsumerWidget {
   final List<Song> songs;
-  final int index;
+  final int pageIndex;
   final double relative;
   final double centerSize;
   final double viewportCenter;
@@ -632,7 +680,7 @@ class _DepthCarouselCard extends ConsumerWidget {
 
   const _DepthCarouselCard({
     required this.songs,
-    required this.index,
+    required this.pageIndex,
     required this.relative,
     required this.centerSize,
     required this.viewportCenter,
@@ -642,7 +690,8 @@ class _DepthCarouselCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (index < 0 || index >= songs.length) return const SizedBox.shrink();
+    if (songs.isEmpty) return const SizedBox.shrink();
+    final index = (pageIndex % songs.length + songs.length) % songs.length;
 
     final distance = relative.abs().clamp(0.0, 3.0);
     final scale = (1 - distance * 0.14).clamp(0.56, 1.0);
@@ -663,7 +712,7 @@ class _DepthCarouselCard extends ConsumerWidget {
         onTap: isCenter
             ? null
             : () => controller.animateToPage(
-                index,
+                pageIndex,
                 duration: const Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
               ),
@@ -702,6 +751,14 @@ class _DiscoverCoverCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final api = ref.watch(subsonicApiProvider);
+    final playback = ref.watch(
+      playerProvider.select(
+        (state) =>
+            (currentSongId: state.currentSong?.id, isPlaying: state.isPlaying),
+      ),
+    );
+    final isCurrentSong = playback.currentSongId == song.id;
+    final isPlaying = isCurrentSong && playback.isPlaying;
     final coverUrl = api == null || song.coverArt.isEmpty
         ? ''
         : api.getCoverArtUrl(song.coverArt);
@@ -778,14 +835,25 @@ class _DiscoverCoverCard extends ConsumerWidget {
               right: 16,
               bottom: 16,
               child: IconButton.filled(
-                tooltip: '播放',
-                onPressed: onPlay,
+                tooltip: isPlaying ? '暂停' : '播放',
+                onPressed: isCurrentSong
+                    ? () => ref.read(playerProvider.notifier).togglePlayPause()
+                    : onPlay,
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.92),
                   foregroundColor: Colors.black87,
                   fixedSize: const Size(52, 52),
                 ),
-                icon: const Icon(Icons.play_arrow_rounded, size: 30),
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    key: ValueKey(isPlaying),
+                    size: 30,
+                  ),
+                ),
               ),
             ),
           ],
