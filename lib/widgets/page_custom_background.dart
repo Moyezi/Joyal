@@ -48,7 +48,7 @@ class PageCustomBackground extends ConsumerWidget {
         ColoredBox(
           color: isDark
               ? Colors.black.withValues(alpha: 0.54)
-              : Colors.white.withValues(alpha: 0.68),
+              : Colors.black.withValues(alpha: 0.10),
         ),
       ],
     );

@@ -11,6 +11,7 @@ import '../providers/glass_effect_provider.dart';
 import '../providers/mini_player_color_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/sidebar_image_provider.dart';
 import '../providers/visual_effect_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/dynamic_album_background.dart';
@@ -24,6 +25,7 @@ class PersonalizationScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(visualEffectProvider);
     final pageBackgrounds = ref.watch(pageBackgroundProvider);
+    final sidebarImage = ref.watch(sidebarImageProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('个性化')),
       body: ListView(
@@ -46,6 +48,19 @@ class PersonalizationScreen extends ConsumerWidget {
             onClear: () => _clearPageBackground(context, ref),
             onBlurChanged: (value) =>
                 ref.read(pageBackgroundProvider.notifier).setBlurSigma(value),
+          ),
+          const SizedBox(height: AppTheme.spacingLG),
+          Text('侧边栏图片', style: context.textTitleLarge),
+          const SizedBox(height: AppTheme.spacingSM),
+          _SidebarImageTile(
+            imagePath: sidebarImage.imagePath,
+            alignment: Alignment(
+              sidebarImage.alignmentX,
+              sidebarImage.alignmentY,
+            ),
+            onPick: () => _pickSidebarImage(context, ref),
+            onCrop: () => _showSidebarImageCropSheet(context, ref),
+            onClear: () => _clearSidebarImage(context, ref),
           ),
           const SizedBox(height: AppTheme.spacingLG),
           Text('毛玻璃', style: context.textTitleLarge),
@@ -97,6 +112,45 @@ class PersonalizationScreen extends ConsumerWidget {
     await ref.read(pageBackgroundProvider.notifier).clearShared();
     if (!context.mounted) return;
     showAppToast(context, '页面背景已清除');
+  }
+
+  Future<void> _pickSidebarImage(BuildContext context, WidgetRef ref) async {
+    try {
+      final didPick = await ref.read(sidebarImageProvider.notifier).pick();
+      if (!context.mounted || !didPick) return;
+      showAppToast(context, '侧边栏图片已更新');
+      await _showSidebarImageCropSheet(context, ref);
+    } catch (_) {
+      if (!context.mounted) return;
+      showAppToast(context, '图片选择失败');
+    }
+  }
+
+  Future<void> _clearSidebarImage(BuildContext context, WidgetRef ref) async {
+    await ref.read(sidebarImageProvider.notifier).clear();
+    if (!context.mounted) return;
+    showAppToast(context, '侧边栏图片已清除');
+  }
+
+  Future<void> _showSidebarImageCropSheet(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final imagePath = ref.read(sidebarImageProvider).imagePath;
+    if (imagePath == null || imagePath.isEmpty) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: context.backgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => _SidebarImageCropSheet(
+        onDone: () => Navigator.of(sheetContext).pop(),
+      ),
+    );
   }
 }
 
@@ -759,6 +813,231 @@ class _PageBackgroundTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SidebarImageTile extends StatelessWidget {
+  final String? imagePath;
+  final Alignment alignment;
+  final VoidCallback onPick;
+  final VoidCallback onCrop;
+  final VoidCallback onClear;
+
+  const _SidebarImageTile({
+    required this.imagePath,
+    required this.alignment,
+    required this.onPick,
+    required this.onCrop,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final path = imagePath;
+    final hasImage = path != null && path.isNotEmpty;
+
+    return Material(
+      color: context.surfaceColor,
+      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingMD),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  child: SizedBox(
+                    width: 86,
+                    height: 48,
+                    child: hasImage
+                        ? Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            alignment: alignment,
+                          )
+                        : DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: context.backgroundColor,
+                            ),
+                            child: Icon(
+                              Icons.image_outlined,
+                              color: context.secondaryColor,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingMD),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '自定义图片',
+                        style: context.textTitleMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasImage ? '侧边栏会以 16:9 圆角图片显示' : '选择一张侧边栏展示图',
+                        style: context.textBodySmall.copyWith(
+                          color: context.secondaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingMD),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onPick,
+                    icon: Icon(
+                      hasImage
+                          ? Icons.image_search_outlined
+                          : Icons.add_photo_alternate_outlined,
+                    ),
+                    label: Text(hasImage ? '更换图片' : '选择图片'),
+                  ),
+                ),
+                if (hasImage) ...[
+                  const SizedBox(width: AppTheme.spacingSM),
+                  IconButton.filledTonal(
+                    tooltip: '调整取景',
+                    onPressed: onCrop,
+                    icon: const Icon(Icons.crop_16_9_rounded),
+                  ),
+                  const SizedBox(width: AppTheme.spacingXS),
+                  IconButton(
+                    tooltip: '清除侧边栏图片',
+                    onPressed: onClear,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarImageCropSheet extends ConsumerWidget {
+  final VoidCallback onDone;
+
+  const _SidebarImageCropSheet({required this.onDone});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(sidebarImageProvider);
+    final path = state.imagePath;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '调整侧边栏图片',
+                  style: context.textTitleLarge.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '完成',
+                onPressed: onDone,
+                icon: const Icon(Icons.check_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '拖动图片，选择侧边栏 16:9 卡片里要展示的部分。',
+            style: context.textBodySmall.copyWith(
+              color: context.secondaryColor,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingMD),
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanUpdate: path == null || path.isEmpty
+                        ? null
+                        : (details) {
+                            ref
+                                .read(sidebarImageProvider.notifier)
+                                .updateAlignmentFromDrag(details.delta, size);
+                          },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (path != null && path.isNotEmpty)
+                          Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            alignment: Alignment(
+                              state.alignmentX,
+                              state.alignmentY,
+                            ),
+                          )
+                        else
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: context.surfaceColor,
+                            ),
+                            child: Icon(
+                              Icons.image_outlined,
+                              color: context.secondaryColor,
+                            ),
+                          ),
+                        IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.72),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.14),
+                                  blurRadius: 24,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingMD),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(onPressed: onDone, child: const Text('保存取景')),
+          ),
+        ],
       ),
     );
   }

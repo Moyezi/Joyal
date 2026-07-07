@@ -17,7 +17,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - API/播放：`lib/services/subsonic_api.dart`、`lib/services/audio_player_service.dart`、`lib/providers/player_provider.dart`、`lib/providers/listening_stats_provider.dart`。
 - 曲库/搜索/发现：首页、曲库、发现（旧 `HotlistScreen` 文件名）、搜索相关代码在 `lib/providers/library_provider.dart` 与 `lib/screens/home_screen.dart`、`library_screen.dart`、`hotlist_screen.dart`、`search_screen.dart`。
-- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`mini_player.dart`、`bottom_nav.dart`、`play_queue_sheet.dart`、`lib/screens/settings_hub_screen.dart`、`personalization_screen.dart`。
+- 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`mini_player.dart`、`bottom_nav.dart`、`play_queue_sheet.dart`、`lib/screens/settings_hub_screen.dart`、`personalization_screen.dart`、`lib/providers/sidebar_image_provider.dart`。
 - 视觉/毛玻璃/背景：`lib/providers/page_background_provider.dart`、`glass_effect_provider.dart`、`visual_effect_provider.dart`、`mini_player_color_provider.dart`、`lib/widgets/frosted_glass.dart`、`glass_top_bar.dart`、`page_custom_background.dart`、`dynamic_album_background.dart`、`album_visual_palette.dart`、`mini_player_chrome.dart`。
 - 播放页/歌词：`lib/screens/now_playing_screen.dart`、`lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/widgets/waveform_progress.dart`、`now_playing_transition.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
@@ -39,7 +39,8 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 首页随机专辑：从 `LibraryState.albums` 按当天日期稳定随机选 8 张；“查看更多”切到曲库页并选中“专辑”Tab；底部文案固定 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约 70% 宽，主页内容、MiniPlayer、Dock 随进度右移/缩小/变暗。“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
 - 侧边栏动画优先流畅：用 `_drawerController` + `AnimatedBuilder` 驱动预览层，主页面内容作为静态 child/RepaintBoundary；开合过程中不要用全屏动态 `BackdropFilter`。
-- 侧边栏只放真实状态和明确标记“预留”的占位；底部按钮进入设置、个性化或循环主题。
+- 侧边栏只放真实状态；Navidrome 已连接时不显示整张连接卡，只在标题区显示连接图标，未连接/恢复中才显示提示卡。底部按钮进入设置、个性化或循环主题。
+- 侧边栏自定义图片是纯展示区：以 16:9 圆角图片显示，不在侧边栏里放选择/裁切控件；图片选择、清除和 16:9 取景调整入口放在个性化页，状态由 `sidebar_image_provider.dart` 持久化。
 
 ## 主题与视觉
 

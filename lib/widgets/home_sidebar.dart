@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,7 @@ import '../config/theme_context.dart';
 import '../providers/auth_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/listening_stats_provider.dart';
+import '../providers/sidebar_image_provider.dart';
 import '../providers/theme_provider.dart';
 
 class HomeSidebar extends ConsumerWidget {
@@ -44,23 +47,41 @@ class HomeSidebar extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Joyal', style: context.textHeadlineLarge),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Joyal',
+                            style: context.textHeadlineLarge,
+                          ),
+                        ),
+                        if (authState.isConnected && !authState.isLoading)
+                          Tooltip(
+                            message: 'Navidrome 已连接',
+                            child: Icon(
+                              Icons.cloud_done_rounded,
+                              color: Colors.green,
+                              size: 24,
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 6),
                     Text('私人音乐空间', style: context.textBodyMedium),
-                    const SizedBox(height: 18),
-                    _ConnectionStatus(
-                      isLoading: authState.isLoading,
-                      isConnected: authState.isConnected,
-                    ),
+                    if (authState.isLoading || !authState.isConnected) ...[
+                      const SizedBox(height: 18),
+                      _ConnectionStatus(
+                        isLoading: authState.isLoading,
+                        isConnected: authState.isConnected,
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _ListeningOverviewCard(
                       heardSongCount: heardSongCount,
                       totalSongCount: librarySongs.length,
                     ),
                     const SizedBox(height: 16),
-                    const _ReservedItem(title: '灵感入口'),
-                    const SizedBox(height: 12),
-                    const _ReservedItem(title: '最近动态'),
+                    const _SidebarImagePanel(),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -284,26 +305,58 @@ class _ListeningStat extends StatelessWidget {
   }
 }
 
-class _ReservedItem extends StatelessWidget {
-  final String title;
+class _SidebarImagePanel extends ConsumerWidget {
+  const _SidebarImagePanel();
 
-  const _ReservedItem({required this.title});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(sidebarImageProvider);
+    final hasImage = state.imagePath != null && state.imagePath!.isNotEmpty;
+
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: hasImage
+            ? Image.file(
+                File(state.imagePath!),
+                fit: BoxFit.cover,
+                alignment: Alignment(state.alignmentX, state.alignmentY),
+                errorBuilder: (context, error, stackTrace) {
+                  return _SidebarImagePlaceholder(
+                    label: '图片读取失败',
+                    icon: Icons.broken_image_outlined,
+                  );
+                },
+              )
+            : const _SidebarImagePlaceholder(
+                label: '个性化中选择图片',
+                icon: Icons.image_outlined,
+              ),
+      ),
+    );
+  }
+}
+
+class _SidebarImagePlaceholder extends StatelessWidget {
+  final String label;
+  final IconData icon;
+
+  const _SidebarImagePlaceholder({required this.label, required this.icon});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: context.surfaceHighlightColor,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(title, style: context.textTitleMedium)),
-          const SizedBox(width: 12),
-          Text('预留', style: context.textCaption),
-        ],
+    return DecoratedBox(
+      decoration: BoxDecoration(color: context.surfaceHighlightColor),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: context.secondaryColor, size: 26),
+            const SizedBox(height: 8),
+            Text(label, style: context.textCaption),
+          ],
+        ),
       ),
     );
   }
