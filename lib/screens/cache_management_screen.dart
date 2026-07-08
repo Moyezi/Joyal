@@ -294,7 +294,7 @@ class _CacheManagementScreenState extends ConsumerState<CacheManagementScreen> {
                     notifier.setAutoCleanEnabled(b.id, value);
                     setState(() {});
                   },
-                  activeColor: context.primaryColor,
+                  activeThumbColor: context.primaryColor,
                 );
               },
             ),

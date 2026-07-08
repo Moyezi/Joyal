@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,9 +18,6 @@ class ImageBucket extends CacheBucket {
   @override
   IconData get icon => Icons.image_rounded;
 
-  @override
-  bool autoCleanEnabled = true;
-
   Future<Directory?> get dir async {
     try {
       final tmp = await getTemporaryDirectory();
@@ -38,8 +34,9 @@ class ImageBucket extends CacheBucket {
   @override
   Future<int> calculateSize() async {
     final d = await dir;
-    final size =
-        d != null ? await Isolate.run(() => calculateDirSizeSync(d.path)) : 0;
+    final size = d != null
+        ? await Isolate.run(() => calculateDirSizeSync(d.path))
+        : 0;
     return size;
   }
 

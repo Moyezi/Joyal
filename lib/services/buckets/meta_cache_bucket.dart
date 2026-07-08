@@ -10,6 +10,8 @@ import '_file_utils.dart';
 class MetaBucket extends CacheBucket {
   static const excludeDirs = {'album', 'artist', 'search'};
 
+  MetaBucket() : super(autoCleanEnabled: false);
+
   @override
   String get id => 'meta';
 
@@ -18,9 +20,6 @@ class MetaBucket extends CacheBucket {
 
   @override
   IconData get icon => Icons.description_rounded;
-
-  @override
-  bool autoCleanEnabled = false;
 
   Future<Directory?> get dir async {
     try {
@@ -56,9 +55,7 @@ class MetaBucket extends CacheBucket {
   Future<void> clear() async {
     final d = await dir;
     if (d == null) return;
-    await Isolate.run(
-      () => deleteContentsExcludingSync(d.path, excludeDirs),
-    );
+    await Isolate.run(() => deleteContentsExcludingSync(d.path, excludeDirs));
   }
 
   @override

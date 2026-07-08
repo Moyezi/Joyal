@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 /// Unified interface for every cache bucket in the app.
 abstract class CacheBucket {
+  CacheBucket({this.autoCleanEnabled = true});
+
   /// Unique identifier (e.g. 'stream', 'image', 'album').
   String get id;
 
@@ -22,11 +24,13 @@ abstract class CacheBucket {
   Future<void> pruneByLru(int targetBytes);
 
   /// Whether this bucket participates in automatic cache cleanup.
-  bool autoCleanEnabled = true;
+  bool autoCleanEnabled;
 }
 
 /// A [CacheBucket] that stores typed data keyed by a string identifier.
 abstract class DataCacheBucket<T> extends CacheBucket {
+  DataCacheBucket({super.autoCleanEnabled});
+
   /// Read the cached value for [key], or null when not cached.
   Future<T?> load(String key);
 

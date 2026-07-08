@@ -12,6 +12,8 @@ class SearchBucket extends DataCacheBucket<Map<String, dynamic>> {
   static const _historyKey = 'history';
   static const _maxHistory = 30;
 
+  SearchBucket() : super(autoCleanEnabled: false);
+
   @override
   String get id => 'search';
 
@@ -20,9 +22,6 @@ class SearchBucket extends DataCacheBucket<Map<String, dynamic>> {
 
   @override
   IconData get icon => Icons.search_rounded;
-
-  @override
-  bool autoCleanEnabled = false;
 
   Future<Directory> get dir async {
     final support = await getApplicationSupportDirectory();
@@ -94,9 +93,7 @@ class SearchBucket extends DataCacheBucket<Map<String, dynamic>> {
     try {
       for (final entry in d.listSync()) {
         if (entry is File && entry.path.endsWith('.json')) {
-          result.add(
-            entry.uri.pathSegments.last.replaceAll('.json', ''),
-          );
+          result.add(entry.uri.pathSegments.last.replaceAll('.json', ''));
         }
       }
     } catch (_) {}
@@ -113,9 +110,7 @@ class SearchBucket extends DataCacheBucket<Map<String, dynamic>> {
   }
 
   Future<void> saveHistory(List<String> history) async {
-    await save(_historyKey, {
-      'items': history.take(_maxHistory).toList(),
-    });
+    await save(_historyKey, {'items': history.take(_maxHistory).toList()});
   }
 
   Future<void> addToHistory(String query) async {

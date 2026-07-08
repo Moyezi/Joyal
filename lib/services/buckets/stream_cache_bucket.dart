@@ -17,9 +17,6 @@ class StreamBucket extends CacheBucket {
   @override
   IconData get icon => Icons.music_note_rounded;
 
-  @override
-  bool autoCleanEnabled = true;
-
   Future<Directory?> get dir async {
     try {
       final tmp = await getTemporaryDirectory();

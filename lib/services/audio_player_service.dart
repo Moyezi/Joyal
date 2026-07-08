@@ -12,7 +12,7 @@ class AudioPlayerService {
 
   final AudioPlayer _player = AudioPlayer();
   final SubsonicApi? _api;
-  ConcatenatingAudioSource? _playlistSource;
+  bool _hasPlaylist = false;
   double _targetVolume = 1.0;
   int _volumeFadeGeneration = 0;
 
@@ -82,11 +82,9 @@ class AudioPlayerService {
   /// Loads a real multi-item audio sequence and starts at [startIndex].
   Future<void> playPlaylist(List<String> songIds, {int startIndex = 0}) async {
     await _cancelVolumeFade();
-    final source = ConcatenatingAudioSource(
-      children: await _sourcesFor(songIds),
-    );
-    _playlistSource = source;
-    await _player.setAudioSource(source, initialIndex: startIndex);
+    final sources = await _sourcesFor(songIds);
+    _hasPlaylist = sources.isNotEmpty;
+    await _player.setAudioSources(sources, initialIndex: startIndex);
     // AudioPlayer.play() completes when playback finishes. Do not await it here,
     // otherwise callers cannot publish the current song while it is playing.
     unawaited(_player.play());
@@ -99,12 +97,10 @@ class AudioPlayerService {
     required Duration position,
   }) async {
     await _cancelVolumeFade();
-    final source = ConcatenatingAudioSource(
-      children: await _sourcesFor(songIds),
-    );
-    _playlistSource = source;
-    await _player.setAudioSource(
-      source,
+    final sources = await _sourcesFor(songIds);
+    _hasPlaylist = sources.isNotEmpty;
+    await _player.setAudioSources(
+      sources,
       initialIndex: startIndex,
       initialPosition: position,
     );
@@ -112,12 +108,11 @@ class AudioPlayerService {
 
   /// Inserts an item into the loaded sequence without rebuilding playback.
   Future<void> insertIntoPlaylist(int index, String songId) async {
-    final source = _playlistSource;
-    if (source == null) {
+    if (!_hasPlaylist) {
       await playPlaylist([songId]);
       return;
     }
-    await source.insert(index, await _sourceFor(songId));
+    await _player.insertAudioSource(index, await _sourceFor(songId));
   }
 
   /// Plays or resumes playback.

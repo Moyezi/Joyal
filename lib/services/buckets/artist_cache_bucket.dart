@@ -9,6 +9,8 @@ import '../cache_bucket.dart';
 import '_file_utils.dart';
 
 class ArtistBucket extends DataCacheBucket<Map<String, dynamic>> {
+  ArtistBucket() : super(autoCleanEnabled: false);
+
   @override
   String get id => 'artist';
 
@@ -17,9 +19,6 @@ class ArtistBucket extends DataCacheBucket<Map<String, dynamic>> {
 
   @override
   IconData get icon => Icons.person_rounded;
-
-  @override
-  bool autoCleanEnabled = false;
 
   Future<Directory> get dir async {
     final support = await getApplicationSupportDirectory();
@@ -91,9 +90,7 @@ class ArtistBucket extends DataCacheBucket<Map<String, dynamic>> {
     try {
       for (final entry in d.listSync()) {
         if (entry is File && entry.path.endsWith('.json')) {
-          result.add(
-            entry.uri.pathSegments.last.replaceAll('.json', ''),
-          );
+          result.add(entry.uri.pathSegments.last.replaceAll('.json', ''));
         }
       }
     } catch (_) {}

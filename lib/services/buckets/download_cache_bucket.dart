@@ -7,7 +7,7 @@ import '../cache_bucket.dart';
 class DownloadBucket extends CacheBucket {
   int currentBytes = 0;
 
-  DownloadBucket();
+  DownloadBucket() : super(autoCleanEnabled: false);
 
   @override
   String get id => 'download';
@@ -17,9 +17,6 @@ class DownloadBucket extends CacheBucket {
 
   @override
   IconData get icon => Icons.download_done_rounded;
-
-  @override
-  bool autoCleanEnabled = false;
 
   @override
   Future<int> calculateSize() async => currentBytes;

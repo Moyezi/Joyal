@@ -20,12 +20,12 @@ class CacheNotifier extends StateNotifier<CacheStats> {
   late final Future<void> _initialSettingsLoad;
   int _downloadBytes = 0;
 
-  CacheNotifier({
+  factory CacheNotifier({
     required CacheRepository repo,
     required FlutterSecureStorage storage,
-  }) : _repo = repo,
-       _storage = storage,
-       super(const CacheStats()) {
+  }) => CacheNotifier._(repo, storage);
+
+  CacheNotifier._(this._repo, this._storage) : super(const CacheStats()) {
     _initialSettingsLoad = _loadSettings();
     unawaited(_initialSettingsLoad.then((_) => refresh(force: true)));
   }
