@@ -503,14 +503,13 @@ class _GlassPreview extends ConsumerWidget {
   }
 
   double _previewBorderOpacity(GlassEffectTarget target, bool isDark) {
-    if (!isDark) return 0.06;
     if (target == GlassEffectTarget.searchBar ||
         target == GlassEffectTarget.bottomNav ||
         target == GlassEffectTarget.miniPlayer ||
         target == GlassEffectTarget.songCard) {
       return 0;
     }
-    return 0.08;
+    return isDark ? 0.08 : 0.06;
   }
 }
 

@@ -85,7 +85,7 @@ class MiniPlayerChrome {
         tintColor: AppTheme.miniPlayerBg,
         tintOpacity: 0.58,
         borderColor: Colors.white,
-        borderOpacity: brightness == Brightness.dark ? 0 : 0.06,
+        borderOpacity: 0,
         playButtonForeground: AppTheme.miniPlayerBg,
         collapsedFrameColor: AppTheme.miniPlayerBg,
       );
@@ -113,7 +113,7 @@ class MiniPlayerChrome {
       tintColor: tint,
       tintOpacity: brightness == Brightness.dark ? 0.62 : 0.54,
       borderColor: border,
-      borderOpacity: brightness == Brightness.dark ? 0 : 0.12,
+      borderOpacity: 0,
       playButtonForeground: tint,
       collapsedFrameColor: tint,
     );

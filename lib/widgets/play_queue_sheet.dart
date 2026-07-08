@@ -220,7 +220,6 @@ class QueueSongCard extends ConsumerWidget {
         (state) => state.opacityFor(GlassEffectTarget.songCard),
       ),
     );
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderRadius = BorderRadius.circular(18);
     final content = Material(
       color: Colors.transparent,
@@ -298,7 +297,7 @@ class QueueSongCard extends ConsumerWidget {
               tintColor: context.surfaceColor,
               tintOpacity: tintOpacity,
               borderColor: context.primaryColor,
-              borderOpacity: isDark ? 0 : 0.06,
+              borderOpacity: 0,
               child: content,
             )
           : content,

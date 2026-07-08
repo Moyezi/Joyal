@@ -43,7 +43,6 @@ class SongTile extends ConsumerWidget {
       ),
     );
     final borderRadius = BorderRadius.circular(AppTheme.radiusMedium);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
@@ -123,7 +122,7 @@ class SongTile extends ConsumerWidget {
                 tintColor: context.surfaceColor,
                 tintOpacity: tintOpacity,
                 borderColor: context.primaryColor,
-                borderOpacity: isDark ? 0 : 0.06,
+                borderOpacity: 0,
                 child: content,
               )
             : content,
