@@ -57,6 +57,24 @@ class MiniPlayerChrome {
     required this.collapsedFrameColor,
   });
 
+  MiniPlayerChrome copyWith({
+    Color? tintColor,
+    double? tintOpacity,
+    Color? borderColor,
+    double? borderOpacity,
+    Color? playButtonForeground,
+    Color? collapsedFrameColor,
+  }) {
+    return MiniPlayerChrome(
+      tintColor: tintColor ?? this.tintColor,
+      tintOpacity: tintOpacity ?? this.tintOpacity,
+      borderColor: borderColor ?? this.borderColor,
+      borderOpacity: borderOpacity ?? this.borderOpacity,
+      playButtonForeground: playButtonForeground ?? this.playButtonForeground,
+      collapsedFrameColor: collapsedFrameColor ?? this.collapsedFrameColor,
+    );
+  }
+
   static MiniPlayerChrome resolve({
     required MiniPlayerColorMode mode,
     required AlbumVisualPalette? palette,
@@ -65,9 +83,9 @@ class MiniPlayerChrome {
     if (mode != MiniPlayerColorMode.dynamicAlbum) {
       return const MiniPlayerChrome(
         tintColor: AppTheme.miniPlayerBg,
-        tintOpacity: 0.78,
+        tintOpacity: 0.58,
         borderColor: Colors.white,
-        borderOpacity: 0.08,
+        borderOpacity: 0.10,
         playButtonForeground: AppTheme.miniPlayerBg,
         collapsedFrameColor: AppTheme.miniPlayerBg,
       );
@@ -93,9 +111,9 @@ class MiniPlayerChrome {
 
     return MiniPlayerChrome(
       tintColor: tint,
-      tintOpacity: brightness == Brightness.dark ? 0.86 : 0.80,
+      tintOpacity: brightness == Brightness.dark ? 0.62 : 0.54,
       borderColor: border,
-      borderOpacity: 0.20,
+      borderOpacity: 0.18,
       playButtonForeground: tint,
       collapsedFrameColor: tint,
     );

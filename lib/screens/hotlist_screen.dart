@@ -133,6 +133,11 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
+    final topBarOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.topBar),
+      ),
+    );
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
@@ -251,6 +256,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
             blurSigma: topBarBlur,
+            tintOpacity: topBarOpacity,
             child: GlassTopBarTitleRow(
               title: '发现',
               actions: [

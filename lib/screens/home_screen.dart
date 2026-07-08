@@ -138,6 +138,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
+    final topBarOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.topBar),
+      ),
+    );
 
     // 每次重建后尝试上报排除矩形（防抖：同一帧内不重复调度）
     _scheduleExclusionRectReport();
@@ -153,6 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
             blurSigma: topBarBlur,
+            tintOpacity: topBarOpacity,
             searchAnimation: _animController,
             onSearchTap: () => Navigator.of(
               context,
@@ -534,15 +540,19 @@ class _HomeSearchBar extends ConsumerWidget {
         (state) => state.blurFor(GlassEffectTarget.searchBar),
       ),
     );
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.searchBar),
+      ),
+    );
 
     return FrostedGlass(
       blurSigma: blurSigma,
       borderRadius: BorderRadius.circular(18),
       tintColor: context.surfaceColor,
-      tintOpacity: isDark ? 0.72 : 0.62,
+      tintOpacity: tintOpacity,
       borderColor: context.primaryColor,
-      borderOpacity: isDark ? 0.08 : 0.05,
+      borderOpacity: 0.07,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

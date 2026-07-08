@@ -206,6 +206,11 @@ class QueueSongCard extends ConsumerWidget {
         (state) => state.blurFor(GlassEffectTarget.songCard),
       ),
     );
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.songCard),
+      ),
+    );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderRadius = BorderRadius.circular(18);
     final content = Material(
@@ -282,7 +287,7 @@ class QueueSongCard extends ConsumerWidget {
               blurSigma: blurSigma,
               borderRadius: borderRadius,
               tintColor: context.surfaceColor,
-              tintOpacity: isDark ? 0.64 : 0.72,
+              tintOpacity: tintOpacity,
               borderColor: context.primaryColor,
               borderOpacity: isDark ? 0.08 : 0.06,
               child: content,

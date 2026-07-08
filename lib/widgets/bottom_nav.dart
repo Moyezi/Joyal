@@ -24,6 +24,11 @@ class AppBottomNav extends ConsumerWidget {
         (state) => state.blurFor(GlassEffectTarget.bottomNav),
       ),
     );
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.bottomNav),
+      ),
+    );
 
     return SafeArea(
       top: false,
@@ -33,7 +38,7 @@ class AppBottomNav extends ConsumerWidget {
           blurSigma: blurSigma,
           borderRadius: BorderRadius.circular(34),
           tintColor: theme.scaffoldBackgroundColor,
-          tintOpacity: isDark ? 0.76 : 0.68,
+          tintOpacity: tintOpacity,
           borderColor: theme.colorScheme.onSurface,
           borderOpacity: isDark ? 0.08 : 0.06,
           boxShadow: [

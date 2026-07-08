@@ -217,6 +217,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
   Widget build(BuildContext context) {
     final glassState = ref.watch(glassEffectProvider);
     final blurSigma = glassState.blurFor(_selectedTarget);
+    final tintOpacity = glassState.opacityFor(_selectedTarget);
 
     return Material(
       color: context.surfaceColor,
@@ -267,6 +268,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                                 child: _GlassPreview(
                                   target: target,
                                   blurSigma: glassState.blurFor(target),
+                                  tintOpacity: glassState.opacityFor(target),
                                   alignment: Alignment(alignmentX, 0),
                                 ),
                               ),
@@ -287,37 +289,29 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
               ),
             ),
             const SizedBox(height: AppTheme.spacingSM),
-            Row(
-              children: [
-                Icon(
-                  Icons.blur_on_rounded,
-                  size: 20,
-                  color: context.secondaryColor,
-                ),
-                const SizedBox(width: AppTheme.spacingSM),
-                Expanded(
-                  child: Slider(
-                    value: blurSigma.clamp(0.0, 30.0).toDouble(),
-                    min: 0,
-                    max: 30,
-                    divisions: 15,
-                    label: blurSigma.toStringAsFixed(0),
-                    onChanged: (value) => ref
-                        .read(glassEffectProvider.notifier)
-                        .setBlur(_selectedTarget, value),
-                  ),
-                ),
-                SizedBox(
-                  width: 48,
-                  child: Text(
-                    blurSigma == 0 ? '关闭' : blurSigma.toStringAsFixed(0),
-                    textAlign: TextAlign.end,
-                    style: context.textBodySmall.copyWith(
-                      color: context.secondaryColor,
-                    ),
-                  ),
-                ),
-              ],
+            _GlassEffectSlider(
+              icon: Icons.blur_on_rounded,
+              value: blurSigma.clamp(0.0, 30.0).toDouble(),
+              min: 0,
+              max: 30,
+              divisions: 15,
+              label: blurSigma.toStringAsFixed(0),
+              valueText: blurSigma == 0 ? '关闭' : blurSigma.toStringAsFixed(0),
+              onChanged: (value) => ref
+                  .read(glassEffectProvider.notifier)
+                  .setBlur(_selectedTarget, value),
+            ),
+            _GlassEffectSlider(
+              icon: Icons.opacity_rounded,
+              value: tintOpacity.clamp(0.0, 1.0).toDouble(),
+              min: 0,
+              max: 1,
+              divisions: 20,
+              label: '${(tintOpacity * 100).round()}%',
+              valueText: '${(tintOpacity * 100).round()}%',
+              onChanged: (value) => ref
+                  .read(glassEffectProvider.notifier)
+                  .setOpacity(_selectedTarget, value),
             ),
           ],
         ),
@@ -326,14 +320,68 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
   }
 }
 
+class _GlassEffectSlider extends StatelessWidget {
+  final IconData icon;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final String label;
+  final String valueText;
+  final ValueChanged<double> onChanged;
+
+  const _GlassEffectSlider({
+    required this.icon,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.label,
+    required this.valueText,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: context.secondaryColor),
+        const SizedBox(width: AppTheme.spacingSM),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: label,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 48,
+          child: Text(
+            valueText,
+            textAlign: TextAlign.end,
+            style: context.textBodySmall.copyWith(
+              color: context.secondaryColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _GlassPreview extends ConsumerWidget {
   final GlassEffectTarget target;
   final double blurSigma;
+  final double tintOpacity;
   final Alignment alignment;
 
   const _GlassPreview({
     required this.target,
     required this.blurSigma,
+    required this.tintOpacity,
     this.alignment = Alignment.center,
   });
 
@@ -380,17 +428,6 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.miniPlayer => previewMiniTint,
       GlassEffectTarget.songCard => context.surfaceColor,
       _ => context.surfaceColor,
-    };
-    final tintOpacity = switch (target) {
-      GlassEffectTarget.miniPlayer =>
-        miniPlayerColorMode == MiniPlayerColorMode.dynamicAlbum
-            ? previewChrome.tintOpacity
-            : 0.78,
-      GlassEffectTarget.topBar => isDark ? 0.72 : 0.62,
-      GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
-      GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
-      GlassEffectTarget.songCard => isDark ? 0.64 : 0.72,
-      GlassEffectTarget.lyricsPage => isDark ? 0.36 : 0.30,
     };
     final radius = switch (target) {
       GlassEffectTarget.topBar => BorderRadius.circular(18),

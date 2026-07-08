@@ -381,6 +381,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
+    final topBarOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.topBar),
+      ),
+    );
     final classifications = ref.watch(
       musicClassificationProvider.select((state) => state.classifications),
     );
@@ -419,6 +424,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             height: _headerHeight,
             hasPageBackground: hasPageBackground,
             blurSigma: topBarBlur,
+            tintOpacity: topBarOpacity,
             child: Column(
               children: [
                 GlassTopBarTitleRow(

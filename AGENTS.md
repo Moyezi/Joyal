@@ -9,7 +9,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 ## 技术与安全
 
 - Flutter / Dart / Material 3，Riverpod 管共享状态；播放用 `just_audio`，请求用 `dio`，封面缓存优先走本地磁盘。
-- 凭据、搜索历史、播放进度、主题、页面背景路径、缓存上限、毛玻璃强度等偏好写入 `flutter_secure_storage`；缓存上限另写 `AppCacheService` JSON 兜底。
+- 凭据、搜索历史、播放进度、主题、页面背景路径、缓存上限、毛玻璃模糊强度和遮罩强度等偏好写入 `flutter_secure_storage`；缓存上限另写 `AppCacheService` JSON 兜底。
 - Subsonic 认证使用随机 salt + `md5(password + salt)` token。禁止写入或传输真实明文凭据；公网 Navidrome 优先 HTTPS。
 - Android 媒体桥只传播放元数据和本地封面路径，不传流媒体 URL、token、密码或 baseUrl。`OppoFluidCloudBridge` 仅作未来 SDK 预留，当前依赖标准 `MediaSession`。
 
@@ -51,11 +51,11 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - Toast 统一用 `showAppToast(...)`；宽度按文案自适应，优先 `BoxConstraints`，不要用 `TextPainter` 手算。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、发现共用本地图片，不改变列表、顶栏和 Dock 空间关系；内部枚举仍叫 `PageBackgroundTarget.favorites`，显示文案应是“发现”。
-- 毛玻璃统一由 `glass_effect_provider.dart` 管强度，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片、歌词页；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览。
-- 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制，个性化可切换“默认颜色/动态取色”；默认保持 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠悬浮封面圆形外框需同步遵循，并继续走 `FrostedGlass` 的 blur 强度。
+- 毛玻璃统一由 `glass_effect_provider.dart` 管模糊强度 `blurFor(...)` 和遮罩强度 `opacityFor(...)`，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片、歌词页；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览，并支持模糊/遮罩两条滑杆。
+- 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制，个性化可切换“默认颜色/动态取色”；默认保持 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠悬浮封面圆形外框需同步遵循，并继续走 `glass_effect_provider.dart` 的 blur/opacity 参数。
 - 真实迷你播放栏与个性化“毛玻璃”迷你播放栏预览共用 `mini_player_chrome.dart` 的动态取色解析；预览在动态取色模式下必须跟随当前播放歌曲封面，不要硬编码候选色。未拿到封面 palette 前可暂用中性 fallback，不要用 `coverArtId` hash 伪造候选色，避免与真实封面色调不符。
-- 个性化毛玻璃预览用类似 iOS 后台的横向堆叠卡，滑动时触发选择振动；预览背景固定冷色底图和两个大渐变圆。不要用整卡 `Opacity` 包住 `BackdropFilter`。
-- `GlassTopBar` 保持可独立渲染；主页面从 provider 读取 blur 后通过参数传入，不让顶栏 widget 强依赖外层 `ProviderScope`。
+- 个性化毛玻璃预览用类似 iOS 后台的横向堆叠卡，滑动时触发选择振动；预览背景固定冷色底图和两个大渐变圆。遮罩强度越低越通透、越能透出背景色；不要用整卡 `Opacity` 包住 `BackdropFilter`。
+- `GlassTopBar` 保持可独立渲染；主页面从 provider 读取 blur 和 opacity 后通过参数传入，不让顶栏 widget 强依赖外层 `ProviderScope`。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；流动光影用 `CustomPainter` + `sin/cos`，避免每帧全屏高斯模糊；静态渐变应停止动画控制器。
 
 ## 曲库、播放与歌词
@@ -73,7 +73,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 歌词缓存键按 `baseUrl + username + song.id` 作用域生成；空歌词短期缓存，失败后移除内存 Future 缓存。
 - `LyricsScreen` 初始化后立即加载，不等横滑动画完成。歌词页不显示返回键和标题“歌词”，顶部只固定当前歌曲名和歌手。
 - 歌词页出现或横滑过渡中时，播放详情页外层下滑关闭手势禁用；退出歌词页走现有横滑/切换逻辑。
-- 歌词页支持双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写入 `flutter_secure_storage`，包含歌词颜色（跟随系统/黑/白/动态浅色封面取色）、对齐（居中/左/两端）、字号和字体族（系统/黑体/圆体/手写体）。动态浅色只在选中该模式时才触发封面调色板解析，字体族优先用系统字体 fallback，不引入字体资源时不要承诺特定字体必然命中。
+- 歌词页支持双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写入 `flutter_secure_storage`，包含歌词颜色（跟随系统/黑/白/动态浅色封面取色）、对齐（居中/左/两端）、字号和字体族（系统/黑体/圆体/手写体）。歌词页毛玻璃的模糊和遮罩强度仍走 `glass_effect_provider.dart`。动态浅色只在选中该模式时才触发封面调色板解析，字体族优先用系统字体 fallback，不引入字体资源时不要承诺特定字体必然命中。
 - MiniPlayer 中间区域显示当前句和下一句歌词，不显示歌名/歌手；换句共用同一垂直轨道，动画时长按相邻歌词时间差调整。歌词边界通过 Row 布局、间距、外层 padding/transform 调整，不要在歌词内部 `ClipRect` 里负偏移文本导致左侧截断；当前实机校准为展开态圆形封面左移 `12px`、封面与歌词可视起点间距 `12px`，歌词显示窗口左边界左移 `2px`、右边界左移 `4px`。
 
 ## 智能分类

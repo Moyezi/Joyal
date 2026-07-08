@@ -61,6 +61,11 @@ class MiniPlayer extends ConsumerWidget {
     final coverSourceId = api == null ? '' : '${api.baseUrl}|${api.username}';
     final colorMode = ref.watch(miniPlayerColorProvider);
     final brightness = Theme.of(context).brightness;
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.miniPlayer),
+      ),
+    );
     final palette = colorMode == MiniPlayerColorMode.dynamicAlbum
         ? ref
               .watch(
@@ -79,7 +84,7 @@ class MiniPlayer extends ConsumerWidget {
       mode: colorMode,
       palette: palette,
       brightness: brightness,
-    );
+    ).copyWith(tintOpacity: tintOpacity);
 
     final cover = _buildMiniCover(coverUrl, song.coverArt);
     final lyrics = _MiniLyrics(
@@ -171,7 +176,8 @@ class _MorphingMiniPlayer extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_MorphingMiniPlayer> createState() => _MorphingMiniPlayerState();
+  ConsumerState<_MorphingMiniPlayer> createState() =>
+      _MorphingMiniPlayerState();
 }
 
 class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {

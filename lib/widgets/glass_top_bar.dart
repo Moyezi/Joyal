@@ -15,6 +15,7 @@ class GlassTopBar extends StatelessWidget {
   final VoidCallback? onSearchTap;
   final bool hasPageBackground;
   final double blurSigma;
+  final double tintOpacity;
 
   const GlassTopBar({
     super.key,
@@ -24,6 +25,7 @@ class GlassTopBar extends StatelessWidget {
     this.onSearchTap,
     this.hasPageBackground = false,
     this.blurSigma = 10,
+    this.tintOpacity = 0.46,
   });
 
   @override
@@ -32,10 +34,19 @@ class GlassTopBar extends StatelessWidget {
     final statusBarHeight = MediaQuery.viewPaddingOf(context).top;
     final totalHeight = height + statusBarHeight;
     final bg = Theme.of(context).scaffoldBackgroundColor;
-    final topColor = hasPageBackground ? bg.withValues(alpha: .72) : bg;
-    final middleColor = hasPageBackground ? bg.withValues(alpha: .64) : bg;
-    final lowerColor = bg.withValues(alpha: hasPageBackground ? .42 : .76);
-    final bottomColor = bg.withValues(alpha: hasPageBackground ? .20 : .54);
+    final opacity = tintOpacity.clamp(0.0, 1.0).toDouble();
+    final topAlpha = hasPageBackground
+        ? opacity
+        : (opacity + .36).clamp(0.0, 1.0).toDouble();
+    final middleAlpha = hasPageBackground
+        ? opacity * .83
+        : (opacity + .22).clamp(0.0, 1.0).toDouble();
+    final lowerAlpha = hasPageBackground ? opacity * .52 : opacity;
+    final bottomAlpha = opacity * (hasPageBackground ? .22 : .52);
+    final topColor = bg.withValues(alpha: topAlpha);
+    final middleColor = bg.withValues(alpha: middleAlpha);
+    final lowerColor = bg.withValues(alpha: lowerAlpha);
+    final bottomColor = bg.withValues(alpha: bottomAlpha);
 
     return Positioned(
       top: 0,
@@ -60,7 +71,9 @@ class GlassTopBar extends StatelessWidget {
                 ),
                 border: Border(
                   bottom: BorderSide(
-                    color: Theme.of(context).dividerColor.withValues(alpha: .3),
+                    color: Theme.of(
+                      context,
+                    ).dividerColor.withValues(alpha: .16),
                   ),
                 ),
               ),

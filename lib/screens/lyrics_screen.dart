@@ -447,6 +447,11 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
         (state) => state.blurFor(GlassEffectTarget.lyricsPage),
       ),
     );
+    final overlayOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.lyricsPage),
+      ),
+    );
     final activeColor = _activeLyricColor(context, preferences);
     final inactiveColor = _inactiveLyricColor(context, activeColor);
     final textAlign = _textAlignFor(preferences.alignment);
@@ -539,7 +544,10 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
               ),
             ),
           ),
-          _LyricsGlassDepthOverlay(blurSigma: overlayBlur),
+          _LyricsGlassDepthOverlay(
+            blurSigma: overlayBlur,
+            tintOpacity: overlayOpacity,
+          ),
           Padding(
             padding: EdgeInsets.fromLTRB(22, titleTop, 22, 18),
             child: Column(
@@ -616,6 +624,11 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
         (state) => state.blurFor(GlassEffectTarget.lyricsPage),
       ),
     );
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.lyricsPage),
+      ),
+    );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
@@ -628,7 +641,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
         blurSigma: blurSigma,
         borderRadius: BorderRadius.circular(28),
         tintColor: context.surfaceColor,
-        tintOpacity: isDark ? 0.88 : 0.82,
+        tintOpacity: tintOpacity,
         borderColor: context.primaryColor,
         borderOpacity: isDark ? 0.08 : 0.06,
         boxShadow: [
@@ -682,6 +695,14 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                               GlassEffectTarget.lyricsPage.defaultBlur,
                             ),
                       );
+                      unawaited(
+                        ref
+                            .read(glassEffectProvider.notifier)
+                            .setOpacity(
+                              GlassEffectTarget.lyricsPage,
+                              GlassEffectTarget.lyricsPage.defaultOpacity,
+                            ),
+                      );
                     },
                     icon: const Icon(Icons.restart_alt_rounded),
                   ),
@@ -721,35 +742,76 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               const SizedBox(height: 18),
               _LyricsSettingsSection(
                 title: '毛玻璃效果',
-                child: Row(
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.blur_on_rounded,
-                      size: 20,
-                      color: context.secondaryColor,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Slider(
-                        value: blurSigma.clamp(0.0, 30.0).toDouble(),
-                        min: 0,
-                        max: 30,
-                        divisions: 15,
-                        label: blurSigma.toStringAsFixed(0),
-                        onChanged: (value) => ref
-                            .read(glassEffectProvider.notifier)
-                            .setBlur(GlassEffectTarget.lyricsPage, value),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 48,
-                      child: Text(
-                        blurSigma <= 0.05 ? '关闭' : blurSigma.toStringAsFixed(0),
-                        textAlign: TextAlign.end,
-                        style: context.textBodySmall.copyWith(
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.blur_on_rounded,
+                          size: 20,
                           color: context.secondaryColor,
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Slider(
+                            value: blurSigma.clamp(0.0, 30.0).toDouble(),
+                            min: 0,
+                            max: 30,
+                            divisions: 15,
+                            label: blurSigma.toStringAsFixed(0),
+                            onChanged: (value) => ref
+                                .read(glassEffectProvider.notifier)
+                                .setBlur(GlassEffectTarget.lyricsPage, value),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 48,
+                          child: Text(
+                            blurSigma <= 0.05
+                                ? '关闭'
+                                : blurSigma.toStringAsFixed(0),
+                            textAlign: TextAlign.end,
+                            style: context.textBodySmall.copyWith(
+                              color: context.secondaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.opacity_rounded,
+                          size: 20,
+                          color: context.secondaryColor,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Slider(
+                            value: tintOpacity.clamp(0.0, 1.0).toDouble(),
+                            min: 0,
+                            max: 1,
+                            divisions: 20,
+                            label: '${(tintOpacity * 100).round()}%',
+                            onChanged: (value) => ref
+                                .read(glassEffectProvider.notifier)
+                                .setOpacity(
+                                  GlassEffectTarget.lyricsPage,
+                                  value,
+                                ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 48,
+                          child: Text(
+                            '${(tintOpacity * 100).round()}%',
+                            textAlign: TextAlign.end,
+                            style: context.textBodySmall.copyWith(
+                              color: context.secondaryColor,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -955,14 +1017,19 @@ class _LyricsChoiceButton extends StatelessWidget {
 
 class _LyricsGlassDepthOverlay extends StatelessWidget {
   final double blurSigma;
+  final double tintOpacity;
 
-  const _LyricsGlassDepthOverlay({required this.blurSigma});
+  const _LyricsGlassDepthOverlay({
+    required this.blurSigma,
+    required this.tintOpacity,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tint = isDark ? Colors.black : Colors.white;
     final sigma = blurSigma.clamp(0.0, 30.0).toDouble();
+    final opacity = tintOpacity.clamp(0.0, 1.0).toDouble();
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -979,7 +1046,7 @@ class _LyricsGlassDepthOverlay extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   sigma: sigma,
                   tint: tint,
-                  tintAlpha: isDark ? 0.22 : 0.18,
+                  tintAlpha: opacity * (isDark ? 0.67 : 0.55),
                 ),
               ),
               Align(
@@ -992,7 +1059,7 @@ class _LyricsGlassDepthOverlay extends StatelessWidget {
                       ? 0
                       : (sigma + 2).clamp(0.0, 30.0).toDouble(),
                   tint: tint,
-                  tintAlpha: isDark ? 0.30 : 0.26,
+                  tintAlpha: opacity * (isDark ? 0.91 : 0.79),
                 ),
               ),
             ],
