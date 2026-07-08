@@ -11,6 +11,7 @@ import '../providers/glass_effect_provider.dart';
 import '../providers/lyrics_personalization_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/dynamic_album_background.dart';
 import '../widgets/frosted_glass.dart';
@@ -456,17 +457,12 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     final inactiveColor = _inactiveLyricColor(context, activeColor);
     final textAlign = _textAlignFor(preferences.alignment);
     final scaleAlignment = _scaleAlignmentFor(preferences.alignment);
-    final fontFamily = preferences.fontFamily;
-    final fontFamilyFallback = fontFamily.fontFamilyFallback.isEmpty
-        ? null
-        : fontFamily.fontFamilyFallback;
     final activeStyle = context.textHeadlineMedium.copyWith(
       fontSize: preferences.fontSize,
       height: 1.35,
       color: activeColor,
       fontWeight: FontWeight.w800,
-      fontFamily: fontFamily.fontFamily,
-      fontFamilyFallback: fontFamilyFallback,
+      fontFamily: preferences.effectiveFontFamily,
       shadows: [
         Shadow(
           color: Colors.black.withValues(alpha: 0.22),
@@ -882,23 +878,43 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                       spacing: 10,
                       runSpacing: 10,
                       children: [
-                        for (final family in LyricsFontFamily.values)
-                          _LyricsChoiceButton(
-                            label: family.label,
-                            icon: _iconForFontFamily(family),
-                            selected: preferences.fontFamily == family,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              unawaited(
-                                ref
-                                    .read(
-                                      lyricsPersonalizationProvider.notifier,
-                                    )
-                                    .setFontFamily(family),
-                              );
-                            },
-                          ),
+                        _LyricsChoiceButton(
+                          label: LyricsFontFamily.system.label,
+                          icon: _iconForFontFamily(LyricsFontFamily.system),
+                          selected:
+                              preferences.fontFamily == LyricsFontFamily.system,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            unawaited(
+                              ref
+                                  .read(lyricsPersonalizationProvider.notifier)
+                                  .setFontFamily(LyricsFontFamily.system),
+                            );
+                          },
+                        ),
+                        _LyricsChoiceButton(
+                          label: _customFontLabel(preferences),
+                          icon: _iconForFontFamily(LyricsFontFamily.custom),
+                          selected:
+                              preferences.fontFamily ==
+                                  LyricsFontFamily.custom &&
+                              preferences.hasCustomFont,
+                          onTap: () {
+                            unawaited(
+                              _handleCustomFontTap(context, ref, preferences),
+                            );
+                          },
+                        ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      preferences.hasCustomFont
+                          ? '当前自定义：${preferences.customFontName}。选中后再次点击可更换 .ttf 文件。'
+                          : '支持选择 .ttf 字体文件，文件会保存到本地后用于歌词显示。',
+                      style: context.textBodySmall.copyWith(
+                        color: context.secondaryColor,
+                      ),
                     ),
                   ],
                 ),
@@ -908,6 +924,39 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleCustomFontTap(
+    BuildContext context,
+    WidgetRef ref,
+    LyricsPersonalizationState preferences,
+  ) async {
+    HapticFeedback.selectionClick();
+    final notifier = ref.read(lyricsPersonalizationProvider.notifier);
+    if (preferences.hasCustomFont &&
+        preferences.fontFamily != LyricsFontFamily.custom) {
+      await notifier.setFontFamily(LyricsFontFamily.custom);
+      if (context.mounted) {
+        showAppToast(context, '已使用自定义字体', replaceCurrent: true);
+      }
+      return;
+    }
+
+    final picked = await notifier.pickCustomFont();
+    if (!context.mounted || picked == null) return;
+    showAppToast(
+      context,
+      picked ? '自定义字体已更新' : '字体加载失败，请选择有效的 .ttf 文件',
+      replaceCurrent: true,
+    );
+  }
+
+  String _customFontLabel(LyricsPersonalizationState preferences) {
+    final name = preferences.customFontName;
+    if (name == null || name.isEmpty) return '选择 .ttf';
+    const maxLength = 14;
+    if (name.length <= maxLength) return name;
+    return '${name.substring(0, maxLength - 1)}…';
   }
 
   IconData _iconForColorMode(LyricsColorMode mode) {
@@ -930,9 +979,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
   IconData _iconForFontFamily(LyricsFontFamily family) {
     return switch (family) {
       LyricsFontFamily.system => Icons.text_fields_rounded,
-      LyricsFontFamily.hei => Icons.format_bold_rounded,
-      LyricsFontFamily.rounded => Icons.radio_button_unchecked_rounded,
-      LyricsFontFamily.handwriting => Icons.gesture_rounded,
+      LyricsFontFamily.custom => Icons.upload_file_rounded,
     };
   }
 }

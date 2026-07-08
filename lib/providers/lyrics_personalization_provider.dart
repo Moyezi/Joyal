@@ -1,11 +1,20 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
 const _storage = FlutterSecureStorage();
 const _colorModeKey = 'lyrics_color_mode';
 const _alignmentKey = 'lyrics_alignment';
 const _fontFamilyKey = 'lyrics_font_family';
 const _fontSizeKey = 'lyrics_font_size';
+const _customFontPathKey = 'lyrics_custom_font_path';
+const _customFontNameKey = 'lyrics_custom_font_name';
+const _customFontFamilyKey = 'lyrics_custom_font_family';
+final Set<String> _loadedFontFamilies = <String>{};
 
 enum LyricsColorMode {
   system('system', '跟随系统', '随当前深浅色自动切换黑白歌词'),
@@ -46,31 +55,13 @@ enum LyricsAlignmentMode {
 }
 
 enum LyricsFontFamily {
-  system('system', '系统', null, []),
-  hei('hei', '黑体', 'sans-serif', ['Roboto', 'Noto Sans CJK SC', 'PingFang SC']),
-  rounded('rounded', '圆体', 'sans-serif-rounded', [
-    'SF Pro Rounded',
-    'PingFang SC',
-    'sans-serif',
-  ]),
-  handwriting('handwriting', '手写体', 'casual', [
-    'cursive',
-    'Kaiti SC',
-    'STKaiti',
-    'serif',
-  ]);
+  system('system', '系统'),
+  custom('custom', '自定义');
 
-  const LyricsFontFamily(
-    this.storageValue,
-    this.label,
-    this.fontFamily,
-    this.fontFamilyFallback,
-  );
+  const LyricsFontFamily(this.storageValue, this.label);
 
   final String storageValue;
   final String label;
-  final String? fontFamily;
-  final List<String> fontFamilyFallback;
 
   static LyricsFontFamily fromStorageValue(String? value) {
     return LyricsFontFamily.values.firstWhere(
@@ -89,6 +80,9 @@ class LyricsPersonalizationState {
   final LyricsAlignmentMode alignment;
   final LyricsFontFamily fontFamily;
   final double fontSize;
+  final String? customFontPath;
+  final String? customFontName;
+  final String? customFontFamily;
   final bool isLoading;
 
   const LyricsPersonalizationState({
@@ -96,21 +90,48 @@ class LyricsPersonalizationState {
     this.alignment = LyricsAlignmentMode.left,
     this.fontFamily = LyricsFontFamily.system,
     this.fontSize = defaultFontSize,
+    this.customFontPath,
+    this.customFontName,
+    this.customFontFamily,
     this.isLoading = true,
   });
+
+  bool get hasCustomFont =>
+      customFontPath != null &&
+      customFontPath!.isNotEmpty &&
+      customFontFamily != null &&
+      customFontFamily!.isNotEmpty;
+
+  String? get effectiveFontFamily {
+    if (fontFamily != LyricsFontFamily.custom || !hasCustomFont) return null;
+    return customFontFamily;
+  }
 
   LyricsPersonalizationState copyWith({
     LyricsColorMode? colorMode,
     LyricsAlignmentMode? alignment,
     LyricsFontFamily? fontFamily,
     double? fontSize,
+    String? customFontPath,
+    String? customFontName,
+    String? customFontFamily,
     bool? isLoading,
+    bool clearCustomFont = false,
   }) {
     return LyricsPersonalizationState(
       colorMode: colorMode ?? this.colorMode,
       alignment: alignment ?? this.alignment,
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
+      customFontPath: clearCustomFont
+          ? null
+          : customFontPath ?? this.customFontPath,
+      customFontName: clearCustomFont
+          ? null
+          : customFontName ?? this.customFontName,
+      customFontFamily: clearCustomFont
+          ? null
+          : customFontFamily ?? this.customFontFamily,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -135,6 +156,9 @@ class LyricsPersonalizationNotifier
     final savedFontSize = double.tryParse(
       await _storage.read(key: _fontSizeKey) ?? '',
     );
+    var customFontPath = await _storage.read(key: _customFontPathKey);
+    var customFontName = await _storage.read(key: _customFontNameKey);
+    var customFontFamily = await _storage.read(key: _customFontFamilyKey);
     final fontSize =
         (savedFontSize ?? LyricsPersonalizationState.defaultFontSize)
             .clamp(
@@ -142,12 +166,53 @@ class LyricsPersonalizationNotifier
               LyricsPersonalizationState.maxFontSize,
             )
             .toDouble();
+    var resolvedFontFamily = fontFamily;
+
+    if (customFontPath == null ||
+        customFontPath.isEmpty ||
+        !await File(customFontPath).exists()) {
+      customFontPath = null;
+      customFontName = null;
+      customFontFamily = null;
+      if (resolvedFontFamily == LyricsFontFamily.custom) {
+        resolvedFontFamily = LyricsFontFamily.system;
+      }
+      await Future.wait([
+        _storage.delete(key: _customFontPathKey),
+        _storage.delete(key: _customFontNameKey),
+        _storage.delete(key: _customFontFamilyKey),
+      ]);
+    } else if (customFontFamily == null || customFontFamily.isEmpty) {
+      customFontFamily = _newCustomFontFamilyName();
+      await _storage.write(key: _customFontFamilyKey, value: customFontFamily);
+    }
+
+    if (customFontPath != null && customFontFamily != null) {
+      final loaded = await _loadCustomFont(customFontPath, customFontFamily);
+      if (!loaded) {
+        await _deleteFileIfExists(customFontPath);
+        await Future.wait([
+          _storage.delete(key: _customFontPathKey),
+          _storage.delete(key: _customFontNameKey),
+          _storage.delete(key: _customFontFamilyKey),
+        ]);
+        customFontPath = null;
+        customFontName = null;
+        customFontFamily = null;
+        if (resolvedFontFamily == LyricsFontFamily.custom) {
+          resolvedFontFamily = LyricsFontFamily.system;
+        }
+      }
+    }
 
     state = LyricsPersonalizationState(
       colorMode: colorMode,
       alignment: alignment,
-      fontFamily: fontFamily,
+      fontFamily: resolvedFontFamily,
       fontSize: fontSize,
+      customFontPath: customFontPath,
+      customFontName: customFontName,
+      customFontFamily: customFontFamily,
       isLoading: false,
     );
   }
@@ -165,9 +230,56 @@ class LyricsPersonalizationNotifier
   }
 
   Future<void> setFontFamily(LyricsFontFamily fontFamily) async {
+    if (fontFamily == LyricsFontFamily.custom && !state.hasCustomFont) return;
     if (state.fontFamily == fontFamily && !state.isLoading) return;
     state = state.copyWith(fontFamily: fontFamily, isLoading: false);
     await _storage.write(key: _fontFamilyKey, value: fontFamily.storageValue);
+  }
+
+  Future<bool?> pickCustomFont() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['ttf'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return null;
+
+    final picked = result.files.single;
+    if (!_isTtfFile(picked)) return false;
+
+    final oldPath = state.customFontPath;
+    final family = _newCustomFontFamilyName();
+
+    try {
+      final savedPath = await _copyToAppStorage(picked);
+      final loaded = await _loadCustomFont(savedPath, family);
+      if (!loaded) {
+        await _deleteFileIfExists(savedPath);
+        return false;
+      }
+
+      await Future.wait([
+        _storage.write(
+          key: _fontFamilyKey,
+          value: LyricsFontFamily.custom.storageValue,
+        ),
+        _storage.write(key: _customFontPathKey, value: savedPath),
+        _storage.write(key: _customFontNameKey, value: picked.name),
+        _storage.write(key: _customFontFamilyKey, value: family),
+      ]);
+      await _deleteFileIfExists(oldPath);
+
+      state = state.copyWith(
+        fontFamily: LyricsFontFamily.custom,
+        customFontPath: savedPath,
+        customFontName: picked.name,
+        customFontFamily: family,
+        isLoading: false,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> setFontSize(double value) async {
@@ -182,13 +294,74 @@ class LyricsPersonalizationNotifier
   }
 
   Future<void> reset() async {
+    final oldPath = state.customFontPath;
     state = const LyricsPersonalizationState(isLoading: false);
     await Future.wait([
       _storage.delete(key: _colorModeKey),
       _storage.delete(key: _alignmentKey),
       _storage.delete(key: _fontFamilyKey),
       _storage.delete(key: _fontSizeKey),
+      _storage.delete(key: _customFontPathKey),
+      _storage.delete(key: _customFontNameKey),
+      _storage.delete(key: _customFontFamilyKey),
     ]);
+    await _deleteFileIfExists(oldPath);
+  }
+
+  Future<String> _copyToAppStorage(PlatformFile font) async {
+    final directory = await getApplicationSupportDirectory();
+    final fontsDir = Directory('${directory.path}/lyrics_fonts');
+    if (!await fontsDir.exists()) {
+      await fontsDir.create(recursive: true);
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final destination = File('${fontsDir.path}/lyrics_$timestamp.ttf');
+    if (font.path != null && font.path!.isNotEmpty) {
+      await File(font.path!).copy(destination.path);
+    } else if (font.bytes != null) {
+      await destination.writeAsBytes(font.bytes!, flush: true);
+    } else {
+      throw const FileSystemException('No font data available');
+    }
+    return destination.path;
+  }
+
+  Future<bool> _loadCustomFont(String path, String family) async {
+    if (_loadedFontFamilies.contains(family)) return true;
+
+    try {
+      final file = File(path);
+      if (!await file.exists()) return false;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return false;
+
+      final loader = FontLoader(family);
+      loader.addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+      await loader.load();
+      _loadedFontFamilies.add(family);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isTtfFile(PlatformFile file) {
+    final name = file.name.toLowerCase();
+    final path = file.path?.toLowerCase() ?? '';
+    return name.endsWith('.ttf') || path.endsWith('.ttf');
+  }
+
+  String _newCustomFontFamilyName() {
+    return 'JoyalLyricsCustomFont${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  Future<void> _deleteFileIfExists(String? path) async {
+    if (path == null || path.isEmpty) return;
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 }
 

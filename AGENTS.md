@@ -73,7 +73,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 歌词缓存键按 `baseUrl + username + song.id` 作用域生成；空歌词短期缓存，失败后移除内存 Future 缓存。
 - `LyricsScreen` 初始化后立即加载，不等横滑动画完成。歌词页不显示返回键和标题“歌词”，顶部只固定当前歌曲名和歌手。
 - 歌词页出现或横滑过渡中时，播放详情页外层下滑关闭手势禁用；退出歌词页走现有横滑/切换逻辑。
-- 歌词页支持双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写入 `flutter_secure_storage`，包含歌词颜色（跟随系统/黑/白/动态浅色封面取色）、对齐（居中/左/两端）、字号和字体族（系统/黑体/圆体/手写体）。歌词页毛玻璃的模糊和遮罩强度仍走 `glass_effect_provider.dart`。动态浅色只在选中该模式时才触发封面调色板解析，字体族优先用系统字体 fallback，不引入字体资源时不要承诺特定字体必然命中。
+- 歌词页支持双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写入 `flutter_secure_storage`，包含歌词颜色（跟随系统/黑/白/动态浅色封面取色）、对齐（居中/左/两端）、字号和字体（系统/自定义 `.ttf`）。自定义字体通过 `file_picker` 选择后复制到应用支持目录，再用 `FontLoader` 动态注册；旧的黑体/圆体/手写体存储值应回退系统字体。歌词页毛玻璃的模糊和遮罩强度仍走 `glass_effect_provider.dart`。动态浅色只在选中该模式时才触发封面调色板解析。
 - MiniPlayer 中间区域显示当前句和下一句歌词，不显示歌名/歌手；换句共用同一垂直轨道，动画时长按相邻歌词时间差调整。歌词边界通过 Row 布局、间距、外层 padding/transform 调整，不要在歌词内部 `ClipRect` 里负偏移文本导致左侧截断；当前实机校准为展开态圆形封面左移 `12px`、封面与歌词可视起点间距 `12px`，歌词显示窗口左边界左移 `2px`、右边界左移 `4px`。
 
 ## 智能分类
@@ -116,6 +116,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 播放页视觉/歌词手势回归：`test/now_playing_visual_song_test.dart`。
 - APK 复核默认构建 arm64 Release：`flutter build apk --release --target-platform android-arm64 --split-per-abi --no-tree-shake-icons`。
 - Release 输出：`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`。`--no-tree-shake-icons` 用于绕过当前项目遇到的图标树摇构建问题。
+- `file_picker` 当前固定 `10.3.3` 用于歌词自定义 `.ttf` 选择；`11.x` 在当前 Flutter/AGP 组合下会出现 Android 插件类未编入的问题，旧 `3.x` 仍使用 `jcenter()`。`android/build.gradle.kts` 里对 `:file_picker` 统一 Kotlin JVM target 到 11，避免 release 构建的 Java/Kotlin target 不一致。
 
 ## 协作边界
 
