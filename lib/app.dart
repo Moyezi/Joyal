@@ -65,7 +65,7 @@ class JoyalMusicApp extends ConsumerWidget {
 
 /// The primary navigation shell:
 /// - Bottom tab bar (Home / Library / Favorites)
-/// - Tab content via [PageView]
+/// - Tab content via a pre-mounted sliding stack
 /// - Home sidebar drawer and floating [MiniPlayer] above the bottom nav
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -75,11 +75,12 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   int _currentTab = 0;
+  int? _previousTab;
+  int _tabDirection = 0;
   AndroidMediaBridge? _androidMediaBridge;
   final ValueNotifier<int> _libraryTabRequest = ValueNotifier<int>(0);
-  final PageController _pageController = PageController();
   final GlobalKey _bottomNavKey = GlobalKey();
 
   static const double _drawerWidthFactor = 0.70;
@@ -96,6 +97,7 @@ class _MainShellState extends ConsumerState<MainShell>
   bool _drawerTrackingAccepted = false;
   bool _suppressNextDrawerTap = false;
   late final AnimationController _drawerController;
+  late final AnimationController _tabTransitionController;
   double _lastDrawerWidth = 0;
   String? _lastLyricsPrefetchSongId;
   final Set<String> _lyricsPrefetchInFlight = {};
@@ -118,6 +120,19 @@ class _MainShellState extends ConsumerState<MainShell>
       upperBound: 1.0,
       value: 0.0,
     );
+    _tabTransitionController =
+        AnimationController(
+          vsync: this,
+          duration: _tabSwitchDuration,
+          value: 1.0,
+        )..addStatusListener((status) {
+          if (status != AnimationStatus.completed || !mounted) return;
+          if (_previousTab == null) return;
+          setState(() {
+            _previousTab = null;
+            _tabDirection = 0;
+          });
+        });
     _androidMediaBridge = AndroidMediaBridge(
       resolveCoverArtPath: (state) async {
         final song = state.currentSong;
@@ -164,14 +179,13 @@ class _MainShellState extends ConsumerState<MainShell>
     if (haptic) {
       HapticFeedback.selectionClick();
     }
-    setState(() => _currentTab = nextIndex);
-    if (_pageController.hasClients) {
-      _pageController.animateToPage(
-        nextIndex,
-        duration: _tabSwitchDuration,
-        curve: Curves.easeOutCubic,
-      );
-    }
+    _tabTransitionController.stop();
+    setState(() {
+      _previousTab = _currentTab;
+      _tabDirection = nextIndex > _currentTab ? 1 : -1;
+      _currentTab = nextIndex;
+    });
+    _tabTransitionController.forward(from: 0.0);
   }
 
   int? _tabIndexAtGlobalPosition(Offset globalPosition) {
@@ -539,17 +553,7 @@ class _MainShellState extends ConsumerState<MainShell>
   Widget _buildShellContent() {
     return Stack(
       children: [
-        Positioned.fill(
-          child: PageView(
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
-            onPageChanged: (index) {
-              if (index == _currentTab) return;
-              setState(() => _currentTab = index);
-            },
-            children: _screens,
-          ),
-        ),
+        Positioned.fill(child: _buildSlidingTabs()),
         Align(
           alignment: Alignment.bottomCenter,
           child: Material(
@@ -583,12 +587,68 @@ class _MainShellState extends ConsumerState<MainShell>
     );
   }
 
+  Widget _buildSlidingTabs() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _tabTransitionController,
+            builder: (context, _) {
+              final progress = Curves.easeOutCubic.transform(
+                _tabTransitionController.value,
+              );
+              return Stack(
+                children: [
+                  for (var index = 0; index < _screens.length; index++)
+                    Positioned.fill(
+                      child: Transform.translate(
+                        offset: Offset(_tabOffset(index, progress) * width, 0),
+                        child: ExcludeSemantics(
+                          excluding:
+                              index != _currentTab && index != _previousTab,
+                          child: TickerMode(
+                            enabled:
+                                index == _currentTab || index == _previousTab,
+                            child: IgnorePointer(
+                              ignoring:
+                                  index != _currentTab ||
+                                  _tabTransitionController.isAnimating,
+                              child: RepaintBoundary(child: _screens[index]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  double _tabOffset(int index, double progress) {
+    final previous = _previousTab;
+    if (previous == null || _tabDirection == 0) {
+      return (index - _currentTab).toDouble();
+    }
+    if (index == _currentTab) {
+      return _tabDirection * (1 - progress);
+    }
+    if (index == previous) {
+      return -_tabDirection * progress;
+    }
+    return (index - _currentTab).toDouble();
+  }
+
   @override
   void dispose() {
     _androidMediaBridge?.dispose();
     _drawerController.dispose();
+    _tabTransitionController.dispose();
     _libraryTabRequest.dispose();
-    _pageController.dispose();
     super.dispose();
   }
 }

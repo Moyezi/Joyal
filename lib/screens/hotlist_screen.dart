@@ -30,7 +30,8 @@ class HotlistScreen extends ConsumerStatefulWidget {
   ConsumerState<HotlistScreen> createState() => _HotlistScreenState();
 }
 
-class _HotlistScreenState extends ConsumerState<HotlistScreen> {
+class _HotlistScreenState extends ConsumerState<HotlistScreen>
+    with AutomaticKeepAliveClientMixin {
   static const double _headerHeight = 76;
   static const double _tileExtent = 72;
   static const double _discoverCarouselHeight = 300;
@@ -40,9 +41,15 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     initialPage: _carouselInitialPage,
   );
   bool _isRefreshing = false;
+  int? _discoverCacheKey;
+  List<Song>? _discoverSongsSource;
+  List<Song> _discoverSongsCache = const [];
 
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void dispose() {
@@ -107,6 +114,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final state = ref.watch(libraryProvider);
     final classification = ref.watch(musicClassificationProvider);
     final starredSongs = state.starredSongs;
@@ -298,8 +306,14 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen> {
     if (songs.isEmpty) return const [];
     final today = DateTime.now();
     final seed = today.year * 10000 + today.month * 100 + today.day + 17;
+    if (_discoverCacheKey == seed && identical(_discoverSongsSource, songs)) {
+      return _discoverSongsCache;
+    }
     final shuffled = [...songs]..shuffle(Random(seed));
-    return shuffled.take(10).toList();
+    _discoverCacheKey = seed;
+    _discoverSongsSource = songs;
+    _discoverSongsCache = shuffled.take(10).toList(growable: false);
+    return _discoverSongsCache;
   }
 
   String _classificationStatusText(
@@ -346,7 +360,7 @@ class _DiscoverSongCarousel extends ConsumerStatefulWidget {
       _DiscoverSongCarouselState();
 }
 
-class _ForYouDiscoverySection extends ConsumerWidget {
+class _ForYouDiscoverySection extends ConsumerStatefulWidget {
   final List<Song> allSongs;
   final List<Song> starredSongs;
 
@@ -356,32 +370,23 @@ class _ForYouDiscoverySection extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (allSongs.isEmpty) return const SizedBox.shrink();
+  ConsumerState<_ForYouDiscoverySection> createState() =>
+      _ForYouDiscoverySectionState();
+}
+
+class _ForYouDiscoverySectionState
+    extends ConsumerState<_ForYouDiscoverySection> {
+  int? _cacheKey;
+  List<Song>? _cachedAllSongs;
+  List<Song>? _cachedStarredSongs;
+  Map<String, SongClassification>? _cachedClassifications;
+  List<_DiscoveryCardData> _cachedCards = const [];
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.allSongs.isEmpty) return const SizedBox.shrink();
     final classifier = ref.watch(musicClassificationProvider);
-    final notifier = ref.read(musicClassificationProvider.notifier);
-    final cards = <_DiscoveryCardData>[
-      _DiscoveryCardData(
-        title: '深夜独处',
-        subtitle: '平静 · 忧郁 · 低能量',
-        songs: notifier.songsForTag(allSongs, '深夜').take(24).toList(),
-      ),
-      _DiscoveryCardData(
-        title: '清晨轻听',
-        subtitle: '清晨 · 轻松 · 治愈',
-        songs: notifier.songsForTag(allSongs, '清晨').take(24).toList(),
-      ),
-      _DiscoveryCardData(
-        title: '被遗忘的收藏',
-        subtitle: '从收藏里重新听见',
-        songs: starredSongs.take(24).toList(),
-      ),
-      _DiscoveryCardData(
-        title: '随机漫游',
-        subtitle: '今天随机抽取的曲库片段',
-        songs: _stableShuffle(allSongs, 31).take(24).toList(),
-      ),
-    ].where((card) => card.songs.isNotEmpty).toList();
+    final cards = _cardsFor(classifier);
 
     if (cards.isEmpty) return const SizedBox.shrink();
 
@@ -413,9 +418,54 @@ class _ForYouDiscoverySection extends ConsumerWidget {
     );
   }
 
-  static List<Song> _stableShuffle(List<Song> songs, int offset) {
+  List<_DiscoveryCardData> _cardsFor(MusicClassificationState classifier) {
+    final seed = _todaySeed(31);
+    final classifications = classifier.classifications;
+    final canReuse =
+        _cacheKey == seed &&
+        identical(_cachedAllSongs, widget.allSongs) &&
+        identical(_cachedStarredSongs, widget.starredSongs) &&
+        identical(_cachedClassifications, classifications);
+    if (canReuse) return _cachedCards;
+
+    final notifier = ref.read(musicClassificationProvider.notifier);
+    final cards = <_DiscoveryCardData>[
+      _DiscoveryCardData(
+        title: '深夜独处',
+        subtitle: '平静 · 忧郁 · 低能量',
+        songs: notifier.songsForTag(widget.allSongs, '深夜').take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '清晨轻听',
+        subtitle: '清晨 · 轻松 · 治愈',
+        songs: notifier.songsForTag(widget.allSongs, '清晨').take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '被遗忘的收藏',
+        subtitle: '从收藏里重新听见',
+        songs: widget.starredSongs.take(24).toList(),
+      ),
+      _DiscoveryCardData(
+        title: '随机漫游',
+        subtitle: '今天随机抽取的曲库片段',
+        songs: _stableShuffle(widget.allSongs, seed).take(24).toList(),
+      ),
+    ].where((card) => card.songs.isNotEmpty).toList();
+
+    _cacheKey = seed;
+    _cachedAllSongs = widget.allSongs;
+    _cachedStarredSongs = widget.starredSongs;
+    _cachedClassifications = classifications;
+    _cachedCards = cards;
+    return _cachedCards;
+  }
+
+  static int _todaySeed(int offset) {
     final today = DateTime.now();
-    final seed = today.year * 10000 + today.month * 100 + today.day + offset;
+    return today.year * 10000 + today.month * 100 + today.day + offset;
+  }
+
+  static List<Song> _stableShuffle(List<Song> songs, int seed) {
     return [...songs]..shuffle(Random(seed));
   }
 }

@@ -90,11 +90,12 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   static const double _topBarHeight = 76;
   static const double _tabBarHeight = 48;
   static const double _headerHeight = _topBarHeight + _tabBarHeight;
   static const double _songExtent = 72;
+  static const int _songPageSize = 50;
   static const String _sortStorageKey = 'library_song_sort';
 
   late final TabController _tabController;
@@ -102,14 +103,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final ScrollController _albumsController = ScrollController();
   bool _isRefreshing = false;
   _LibrarySongSort _songSort = _LibrarySongSort.fallback;
+  List<Song>? _sortedSongsSource;
+  Map<String, SongClassification>? _sortedSongsClassifications;
+  _LibrarySongSort? _sortedSongsSort;
+  List<Song> _sortedSongsCache = const [];
+  int _visibleSongCount = _songPageSize;
 
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _songsController.addListener(_handleSongsScroll);
     widget.tabRequest?.addListener(_handleTabRequest);
     unawaited(_loadSongSort());
   }
@@ -126,6 +136,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void dispose() {
     widget.tabRequest?.removeListener(_handleTabRequest);
     _tabController.dispose();
+    _songsController.removeListener(_handleSongsScroll);
     _songsController.dispose();
     _albumsController.dispose();
     super.dispose();
@@ -138,6 +149,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     _tabController.animateTo(index);
   }
 
+  void _handleSongsScroll() {
+    if (!_songsController.hasClients) return;
+    if (_visibleSongCount >= _sortedSongsCache.length) return;
+    final position = _songsController.position;
+    if (position.extentAfter > _songExtent * 8) return;
+    setState(() {
+      _visibleSongCount = (_visibleSongCount + _songPageSize).clamp(
+        0,
+        _sortedSongsCache.length,
+      );
+    });
+  }
+
   Future<void> _loadSongSort() async {
     final saved = await ref
         .read(secureStorageProvider)
@@ -145,12 +169,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (!mounted) return;
     setState(() {
       _songSort = _LibrarySongSort.fromStorageValue(saved);
+      _visibleSongCount = _songPageSize;
     });
   }
 
   Future<void> _locateCurrentSong() async {
     final currentSong = ref.read(playerProvider).currentSong;
-    final songs = _sortedSongs(ref.read(libraryProvider).songs);
+    final songs = _sortedSongs(
+      ref.read(libraryProvider).songs,
+      ref.read(musicClassificationProvider).classifications,
+    );
     final index = currentSong == null
         ? -1
         : songs.indexWhere((song) => song.id == currentSong.id);
@@ -166,6 +194,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       await WidgetsBinding.instance.endOfFrame;
     }
     if (!mounted) return;
+    if (index >= _visibleSongCount) {
+      setState(() {
+        _visibleSongCount = (index + _songPageSize).clamp(0, songs.length);
+      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
     await scrollIndexToCenter(
       controller: _songsController,
       index: index,
@@ -208,11 +243,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     showAppToast(context, '曲库已刷新', replaceCurrent: true);
   }
 
-  List<Song> _sortedSongs(List<Song> songs) {
+  List<Song> _sortedSongs(
+    List<Song> songs,
+    Map<String, SongClassification> classifications,
+  ) {
+    final canReuse =
+        identical(_sortedSongsSource, songs) &&
+        identical(_sortedSongsClassifications, classifications) &&
+        _sortedSongsSort?.sameAs(_songSort) == true;
+    if (canReuse) return _sortedSongsCache;
+
     final sorted = [...songs];
-    final classifications = ref
-        .read(musicClassificationProvider)
-        .classifications;
     sorted.sort((a, b) {
       final primary = switch (_songSort.field) {
         _LibrarySongSortField.addedAt => _compareByAddedAt(a, b),
@@ -230,6 +271,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (result != 0) return result;
       return _compareText(a.title, b.title);
     });
+    final resetVisible =
+        !identical(_sortedSongsSource, songs) ||
+        _sortedSongsSort?.sameAs(_songSort) != true;
+    _sortedSongsSource = songs;
+    _sortedSongsClassifications = classifications;
+    _sortedSongsSort = _songSort;
+    _sortedSongsCache = sorted;
+    if (resetVisible) {
+      _visibleSongCount = _songPageSize;
+    } else if (_visibleSongCount > sorted.length) {
+      _visibleSongCount = sorted.length;
+    }
     return sorted;
   }
 
@@ -295,7 +348,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
     if (selected == null || !mounted || selected.sameAs(_songSort)) return;
 
-    setState(() => _songSort = selected);
+    setState(() {
+      _songSort = selected;
+      _visibleSongCount = _songPageSize;
+    });
     unawaited(
       ref
           .read(secureStorageProvider)
@@ -312,6 +368,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final state = ref.watch(libraryProvider);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
     final hasPageBackground = ref.watch(
@@ -324,10 +381,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         (state) => state.blurFor(GlassEffectTarget.topBar),
       ),
     );
-    ref.watch(
+    final classifications = ref.watch(
       musicClassificationProvider.select((state) => state.classifications),
     );
-    final sortedSongs = _sortedSongs(state.songs);
+    final sortedSongs = _sortedSongs(state.songs, classifications);
+    final visibleSongs = sortedSongs
+        .take(_visibleSongCount.clamp(0, sortedSongs.length))
+        .toList(growable: false);
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
@@ -342,7 +402,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               children: [
                 _SongsView(
                   state: state,
-                  songs: sortedSongs,
+                  songs: visibleSongs,
+                  playlist: sortedSongs,
                   controller: _songsController,
                   topPadding: topBarExtent,
                 ),
@@ -546,12 +607,14 @@ class _SortChoiceButton extends StatelessWidget {
 class _SongsView extends ConsumerWidget {
   final LibraryState state;
   final List<Song> songs;
+  final List<Song> playlist;
   final ScrollController controller;
   final double topPadding;
 
   const _SongsView({
     required this.state,
     required this.songs,
+    required this.playlist,
     required this.controller,
     required this.topPadding,
   });
@@ -598,7 +661,7 @@ class _SongsView extends ConsumerWidget {
           isDownloaded: downloadedIds.contains(song.id),
           onTap: () => ref
               .read(playerProvider.notifier)
-              .playPlaylist(songs, startIndex: index),
+              .playPlaylist(playlist, startIndex: index),
           onMore: () => SongActionsSheet.show(
             context,
             songTitle: song.title,

@@ -37,7 +37,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   // ━━━ Layout constants ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   static const double _headerHeight = 92;
   static const double _searchBarHeight = 54;
@@ -51,6 +51,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   late final ScrollController _scrollController;
   final GlobalKey _recentListKey = GlobalKey();
   bool _exclusionRectPending = false;
+  int? _dailySongsCacheKey;
+  List<Song>? _dailySongsSource;
+  List<Song> _dailySongsCache = const [];
+  int? _dailyAlbumsCacheKey;
+  List<Album>? _dailyAlbumsSource;
+  List<Album> _dailyAlbumsCache = const [];
 
   @override
   void initState() {
@@ -106,7 +112,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     final libraryState = ref.watch(libraryProvider);
     final hasPageBackground = ref.watch(
       pageBackgroundProvider.select(
@@ -382,18 +392,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   List<Song> _dailyRecommendedSongs(List<Song> songs) {
     if (songs.isEmpty) return const [];
-    final today = DateTime.now();
-    final seed = today.year * 10000 + today.month * 100 + today.day;
+    final seed = _todaySeed();
+    if (_dailySongsCacheKey == seed && identical(_dailySongsSource, songs)) {
+      return _dailySongsCache;
+    }
     final recommended = [...songs]..shuffle(Random(seed));
-    return recommended.take(24).toList();
+    _dailySongsCacheKey = seed;
+    _dailySongsSource = songs;
+    _dailySongsCache = recommended.take(24).toList(growable: false);
+    return _dailySongsCache;
   }
 
   List<Album> _dailyRandomAlbums(List<Album> albums) {
     if (albums.isEmpty) return const [];
-    final today = DateTime.now();
-    final seed = today.year * 10000 + today.month * 100 + today.day;
+    final seed = _todaySeed();
+    if (_dailyAlbumsCacheKey == seed && identical(_dailyAlbumsSource, albums)) {
+      return _dailyAlbumsCache;
+    }
     final randomAlbums = [...albums]..shuffle(Random(seed));
-    return randomAlbums.take(8).toList();
+    _dailyAlbumsCacheKey = seed;
+    _dailyAlbumsSource = albums;
+    _dailyAlbumsCache = randomAlbums.take(8).toList(growable: false);
+    return _dailyAlbumsCache;
+  }
+
+  int _todaySeed() {
+    final today = DateTime.now();
+    return today.year * 10000 + today.month * 100 + today.day;
   }
 
   void _showDailyRecommendations(List<Song> songs) {

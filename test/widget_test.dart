@@ -28,8 +28,8 @@ void main() {
 
     // Verify the three primary navigation tabs and home search entrance.
     expect(find.text('主页'), findsOneWidget);
-    expect(find.text('曲库'), findsOneWidget);
-    expect(find.text('发现'), findsOneWidget);
+    expect(find.text('曲库'), findsWidgets);
+    expect(find.text('发现'), findsWidgets);
     expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
   });
 
@@ -88,7 +88,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_testApp());
 
-    await tester.tap(find.text('发现'));
+    await tester.tap(find.text('发现').last);
     await tester.pump();
 
     expect(find.byIcon(Icons.person_outline), findsNothing);
