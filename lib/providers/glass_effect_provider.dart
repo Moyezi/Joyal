@@ -9,7 +9,8 @@ enum GlassEffectTarget {
   miniPlayer('mini_player', '迷你播放栏', 18),
   searchBar('search_bar', '搜索框', 16),
   bottomNav('bottom_nav', '导航栏', 18),
-  songCard('song_card', '歌曲卡片', 14);
+  songCard('song_card', '歌曲卡片', 14),
+  lyricsPage('lyrics_page', '歌词页', 14);
 
   const GlassEffectTarget(this.storageName, this.label, this.defaultBlur);
 

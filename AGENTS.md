@@ -19,7 +19,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 曲库/搜索/发现：首页、曲库、发现（旧 `HotlistScreen` 文件名）、搜索相关代码在 `lib/providers/library_provider.dart` 与 `lib/screens/home_screen.dart`、`library_screen.dart`、`hotlist_screen.dart`、`search_screen.dart`。
 - 导航/设置/Dock：`lib/app.dart`、`lib/widgets/home_sidebar.dart`、`mini_player.dart`、`bottom_nav.dart`、`play_queue_sheet.dart`、`lib/screens/settings_hub_screen.dart`、`personalization_screen.dart`、`lib/providers/sidebar_image_provider.dart`。
 - 视觉/毛玻璃/背景：`lib/providers/page_background_provider.dart`、`glass_effect_provider.dart`、`visual_effect_provider.dart`、`mini_player_color_provider.dart`、`lib/widgets/frosted_glass.dart`、`glass_top_bar.dart`、`page_custom_background.dart`、`dynamic_album_background.dart`、`album_visual_palette.dart`、`mini_player_chrome.dart`。
-- 播放页/歌词：`lib/screens/now_playing_screen.dart`、`lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lib/widgets/waveform_progress.dart`、`now_playing_transition.dart`。
+- 播放页/歌词：`lib/screens/now_playing_screen.dart`、`lyrics_screen.dart`、`lib/providers/lyrics_provider.dart`、`lyrics_personalization_provider.dart`、`lib/widgets/waveform_progress.dart`、`now_playing_transition.dart`。
 - 下载/缓存：`lib/services/app_cache_service.dart`、`cache_repository.dart`、`lib/providers/cache_provider.dart`、`lib/screens/cache_management_screen.dart`、`lib/widgets/cached_disk_image.dart`。
 - 智能分类：`lib/models/music_classification.dart`、`lib/services/deepseek_classification_service.dart`、`lib/services/music_classification_repository.dart`、`lib/providers/music_classification_provider.dart`、`lib/screens/music_classification_screen.dart`；发现页入口和卡片在 `hotlist_screen.dart`。
 - Android 媒体桥：`android/app/src/main/kotlin/com/example/joyal_music/`。
@@ -51,7 +51,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - Toast 统一用 `showAppToast(...)`；宽度按文案自适应，优先 `BoxConstraints`，不要用 `TextPainter` 手算。
 - 封面取色由 `AlbumVisualPalette` 处理，缓存键含 brightness；动态背景尽量用稳定 `coverArtId`，避免认证 URL 刷新导致重复取色。
 - 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、发现共用本地图片，不改变列表、顶栏和 Dock 空间关系；内部枚举仍叫 `PageBackgroundTarget.favorites`，显示文案应是“发现”。
-- 毛玻璃统一由 `glass_effect_provider.dart` 管强度，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览。
+- 毛玻璃统一由 `glass_effect_provider.dart` 管强度，通用容器用 `FrostedGlass`。`GlassEffectTarget` 包含顶栏、迷你播放栏、搜索框、导航栏、歌曲卡片、歌词页；新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览。
 - 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制，个性化可切换“默认颜色/动态取色”；默认保持 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠悬浮封面圆形外框需同步遵循，并继续走 `FrostedGlass` 的 blur 强度。
 - 真实迷你播放栏与个性化“毛玻璃”迷你播放栏预览共用 `mini_player_chrome.dart` 的动态取色解析；预览在动态取色模式下必须跟随当前播放歌曲封面，不要硬编码候选色。未拿到封面 palette 前可暂用中性 fallback，不要用 `coverArtId` hash 伪造候选色，避免与真实封面色调不符。
 - 个性化毛玻璃预览用类似 iOS 后台的横向堆叠卡，滑动时触发选择振动；预览背景固定冷色底图和两个大渐变圆。不要用整卡 `Opacity` 包住 `BackdropFilter`。
@@ -73,6 +73,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 歌词缓存键按 `baseUrl + username + song.id` 作用域生成；空歌词短期缓存，失败后移除内存 Future 缓存。
 - `LyricsScreen` 初始化后立即加载，不等横滑动画完成。歌词页不显示返回键和标题“歌词”，顶部只固定当前歌曲名和歌手。
 - 歌词页出现或横滑过渡中时，播放详情页外层下滑关闭手势禁用；退出歌词页走现有横滑/切换逻辑。
+- 歌词页支持双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写入 `flutter_secure_storage`，包含歌词颜色（跟随系统/黑/白/动态浅色封面取色）、对齐（居中/左/两端）、字号和字体族（系统/黑体/圆体/手写体）。动态浅色只在选中该模式时才触发封面调色板解析，字体族优先用系统字体 fallback，不引入字体资源时不要承诺特定字体必然命中。
 - MiniPlayer 中间区域显示当前句和下一句歌词，不显示歌名/歌手；换句共用同一垂直轨道，动画时长按相邻歌词时间差调整。歌词边界通过 Row 布局、间距、外层 padding/transform 调整，不要在歌词内部 `ClipRect` 里负偏移文本导致左侧截断；当前实机校准为展开态圆形封面左移 `12px`、封面与歌词可视起点间距 `12px`，歌词显示窗口左边界左移 `2px`、右边界左移 `4px`。
 
 ## 智能分类

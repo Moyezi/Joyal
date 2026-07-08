@@ -390,6 +390,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.searchBar => isDark ? 0.72 : 0.62,
       GlassEffectTarget.bottomNav => isDark ? 0.76 : 0.68,
       GlassEffectTarget.songCard => isDark ? 0.64 : 0.72,
+      GlassEffectTarget.lyricsPage => isDark ? 0.36 : 0.30,
     };
     final radius = switch (target) {
       GlassEffectTarget.topBar => BorderRadius.circular(18),
@@ -397,6 +398,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.bottomNav => BorderRadius.circular(34),
       GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
       GlassEffectTarget.songCard => BorderRadius.circular(18),
+      GlassEffectTarget.lyricsPage => BorderRadius.circular(24),
     };
 
     return SizedBox(
@@ -439,6 +441,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.searchBar => 280,
       GlassEffectTarget.bottomNav => 304,
       GlassEffectTarget.songCard => 304,
+      GlassEffectTarget.lyricsPage => 304,
     };
   }
 
@@ -449,6 +452,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.searchBar => 54,
       GlassEffectTarget.bottomNav => 64,
       GlassEffectTarget.songCard => 68,
+      GlassEffectTarget.lyricsPage => 98,
     };
   }
 }
@@ -650,6 +654,45 @@ class _GlassPreviewContent extends StatelessWidget {
               ),
             ),
             Icon(Icons.more_horiz_rounded, color: context.secondaryColor),
+          ],
+        ),
+      ),
+      GlassEffectTarget.lyricsPage => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '正在唱到这一句',
+              style: context.textTitleMedium.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 8),
+            FractionallySizedBox(
+              widthFactor: 0.72,
+              child: Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: context.primaryColor.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FractionallySizedBox(
+              widthFactor: 0.48,
+              child: Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: context.primaryColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
           ],
         ),
       ),
