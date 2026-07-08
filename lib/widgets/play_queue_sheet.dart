@@ -298,7 +298,7 @@ class QueueSongCard extends ConsumerWidget {
               tintColor: context.surfaceColor,
               tintOpacity: tintOpacity,
               borderColor: context.primaryColor,
-              borderOpacity: isDark ? 0.08 : 0.06,
+              borderOpacity: isDark ? 0 : 0.06,
               child: content,
             )
           : content,

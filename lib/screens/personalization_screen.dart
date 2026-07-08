@@ -462,7 +462,7 @@ class _GlassPreview extends ConsumerWidget {
             borderColor: target == GlassEffectTarget.miniPlayer
                 ? previewMiniAccent
                 : context.primaryColor,
-            borderOpacity: isDark ? 0.08 : 0.06,
+            borderOpacity: _previewBorderOpacity(target, isDark),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.16),
@@ -500,6 +500,17 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.songCard => 68,
       GlassEffectTarget.lyricsPage => 98,
     };
+  }
+
+  double _previewBorderOpacity(GlassEffectTarget target, bool isDark) {
+    if (!isDark) return 0.06;
+    if (target == GlassEffectTarget.searchBar ||
+        target == GlassEffectTarget.bottomNav ||
+        target == GlassEffectTarget.miniPlayer ||
+        target == GlassEffectTarget.songCard) {
+      return 0;
+    }
+    return 0.08;
   }
 }
 

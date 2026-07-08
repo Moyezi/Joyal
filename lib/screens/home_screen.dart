@@ -545,6 +545,7 @@ class _HomeSearchBar extends ConsumerWidget {
         (state) => state.opacityFor(GlassEffectTarget.searchBar),
       ),
     );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return FrostedGlass(
       blurSigma: blurSigma,
@@ -552,7 +553,7 @@ class _HomeSearchBar extends ConsumerWidget {
       tintColor: context.surfaceColor,
       tintOpacity: tintOpacity,
       borderColor: context.primaryColor,
-      borderOpacity: 0.07,
+      borderOpacity: isDark ? 0 : 0.06,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

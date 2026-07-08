@@ -40,7 +40,7 @@ class AppBottomNav extends ConsumerWidget {
           tintColor: theme.scaffoldBackgroundColor,
           tintOpacity: tintOpacity,
           borderColor: theme.colorScheme.onSurface,
-          borderOpacity: isDark ? 0.08 : 0.06,
+          borderOpacity: isDark ? 0 : 0.06,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: shadowAlpha),

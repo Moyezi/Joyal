@@ -56,9 +56,11 @@ class FrostedGlass extends StatelessWidget {
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: tintColor.withValues(alpha: tintAlpha),
-                  border: Border.all(
-                    color: borderColor.withValues(alpha: strokeAlpha),
-                  ),
+                  border: strokeAlpha <= 0
+                      ? null
+                      : Border.all(
+                          color: borderColor.withValues(alpha: strokeAlpha),
+                        ),
                 ),
               ),
             ),

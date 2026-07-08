@@ -81,11 +81,11 @@ class MiniPlayerChrome {
     required Brightness brightness,
   }) {
     if (mode != MiniPlayerColorMode.dynamicAlbum) {
-      return const MiniPlayerChrome(
+      return MiniPlayerChrome(
         tintColor: AppTheme.miniPlayerBg,
         tintOpacity: 0.58,
         borderColor: Colors.white,
-        borderOpacity: 0.10,
+        borderOpacity: brightness == Brightness.dark ? 0 : 0.06,
         playButtonForeground: AppTheme.miniPlayerBg,
         collapsedFrameColor: AppTheme.miniPlayerBg,
       );
@@ -113,7 +113,7 @@ class MiniPlayerChrome {
       tintColor: tint,
       tintOpacity: brightness == Brightness.dark ? 0.62 : 0.54,
       borderColor: border,
-      borderOpacity: 0.18,
+      borderOpacity: brightness == Brightness.dark ? 0 : 0.12,
       playButtonForeground: tint,
       collapsedFrameColor: tint,
     );

@@ -57,6 +57,7 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 - 主页面背景由 `PageBackgroundProvider` + `PageCustomBackground` 管：首页、曲库、发现共用本地图片；内部枚举 `PageBackgroundTarget.favorites` 的显示文案是“发现”。
 - 毛玻璃参数统一走 `glass_effect_provider.dart`，通用容器用 `FrostedGlass`。新增毛玻璃 UI 要接入个性化“毛玻璃”横向预览，并支持 blur/opacity 两条滑杆。
 - 毛玻璃性能约定：无有效 blur 或遮罩近乎不透明时不要创建 `BackdropFilter`；只模糊自身图片时用 `ImageFiltered`；避免全屏动态 `BackdropFilter`；滑杆拖动实时更新内存、松手再持久化。
+- 暗色模式下搜索框、Dock、MiniPlayer、`SongTile`、`QueueSongCard` 等悬浮圆角玻璃组件不要画亮色描边，避免边缘出现白线；`FrostedGlass` 的 `borderOpacity` 为 0 时应彻底不创建 border，个性化预览需同步真实规则。
 - 迷你播放栏颜色由 `mini_player_color_provider.dart` 控制；默认 `AppTheme.miniPlayerBg`，动态取色复用 `AlbumVisualPalette`，胶囊 tint 和折叠封面外框同步遵循，并继续走毛玻璃 blur/opacity。
 - 真实 MiniPlayer 与个性化预览共用 `mini_player_chrome.dart`；动态取色预览跟随当前播放封面，未拿到 palette 用中性 fallback，不用 `coverArtId` hash 伪造颜色。
 - 播放详情页/歌词页背景由 `DynamicAlbumBackground` 统一实现；流动光影用 `CustomPainter` + `sin/cos`，静态渐变停止动画控制器。
