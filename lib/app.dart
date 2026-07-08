@@ -538,7 +538,6 @@ class _MainShellState extends ConsumerState<MainShell>
         final previewBorderRadius = BorderRadius.circular(
           _drawerPreviewMaxRadius * progress,
         );
-        final shouldClipPreview = progress > 0.001;
         final preview = Stack(
           children: [
             child!,
@@ -558,13 +557,11 @@ class _MainShellState extends ConsumerState<MainShell>
           child: Transform.scale(
             scale: scale,
             alignment: Alignment.centerLeft,
-            child: shouldClipPreview
-                ? ClipRRect(
-                    borderRadius: previewBorderRadius,
-                    clipBehavior: Clip.hardEdge,
-                    child: preview,
-                  )
-                : preview,
+            child: ClipRRect(
+              borderRadius: previewBorderRadius,
+              clipBehavior: progress > 0.001 ? Clip.hardEdge : Clip.none,
+              child: preview,
+            ),
           ),
         );
       },

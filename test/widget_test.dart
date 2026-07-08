@@ -9,6 +9,7 @@ import 'package:joyal_music/models/album.dart';
 import 'package:joyal_music/providers/auth_provider.dart';
 import 'package:joyal_music/providers/library_provider.dart';
 import 'package:joyal_music/providers/player_provider.dart';
+import 'package:joyal_music/screens/home_screen.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
 import 'package:joyal_music/services/cache_repository.dart';
 import 'package:joyal_music/services/buckets/album_cache_bucket.dart';
@@ -147,17 +148,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final homeScrollable = tester
-        .stateList<ScrollableState>(find.byType(Scrollable))
-        .firstWhere(
-          (state) => state.position.axisDirection == AxisDirection.down,
-        );
+    final homeScrollable = _homeVerticalScrollable(tester);
     expect(homeScrollable.position.pixels, 0);
 
     await tester.dragFrom(const Offset(120, 160), const Offset(260, -90));
     await tester.pump();
 
-    expect(homeScrollable.position.pixels, 0);
+    final currentHomeScrollable = _homeVerticalScrollable(tester);
+    expect(currentHomeScrollable, same(homeScrollable));
+    expect(currentHomeScrollable.position.pixels, 0);
   });
 
   testWidgets('Home sidebar drag preserves existing home scroll offset', (
@@ -174,13 +173,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final homeScrollable = tester
-        .stateList<ScrollableState>(find.byType(Scrollable))
-        .firstWhere(
-          (state) => state.position.axisDirection == AxisDirection.down,
-        );
+    final homeScrollable = _homeVerticalScrollable(tester);
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
+    await tester.drag(_homeCustomScrollView(), const Offset(0, -260));
     await tester.pumpAndSettle();
     final scrolledOffset = homeScrollable.position.pixels;
     expect(scrolledOffset, greaterThan(0));
@@ -188,7 +183,12 @@ void main() {
     await tester.dragFrom(const Offset(120, 240), const Offset(260, -90));
     await tester.pump();
 
-    expect(homeScrollable.position.pixels, moreOrLessEquals(scrolledOffset));
+    final currentHomeScrollable = _homeVerticalScrollable(tester);
+    expect(currentHomeScrollable, same(homeScrollable));
+    expect(
+      currentHomeScrollable.position.pixels,
+      moreOrLessEquals(scrolledOffset),
+    );
   });
 
   testWidgets('Home sidebar closes on a fast left fling', (tester) async {
@@ -219,6 +219,26 @@ Widget _testApp({List<dynamic> overrides = const []}) {
     ],
     child: const JoyalMusicApp(),
   );
+}
+
+Finder _homeCustomScrollView() {
+  return find.descendant(
+    of: find.byType(HomeScreen),
+    matching: find.byType(CustomScrollView),
+  );
+}
+
+ScrollableState _homeVerticalScrollable(WidgetTester tester) {
+  return tester
+      .stateList<ScrollableState>(
+        find.descendant(
+          of: find.byType(HomeScreen),
+          matching: find.byType(Scrollable),
+        ),
+      )
+      .firstWhere(
+        (state) => state.position.axisDirection == AxisDirection.down,
+      );
 }
 
 class _TestAuthNotifier extends AuthNotifier {
