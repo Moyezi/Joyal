@@ -639,15 +639,12 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(lyricsPersonalizationProvider);
+    const glassTarget = GlassEffectTarget.lyricsDrawer;
     final blurSigma = ref.watch(
-      glassEffectProvider.select(
-        (state) => state.blurFor(GlassEffectTarget.lyricsPage),
-      ),
+      glassEffectProvider.select((state) => state.blurFor(glassTarget)),
     );
     final tintOpacity = ref.watch(
-      glassEffectProvider.select(
-        (state) => state.opacityFor(GlassEffectTarget.lyricsPage),
-      ),
+      glassEffectProvider.select((state) => state.opacityFor(glassTarget)),
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
@@ -710,17 +707,14 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                       unawaited(
                         ref
                             .read(glassEffectProvider.notifier)
-                            .setBlur(
-                              GlassEffectTarget.lyricsPage,
-                              GlassEffectTarget.lyricsPage.defaultBlur,
-                            ),
+                            .setBlur(glassTarget, glassTarget.defaultBlur),
                       );
                       unawaited(
                         ref
                             .read(glassEffectProvider.notifier)
                             .setOpacity(
-                              GlassEffectTarget.lyricsPage,
-                              GlassEffectTarget.lyricsPage.defaultOpacity,
+                              glassTarget,
+                              glassTarget.defaultOpacity,
                             ),
                       );
                     },
@@ -730,7 +724,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '双指捏合可再次打开这里，调整会实时应用到歌词页。',
+                '双指捏合可再次打开这里，毛玻璃调整会实时应用到这个抽屉。',
                 style: context.textBodySmall.copyWith(
                   color: context.secondaryColor,
                 ),
@@ -761,7 +755,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 18),
               _LyricsSettingsSection(
-                title: '毛玻璃效果',
+                title: '抽屉毛玻璃',
                 child: Column(
                   children: [
                     Row(
@@ -781,14 +775,10 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                             label: blurSigma.toStringAsFixed(0),
                             onChanged: (value) => ref
                                 .read(glassEffectProvider.notifier)
-                                .setBlur(
-                                  GlassEffectTarget.lyricsPage,
-                                  value,
-                                  persist: false,
-                                ),
+                                .setBlur(glassTarget, value, persist: false),
                             onChangeEnd: (value) => ref
                                 .read(glassEffectProvider.notifier)
-                                .setBlur(GlassEffectTarget.lyricsPage, value),
+                                .setBlur(glassTarget, value),
                           ),
                         ),
                         SizedBox(
@@ -822,17 +812,10 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                             label: '${(tintOpacity * 100).round()}%',
                             onChanged: (value) => ref
                                 .read(glassEffectProvider.notifier)
-                                .setOpacity(
-                                  GlassEffectTarget.lyricsPage,
-                                  value,
-                                  persist: false,
-                                ),
+                                .setOpacity(glassTarget, value, persist: false),
                             onChangeEnd: (value) => ref
                                 .read(glassEffectProvider.notifier)
-                                .setOpacity(
-                                  GlassEffectTarget.lyricsPage,
-                                  value,
-                                ),
+                                .setOpacity(glassTarget, value),
                           ),
                         ),
                         SizedBox(

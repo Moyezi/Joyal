@@ -11,7 +11,8 @@ enum GlassEffectTarget {
   searchBar('search_bar', '搜索框', 16, 0.40),
   bottomNav('bottom_nav', '导航栏', 18, 0.48),
   songCard('song_card', '歌曲卡片', 14, 0.42),
-  lyricsPage('lyrics_page', '歌词页', 14, 0.33);
+  lyricsPage('lyrics_page', '歌词页', 14, 0.33),
+  lyricsDrawer('lyrics_drawer', '歌词抽屉', 14, 0.33);
 
   const GlassEffectTarget(
     this.storageName,

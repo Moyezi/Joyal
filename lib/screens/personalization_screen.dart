@@ -445,6 +445,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
       GlassEffectTarget.songCard => BorderRadius.circular(18),
       GlassEffectTarget.lyricsPage => BorderRadius.circular(24),
+      GlassEffectTarget.lyricsDrawer => BorderRadius.circular(28),
     };
 
     return SizedBox(
@@ -488,6 +489,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.bottomNav => 304,
       GlassEffectTarget.songCard => 304,
       GlassEffectTarget.lyricsPage => 304,
+      GlassEffectTarget.lyricsDrawer => 304,
     };
   }
 
@@ -499,6 +501,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.bottomNav => 64,
       GlassEffectTarget.songCard => 68,
       GlassEffectTarget.lyricsPage => 98,
+      GlassEffectTarget.lyricsDrawer => 112,
     };
   }
 
@@ -748,6 +751,59 @@ class _GlassPreviewContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+      GlassEffectTarget.lyricsDrawer => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '歌词个性化',
+              style: context.textTitleMedium.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.palette_outlined, color: context.primaryColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: context.primaryColor.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.format_size_rounded, color: context.secondaryColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 0.64,
+                    child: Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: context.primaryColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
