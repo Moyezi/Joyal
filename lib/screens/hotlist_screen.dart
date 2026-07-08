@@ -758,6 +758,23 @@ class _DepthCarouselCard extends ConsumerWidget {
     final y = cardCenterY - size / 2 + distance * 10;
     final isCenter = distance < 0.5;
     final currentSong = songs[index];
+    final coverCard = _DiscoverCoverCard(
+      song: currentSong,
+      isCenter: isCenter,
+      size: size,
+      onPlay: () => ref
+          .read(playerProvider.notifier)
+          .playPlaylist(songs, startIndex: index),
+    );
+    final filteredCard = blur > 0.05
+        ? ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: coverCard,
+          )
+        : coverCard;
+    final visualCard = opacity < 0.999
+        ? Opacity(opacity: opacity, child: filteredCard)
+        : filteredCard;
 
     return Positioned(
       left: x,
@@ -772,20 +789,7 @@ class _DepthCarouselCard extends ConsumerWidget {
                 duration: const Duration(milliseconds: 320),
                 curve: Curves.easeOutCubic,
               ),
-        child: Opacity(
-          opacity: opacity,
-          child: ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-            child: _DiscoverCoverCard(
-              song: currentSong,
-              isCenter: isCenter,
-              size: size,
-              onPlay: () => ref
-                  .read(playerProvider.notifier)
-                  .playPlaylist(songs, startIndex: index),
-            ),
-          ),
-        ),
+        child: visualCard,
       ),
     );
   }

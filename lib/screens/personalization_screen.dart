@@ -299,6 +299,9 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
               valueText: blurSigma == 0 ? '关闭' : blurSigma.toStringAsFixed(0),
               onChanged: (value) => ref
                   .read(glassEffectProvider.notifier)
+                  .setBlur(_selectedTarget, value, persist: false),
+              onChangeEnd: (value) => ref
+                  .read(glassEffectProvider.notifier)
                   .setBlur(_selectedTarget, value),
             ),
             _GlassEffectSlider(
@@ -310,6 +313,9 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
               label: '${(tintOpacity * 100).round()}%',
               valueText: '${(tintOpacity * 100).round()}%',
               onChanged: (value) => ref
+                  .read(glassEffectProvider.notifier)
+                  .setOpacity(_selectedTarget, value, persist: false),
+              onChangeEnd: (value) => ref
                   .read(glassEffectProvider.notifier)
                   .setOpacity(_selectedTarget, value),
             ),
@@ -329,6 +335,7 @@ class _GlassEffectSlider extends StatelessWidget {
   final String label;
   final String valueText;
   final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChangeEnd;
 
   const _GlassEffectSlider({
     required this.icon,
@@ -339,6 +346,7 @@ class _GlassEffectSlider extends StatelessWidget {
     required this.label,
     required this.valueText,
     required this.onChanged,
+    this.onChangeEnd,
   });
 
   @override
@@ -355,6 +363,7 @@ class _GlassEffectSlider extends StatelessWidget {
             divisions: divisions,
             label: label,
             onChanged: onChanged,
+            onChangeEnd: onChangeEnd,
           ),
         ),
         SizedBox(
@@ -1140,20 +1149,30 @@ class _PageBackgroundPreview extends ConsumerWidget {
       );
     }
 
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (MediaQuery.sizeOf(context).width * pixelRatio)
+        .ceil()
+        .clamp(1, 2048)
+        .toInt();
+    final image = Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      cacheWidth: cacheWidth,
+    );
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.file(File(path), fit: BoxFit.cover),
-        if (pageBackgrounds.blurSigma > 0)
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: pageBackgrounds.blurSigma,
-                sigmaY: pageBackgrounds.blurSigma,
-              ),
-              child: const SizedBox.expand(),
+        if (pageBackgrounds.blurSigma > 0.05)
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: pageBackgrounds.blurSigma,
+              sigmaY: pageBackgrounds.blurSigma,
             ),
-          ),
+            child: image,
+          )
+        else
+          image,
         DecoratedBox(
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.22),

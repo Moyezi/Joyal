@@ -34,6 +34,7 @@ class GlassTopBar extends StatelessWidget {
     final statusBarHeight = MediaQuery.viewPaddingOf(context).top;
     final totalHeight = height + statusBarHeight;
     final bg = Theme.of(context).scaffoldBackgroundColor;
+    final sigma = blurSigma.clamp(0.0, 30.0).toDouble();
     final opacity = tintOpacity.clamp(0.0, 1.0).toDouble();
     final topAlpha = hasPageBackground
         ? opacity
@@ -57,10 +58,11 @@ class GlassTopBar extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
-              child: const SizedBox.expand(),
-            ),
+            if (sigma > 0.05)
+              BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                child: const SizedBox.expand(),
+              ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(

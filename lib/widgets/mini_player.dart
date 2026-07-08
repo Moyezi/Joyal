@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/song.dart';
 import '../models/lyrics.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/lyrics_provider.dart';
@@ -47,13 +48,15 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playerState = ref.watch(playerProvider);
+    final song = ref.watch(playerProvider.select((state) => state.currentSong));
 
-    if (!playerState.hasSong) {
+    if (song == null) {
       return const SizedBox.shrink();
     }
 
-    final song = playerState.currentSong!;
+    final isPlaying = ref.watch(
+      playerProvider.select((state) => state.isPlaying),
+    );
     final api = ref.watch(subsonicApiProvider);
     final coverUrl = (api != null && song.coverArt.isNotEmpty)
         ? api.getCoverArtUrl(song.coverArt)
@@ -87,11 +90,7 @@ class MiniPlayer extends ConsumerWidget {
     ).copyWith(tintOpacity: tintOpacity);
 
     final cover = _buildMiniCover(coverUrl, song.coverArt);
-    final lyrics = _MiniLyrics(
-      songId: song.id,
-      lyrics: ref.watch(lyricsProvider(song)),
-      position: playerState.position,
-    );
+    final lyrics = _MiniLyricsForSong(song: song);
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: isCollapsed ? 1 : 0),
@@ -109,7 +108,7 @@ class MiniPlayer extends ConsumerWidget {
                 progress: progress,
                 isCollapsed: isCollapsed,
                 trackId: song.id,
-                isPlaying: playerState.isPlaying,
+                isPlaying: isPlaying,
                 cover: cover,
                 lyrics: lyrics,
                 chrome: chrome,
@@ -207,7 +206,6 @@ class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
     final blurSigma = ref.watch(
       glassEffectProvider.select(
         (state) => state.blurFor(GlassEffectTarget.miniPlayer),
@@ -335,7 +333,7 @@ class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
                                 ),
                               ),
                               icon: Icon(
-                                playerState.isPlaying
+                                widget.isPlaying
                                     ? Icons.pause
                                     : Icons.play_arrow_rounded,
                               ),
@@ -376,6 +374,24 @@ class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
   }
 
   double _lerp(double begin, double end, double t) => begin + (end - begin) * t;
+}
+
+class _MiniLyricsForSong extends ConsumerWidget {
+  final Song song;
+
+  const _MiniLyricsForSong({required this.song});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(
+      playerProvider.select((state) => state.position),
+    );
+    return _MiniLyrics(
+      songId: song.id,
+      lyrics: ref.watch(lyricsProvider(song)),
+      position: position,
+    );
+  }
 }
 
 class _MiniLyrics extends StatefulWidget {

@@ -21,18 +21,25 @@ class PageCustomBackground extends ConsumerWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final blurSigma = pageBackground.blurSigma;
+    final mediaSize = MediaQuery.sizeOf(context);
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = (mediaSize.longestSide * pixelRatio * 1.08)
+        .ceil()
+        .clamp(1, 4096)
+        .toInt();
     final image = Image.file(
       File(path),
       fit: BoxFit.cover,
       alignment: Alignment.center,
       width: double.infinity,
       height: double.infinity,
+      cacheWidth: cacheWidth,
     );
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (blurSigma > 0)
+        if (blurSigma > 0.05)
           Transform.scale(
             scale: 1.04,
             child: ImageFiltered(

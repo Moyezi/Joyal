@@ -37,18 +37,20 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final libraryState = ref.watch(libraryProvider);
-    final playerState = ref.watch(playerProvider);
+    final currentSongId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
     final album = widget.album;
 
     return Scaffold(
       appBar: AppBar(title: const Text('专辑详情')),
-      body: _buildContent(libraryState, playerState, album),
+      body: _buildContent(libraryState, currentSongId, album),
     );
   }
 
   Widget _buildContent(
     LibraryState libraryState,
-    PlaybackState playerState,
+    String? currentSongId,
     Album album,
   ) {
     if (libraryState.isLoading && libraryState.albumSongs.isEmpty) {
@@ -164,7 +166,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           ...songs.asMap().entries.map((entry) {
             final index = entry.key;
             final song = entry.value;
-            final isCurrentSong = playerState.currentSong?.id == song.id;
+            final isCurrentSong = currentSongId == song.id;
             final isStarred = libraryState.starredSongs.any(
               (s) => s.id == song.id,
             );

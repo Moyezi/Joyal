@@ -349,7 +349,9 @@ class _SongsTab extends ConsumerWidget {
       return Center(child: Text('暂无歌曲', style: context.textBodyLarge));
     }
 
-    final playerState = ref.watch(playerProvider);
+    final currentSongId = ref.watch(
+      playerProvider.select((state) => state.currentSong?.id),
+    );
     final starredIds = ref.watch(
       libraryProvider.select(
         (value) => value.starredSongs.map((s) => s.id).toSet(),
@@ -368,7 +370,7 @@ class _SongsTab extends ConsumerWidget {
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final song = songs[index];
-              final isCurrentSong = playerState.currentSong?.id == song.id;
+              final isCurrentSong = currentSongId == song.id;
               final isStarred = starredIds.contains(song.id);
 
               return SongTile(

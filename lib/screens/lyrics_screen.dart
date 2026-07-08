@@ -108,8 +108,7 @@ class LyricsScreen extends ConsumerStatefulWidget {
 class _LyricsScreenState extends ConsumerState<LyricsScreen> {
   @override
   Widget build(BuildContext context) {
-    final player = ref.watch(playerProvider);
-    final song = player.currentSong;
+    final song = ref.watch(playerProvider.select((state) => state.currentSong));
     final api = ref.watch(subsonicApiProvider);
     final coverUrl = song != null && api != null && song.coverArt.isNotEmpty
         ? api.getCoverArtUrl(song.coverArt)
@@ -181,21 +180,46 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                           ),
                         );
                       }
-                      return _LyricsList(
+                      return _LyricsPositionedList(
                         data: lyrics,
-                        position: player.position,
                         title: song.title,
                         artist: song.artist,
                         dynamicColor: dynamicLyricColor,
-                        onSeek: (position) {
-                          unawaited(
-                            ref.read(playerProvider.notifier).seek(position),
-                          );
-                        },
                       );
                     },
                   ),
       ),
+    );
+  }
+}
+
+class _LyricsPositionedList extends ConsumerWidget {
+  final LyricsData data;
+  final String title;
+  final String artist;
+  final Color? dynamicColor;
+
+  const _LyricsPositionedList({
+    required this.data,
+    required this.title,
+    required this.artist,
+    this.dynamicColor,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final position = ref.watch(
+      playerProvider.select((state) => state.position),
+    );
+    return _LyricsList(
+      data: data,
+      position: position,
+      title: title,
+      artist: artist,
+      dynamicColor: dynamicColor,
+      onSeek: (position) {
+        unawaited(ref.read(playerProvider.notifier).seek(position));
+      },
     );
   }
 }
@@ -757,6 +781,13 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                             label: blurSigma.toStringAsFixed(0),
                             onChanged: (value) => ref
                                 .read(glassEffectProvider.notifier)
+                                .setBlur(
+                                  GlassEffectTarget.lyricsPage,
+                                  value,
+                                  persist: false,
+                                ),
+                            onChangeEnd: (value) => ref
+                                .read(glassEffectProvider.notifier)
                                 .setBlur(GlassEffectTarget.lyricsPage, value),
                           ),
                         ),
@@ -790,6 +821,13 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                             divisions: 20,
                             label: '${(tintOpacity * 100).round()}%',
                             onChanged: (value) => ref
+                                .read(glassEffectProvider.notifier)
+                                .setOpacity(
+                                  GlassEffectTarget.lyricsPage,
+                                  value,
+                                  persist: false,
+                                ),
+                            onChangeEnd: (value) => ref
                                 .read(glassEffectProvider.notifier)
                                 .setOpacity(
                                   GlassEffectTarget.lyricsPage,
@@ -1136,6 +1174,20 @@ class _GlassFadeBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final content = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: begin,
+          end: end,
+          colors: [
+            tint.withValues(alpha: tintAlpha),
+            tint.withValues(alpha: 0),
+          ],
+          stops: const [0, 1],
+        ),
+      ),
+    );
+
     return SizedBox(
       height: height,
       width: double.infinity,
@@ -1150,22 +1202,12 @@ class _GlassFadeBand extends StatelessWidget {
               stops: const [0.12, 1],
             ).createShader(bounds);
           },
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: begin,
-                  end: end,
-                  colors: [
-                    tint.withValues(alpha: tintAlpha),
-                    tint.withValues(alpha: 0),
-                  ],
-                  stops: const [0, 1],
-                ),
-              ),
-            ),
-          ),
+          child: sigma > 0.05
+              ? BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                  child: content,
+                )
+              : content,
         ),
       ),
     );

@@ -76,50 +76,70 @@ class GlassEffectNotifier extends StateNotifier<GlassEffectState> {
   }
 
   Future<void> _load() async {
-    final blurValues = <GlassEffectTarget, double>{};
-    final opacityValues = <GlassEffectTarget, double>{};
-    for (final target in GlassEffectTarget.values) {
-      final savedBlur = await _storage.read(key: _blurKeyFor(target));
-      blurValues[target] =
-          (double.tryParse(savedBlur ?? '') ?? target.defaultBlur)
+    final loaded = await Future.wait(
+      GlassEffectTarget.values.map((target) async {
+        final values = await Future.wait([
+          _storage.read(key: _blurKeyFor(target)),
+          _storage.read(key: _opacityKeyFor(target)),
+        ]);
+        return _LoadedGlassEffect(
+          target: target,
+          blur: (double.tryParse(values[0] ?? '') ?? target.defaultBlur)
               .clamp(0.0, 30.0)
-              .toDouble();
-
-      final savedOpacity = await _storage.read(key: _opacityKeyFor(target));
-      opacityValues[target] =
-          (double.tryParse(savedOpacity ?? '') ?? target.defaultOpacity)
+              .toDouble(),
+          opacity: (double.tryParse(values[1] ?? '') ?? target.defaultOpacity)
               .clamp(0.0, 1.0)
-              .toDouble();
-    }
+              .toDouble(),
+        );
+      }),
+    );
     state = GlassEffectState(
-      blurSigmas: blurValues,
-      tintOpacities: opacityValues,
+      blurSigmas: {for (final value in loaded) value.target: value.blur},
+      tintOpacities: {for (final value in loaded) value.target: value.opacity},
       isLoading: false,
     );
   }
 
-  Future<void> setBlur(GlassEffectTarget target, double value) async {
+  Future<void> setBlur(
+    GlassEffectTarget target,
+    double value, {
+    bool persist = true,
+  }) async {
     final next = value.clamp(0.0, 30.0).toDouble();
-    state = state.copyWith(
-      blurSigmas: {...state.blurSigmas, target: next},
-      isLoading: false,
-    );
-    await _storage.write(
-      key: _blurKeyFor(target),
-      value: next.toStringAsFixed(1),
-    );
+    final current = state.blurFor(target);
+    if ((current - next).abs() > 0.001 || state.isLoading) {
+      state = state.copyWith(
+        blurSigmas: {...state.blurSigmas, target: next},
+        isLoading: false,
+      );
+    }
+    if (persist) {
+      await _storage.write(
+        key: _blurKeyFor(target),
+        value: next.toStringAsFixed(1),
+      );
+    }
   }
 
-  Future<void> setOpacity(GlassEffectTarget target, double value) async {
+  Future<void> setOpacity(
+    GlassEffectTarget target,
+    double value, {
+    bool persist = true,
+  }) async {
     final next = value.clamp(0.0, 1.0).toDouble();
-    state = state.copyWith(
-      tintOpacities: {...state.tintOpacities, target: next},
-      isLoading: false,
-    );
-    await _storage.write(
-      key: _opacityKeyFor(target),
-      value: next.toStringAsFixed(2),
-    );
+    final current = state.opacityFor(target);
+    if ((current - next).abs() > 0.001 || state.isLoading) {
+      state = state.copyWith(
+        tintOpacities: {...state.tintOpacities, target: next},
+        isLoading: false,
+      );
+    }
+    if (persist) {
+      await _storage.write(
+        key: _opacityKeyFor(target),
+        value: next.toStringAsFixed(2),
+      );
+    }
   }
 
   static String _blurKeyFor(GlassEffectTarget target) =>
@@ -133,3 +153,15 @@ final glassEffectProvider =
     StateNotifierProvider<GlassEffectNotifier, GlassEffectState>((ref) {
       return GlassEffectNotifier();
     });
+
+class _LoadedGlassEffect {
+  final GlassEffectTarget target;
+  final double blur;
+  final double opacity;
+
+  const _LoadedGlassEffect({
+    required this.target,
+    required this.blur,
+    required this.opacity,
+  });
+}

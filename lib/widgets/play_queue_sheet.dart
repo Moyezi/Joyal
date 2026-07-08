@@ -70,16 +70,25 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(playerProvider);
+    final queueState = ref.watch(
+      playerProvider.select(
+        (state) => (
+          playlist: state.playlist,
+          currentIndex: state.currentIndex,
+          currentSongId: state.currentSong?.id,
+          currentSongTitle: state.currentSong?.title,
+        ),
+      ),
+    );
     final api = ref.watch(subsonicApiProvider);
-    final songs = widget.songs ?? state.playlist;
-    final currentSongId = state.currentSong?.id;
+    final songs = widget.songs ?? queueState.playlist;
+    final currentSongId = queueState.currentSongId;
     final customCurrentIndex = currentSongId == null
         ? -1
         : songs.indexWhere((song) => song.id == currentSongId);
     final activeIndex =
         widget.initialIndex ??
-        (widget.songs == null ? state.currentIndex : customCurrentIndex);
+        (widget.songs == null ? queueState.currentIndex : customCurrentIndex);
 
     return Container(
       height: MediaQuery.sizeOf(context).height * .78,
@@ -128,7 +137,7 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    state.currentSong?.title ?? '',
+                    queueState.currentSongTitle ?? '',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.textBodyMedium,
@@ -149,7 +158,7 @@ class _PlayQueueSheetState extends ConsumerState<PlayQueueSheet> {
                     itemBuilder: (context, index) {
                       final song = songs[index];
                       final isCurrent = widget.songs == null
-                          ? index == state.currentIndex
+                          ? index == queueState.currentIndex
                           : song.id == currentSongId;
                       final canTap = widget.songs != null || !isCurrent;
                       final coverUrl = api == null || song.coverArt.isEmpty

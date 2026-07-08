@@ -26,17 +26,32 @@ Song? nowPlayingVisualSong({
   required bool isSelecting,
   required int candidateIndex,
 }) {
-  if (!isSelecting || state.playlist.isEmpty) {
-    return state.currentSong;
+  return _nowPlayingVisualSongFromParts(
+    currentSong: state.currentSong,
+    playlist: state.playlist,
+    currentIndex: state.currentIndex,
+    isSelecting: isSelecting,
+    candidateIndex: candidateIndex,
+  );
+}
+
+Song? _nowPlayingVisualSongFromParts({
+  required Song? currentSong,
+  required List<Song> playlist,
+  required int currentIndex,
+  required bool isSelecting,
+  required int candidateIndex,
+}) {
+  if (!isSelecting || playlist.isEmpty) {
+    return currentSong;
   }
-  if (candidateIndex < 0 || candidateIndex >= state.playlist.length) {
-    final currentIndex = state.currentIndex;
-    if (currentIndex >= 0 && currentIndex < state.playlist.length) {
-      return state.playlist[currentIndex];
+  if (candidateIndex < 0 || candidateIndex >= playlist.length) {
+    if (currentIndex >= 0 && currentIndex < playlist.length) {
+      return playlist[currentIndex];
     }
-    return state.currentSong;
+    return currentSong;
   }
-  return state.playlist[candidateIndex];
+  return playlist[candidateIndex];
 }
 
 @visibleForTesting
@@ -401,10 +416,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
-    final hasSong = playerState.hasSong;
-    final visualSong = nowPlayingVisualSong(
-      state: playerState,
+    final currentSong = ref.watch(
+      playerProvider.select((state) => state.currentSong),
+    );
+    final playlist = ref.watch(
+      playerProvider.select((state) => state.playlist),
+    );
+    final currentIndex = ref.watch(
+      playerProvider.select((state) => state.currentIndex),
+    );
+    final hasSong = currentSong != null;
+    final visualSong = _nowPlayingVisualSongFromParts(
+      currentSong: currentSong,
+      playlist: playlist,
+      currentIndex: currentIndex,
       isSelecting: _isSelecting,
       candidateIndex: _candidateIndex,
     );
@@ -505,8 +530,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   Widget _buildPlayerPage(BuildContext context) {
-    final playerState = ref.watch(playerProvider);
-    final song = playerState.currentSong;
+    final song = ref.watch(playerProvider.select((state) => state.currentSong));
+    final playlist = ref.watch(
+      playerProvider.select((state) => state.playlist),
+    );
+    final currentIndex = ref.watch(
+      playerProvider.select((state) => state.currentIndex),
+    );
+    final isPlaying = ref.watch(
+      playerProvider.select((state) => state.isPlaying),
+    );
+    final playbackMode = ref.watch(
+      playerProvider.select((state) => state.playbackMode),
+    );
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -531,7 +567,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       body: SafeArea(
         child: song == null
             ? _emptyState()
-            : _playerContent(context, ref, playerState),
+            : _playerContent(
+                context,
+                ref,
+                song: song,
+                playlist: playlist,
+                currentIndex: currentIndex,
+                isPlaying: isPlaying,
+                playbackMode: playbackMode,
+              ),
       ),
     );
   }
@@ -624,10 +668,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       ..forward();
   }
 
-  int _clampedCandidateIndex(PlaybackState state) {
-    if (state.playlist.isEmpty) return 0;
-    final fallback = state.currentIndex.clamp(0, state.playlist.length - 1);
-    if (_candidateIndex < 0 || _candidateIndex >= state.playlist.length) {
+  int _clampedCandidateIndex(List<Song> playlist, int currentIndex) {
+    if (playlist.isEmpty) return 0;
+    final fallback = currentIndex.clamp(0, playlist.length - 1);
+    if (_candidateIndex < 0 || _candidateIndex >= playlist.length) {
       return fallback;
     }
     return _candidateIndex;
@@ -658,8 +702,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     unawaited(_exitSelectionMode());
   }
 
-  void _enterSelectionMode(PlaybackState ps) {
-    if (ps.playlist.length <= 1) return;
+  void _enterSelectionMode(List<Song> playlist, int currentIndex) {
+    if (playlist.length <= 1) return;
     HapticFeedback.heavyImpact();
     _coverSlideCtrl.stop();
     setState(() {
@@ -667,15 +711,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       _coverTransitionTo = null;
       _coverTransitionPending = false;
       _isSelecting = true;
-      _candidateIndex = ps.currentIndex.clamp(0, ps.playlist.length - 1);
+      _candidateIndex = currentIndex.clamp(0, playlist.length - 1);
       _selDragOffset = 0;
     });
     _selSnapCtrl.stop();
     _selEnterCtrl.forward(from: 0);
   }
 
-  Widget _buildSelectionCovers(WidgetRef ref, PlaybackState ps) {
-    final list = ps.playlist;
+  Widget _buildSelectionCovers(
+    WidgetRef ref,
+    List<Song> list,
+    int currentIndex,
+  ) {
     if (list.isEmpty) return const SizedBox.shrink();
 
     return LayoutBuilder(
@@ -688,7 +735,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           animation: Listenable.merge([_selEnterCtrl, _selSnapCtrl]),
           builder: (context, _) {
             final progress = _selEnterAnim.value.clamp(0.0, 1.0);
-            final candidateIndex = _clampedCandidateIndex(ps);
+            final candidateIndex = _clampedCandidateIndex(list, currentIndex);
             final current = list[candidateIndex];
             final previous = candidateIndex > 0
                 ? list[candidateIndex - 1]
@@ -953,10 +1000,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   Widget _playerContent(
     BuildContext context,
-    WidgetRef ref,
-    PlaybackState playerState,
-  ) {
-    final song = playerState.currentSong!;
+    WidgetRef ref, {
+    required Song song,
+    required List<Song> playlist,
+    required int currentIndex,
+    required bool isPlaying,
+    required PlaybackMode playbackMode,
+  }) {
     final notifier = ref.read(playerProvider.notifier);
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
@@ -975,10 +1025,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     );
 
     // In selection mode, show info for the candidate song instead of current.
-    final displayCandidateIndex = _clampedCandidateIndex(playerState);
+    final displayCandidateIndex = _clampedCandidateIndex(
+      playlist,
+      currentIndex,
+    );
     final displaySong =
-        nowPlayingVisualSong(
-          state: playerState,
+        _nowPlayingVisualSongFromParts(
+          currentSong: song,
+          playlist: playlist,
+          currentIndex: currentIndex,
           isSelecting: _isSelecting,
           candidateIndex: displayCandidateIndex,
         ) ??
@@ -993,13 +1048,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           flex: 5,
           child: Center(
             child: _isSelecting
-                ? _buildSelectionCovers(ref, playerState)
+                ? _buildSelectionCovers(ref, playlist, currentIndex)
                 : Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppTheme.spacingXL,
                     ),
                     child: GestureDetector(
-                      onLongPressStart: (_) => _enterSelectionMode(playerState),
+                      onLongPressStart: (_) =>
+                          _enterSelectionMode(playlist, currentIndex),
                       child: _nowPlayingCover(song: song),
                     ),
                   ),
@@ -1112,57 +1168,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
               const SizedBox(height: AppTheme.spacingLG),
 
-              // ── Waveform progress ──
-              Opacity(
-                opacity: _isSelecting ? 0.3 : 1.0,
-                child: IgnorePointer(
-                  ignoring: _isSelecting,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingMD,
-                    ),
-                    child: WaveformProgress(
-                      position: playerState.position,
-                      duration: playerState.duration ?? Duration.zero,
-                      trackKey: song.id,
-                      isPlaying: playerState.isPlaying,
-                      playedColor: _visualPalette.waveformAccentFor(brightness),
-                      unplayedColor: _visualPalette.waveformTrackFor(
-                        brightness,
-                      ),
-                      onSeek: (position) async {
-                        try {
-                          await notifier.seek(position);
-                        } catch (error) {
-                          if (context.mounted) {
-                            showAppToast(context, '跳转失败，已恢复原进度');
-                          }
-                          rethrow;
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Time labels ──
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingXL,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(playerState.position),
-                      style: context.textCaption,
-                    ),
-                    Text(
-                      _formatDuration(playerState.duration ?? Duration.zero),
-                      style: context.textCaption,
-                    ),
-                  ],
-                ),
+              _NowPlayingProgressSection(
+                isSelecting: _isSelecting,
+                trackKey: song.id,
+                playedColor: _visualPalette.waveformAccentFor(brightness),
+                unplayedColor: _visualPalette.waveformTrackFor(brightness),
+                onSeekFailed: () {
+                  if (context.mounted) {
+                    showAppToast(context, '跳转失败，已恢复原进度');
+                  }
+                },
               ),
 
               const SizedBox(height: AppTheme.spacingMD),
@@ -1181,13 +1196,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       children: [
                         // Combined playback mode
                         IconButton(
-                          tooltip: _playbackModeLabel(playerState.playbackMode),
-                          icon: Icon(
-                            _playbackModeIcon(playerState.playbackMode),
-                          ),
-                          color:
-                              playerState.playbackMode ==
-                                  PlaybackMode.sequential
+                          tooltip: _playbackModeLabel(playbackMode),
+                          icon: Icon(_playbackModeIcon(playbackMode)),
+                          color: playbackMode == PlaybackMode.sequential
                               ? actionIconColor
                               : context.primaryColor,
                           onPressed: () async {
@@ -1226,9 +1237,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             ),
                             child: IconButton(
                               icon: Icon(
-                                playerState.isPlaying
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
+                                isPlaying ? Icons.pause : Icons.play_arrow,
                                 color: playButtonForeground,
                                 size: 40,
                               ),
@@ -1286,10 +1295,88 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       PlaybackMode.repeatOne => '单曲循环',
     };
   }
+}
 
-  String _formatDuration(Duration d) {
-    final minutes = d.inMinutes.toString().padLeft(2, '0');
-    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
+class _NowPlayingProgressSection extends ConsumerWidget {
+  final bool isSelecting;
+  final String trackKey;
+  final Color playedColor;
+  final Color unplayedColor;
+  final VoidCallback onSeekFailed;
+
+  const _NowPlayingProgressSection({
+    required this.isSelecting,
+    required this.trackKey,
+    required this.playedColor,
+    required this.unplayedColor,
+    required this.onSeekFailed,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(
+      playerProvider.select(
+        (state) => (
+          position: state.position,
+          duration: state.duration ?? Duration.zero,
+          isPlaying: state.isPlaying,
+        ),
+      ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Opacity(
+          opacity: isSelecting ? 0.3 : 1.0,
+          child: IgnorePointer(
+            ignoring: isSelecting,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingMD,
+              ),
+              child: WaveformProgress(
+                position: progress.position,
+                duration: progress.duration,
+                trackKey: trackKey,
+                isPlaying: progress.isPlaying,
+                playedColor: playedColor,
+                unplayedColor: unplayedColor,
+                onSeek: (position) async {
+                  try {
+                    await ref.read(playerProvider.notifier).seek(position);
+                  } catch (_) {
+                    onSeekFailed();
+                    rethrow;
+                  }
+                },
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingXL),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatPlaybackDuration(progress.position),
+                style: context.textCaption,
+              ),
+              Text(
+                _formatPlaybackDuration(progress.duration),
+                style: context.textCaption,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
+}
+
+String _formatPlaybackDuration(Duration d) {
+  final minutes = d.inMinutes.toString().padLeft(2, '0');
+  final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
 }
