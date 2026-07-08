@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/music_classification.dart';
 import '../models/song.dart';
+import '../providers/auth_provider.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/music_classification_provider.dart';
@@ -21,14 +24,60 @@ import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
 
-enum _LibrarySongSort {
-  titleInitial('歌曲名首字母'),
-  playCount('播放次数'),
-  language('歌曲语言');
+enum _LibrarySongSortField {
+  addedAt('按添加时间排序'),
+  language('歌曲语言排序'),
+  title('按歌曲名排序'),
+  artist('按艺术家排序');
 
-  const _LibrarySongSort(this.label);
+  const _LibrarySongSortField(this.label);
 
   final String label;
+}
+
+enum _LibrarySortDirection {
+  ascending('正序'),
+  descending('倒序');
+
+  const _LibrarySortDirection(this.label);
+
+  final String label;
+}
+
+class _LibrarySongSort {
+  final _LibrarySongSortField field;
+  final _LibrarySortDirection direction;
+
+  const _LibrarySongSort({required this.field, required this.direction});
+
+  static const fallback = _LibrarySongSort(
+    field: _LibrarySongSortField.title,
+    direction: _LibrarySortDirection.ascending,
+  );
+
+  String get storageValue => '${field.name}:${direction.name}';
+  String get label => '${field.label} · ${direction.label}';
+
+  bool sameAs(_LibrarySongSort other) {
+    return field == other.field && direction == other.direction;
+  }
+
+  static _LibrarySongSort fromStorageValue(String? value) {
+    if (value == null || value.isEmpty) return fallback;
+    final parts = value.split(':');
+    if (parts.length != 2) return fallback;
+    final field = _enumByName(_LibrarySongSortField.values, parts[0]);
+    final direction = _enumByName(_LibrarySortDirection.values, parts[1]);
+    if (field == null || direction == null) return fallback;
+    return _LibrarySongSort(field: field, direction: direction);
+  }
+
+  static T? _enumByName<T extends Enum>(List<T> values, String name) {
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
 }
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -46,12 +95,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   static const double _tabBarHeight = 48;
   static const double _headerHeight = _topBarHeight + _tabBarHeight;
   static const double _songExtent = 72;
+  static const String _sortStorageKey = 'library_song_sort';
 
   late final TabController _tabController;
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
   bool _isRefreshing = false;
-  _LibrarySongSort _songSort = _LibrarySongSort.titleInitial;
+  _LibrarySongSort _songSort = _LibrarySongSort.fallback;
 
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
@@ -61,6 +111,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     widget.tabRequest?.addListener(_handleTabRequest);
+    unawaited(_loadSongSort());
   }
 
   @override
@@ -85,6 +136,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     if (index == null || index < 0 || index >= _tabController.length) return;
     if (_tabController.index == index) return;
     _tabController.animateTo(index);
+  }
+
+  Future<void> _loadSongSort() async {
+    final saved = await ref
+        .read(secureStorageProvider)
+        .read(key: _sortStorageKey);
+    if (!mounted) return;
+    setState(() {
+      _songSort = _LibrarySongSort.fromStorageValue(saved);
+    });
   }
 
   Future<void> _locateCurrentSong() async {
@@ -153,27 +214,49 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         .read(musicClassificationProvider)
         .classifications;
     sorted.sort((a, b) {
-      final result = switch (_songSort) {
-        _LibrarySongSort.titleInitial => _compareByTitleInitial(a, b),
-        _LibrarySongSort.playCount => _compareByPlayCount(a, b),
-        _LibrarySongSort.language => _compareByLanguage(a, b, classifications),
+      final primary = switch (_songSort.field) {
+        _LibrarySongSortField.addedAt => _compareByAddedAt(a, b),
+        _LibrarySongSortField.language => _compareByLanguage(
+          a,
+          b,
+          classifications,
+        ),
+        _LibrarySongSortField.title => _compareByTitle(a, b),
+        _LibrarySongSortField.artist => _compareByArtist(a, b),
       };
+      final result = _songSort.direction == _LibrarySortDirection.ascending
+          ? primary
+          : -primary;
       if (result != 0) return result;
-      return _compareText(a.artist, b.artist);
+      return _compareText(a.title, b.title);
     });
     return sorted;
   }
 
-  int _compareByTitleInitial(Song a, Song b) {
+  int _compareByAddedAt(Song a, Song b) {
+    final createdA = a.created;
+    final createdB = b.created;
+    if (createdA != null && createdB != null) {
+      final result = createdA.compareTo(createdB);
+      if (result != 0) return result;
+    } else if (createdA != null) {
+      return -1;
+    } else if (createdB != null) {
+      return 1;
+    }
+    return _compareText(a.id, b.id);
+  }
+
+  int _compareByTitle(Song a, Song b) {
     final result = _compareText(_sortInitial(a.title), _sortInitial(b.title));
     if (result != 0) return result;
     return _compareText(a.title, b.title);
   }
 
-  int _compareByPlayCount(Song a, Song b) {
-    final result = b.playCount.compareTo(a.playCount);
+  int _compareByArtist(Song a, Song b) {
+    final result = _compareText(_sortInitial(a.artist), _sortInitial(b.artist));
     if (result != 0) return result;
-    return _compareText(a.title, b.title);
+    return _compareText(a.artist, b.artist);
   }
 
   int _compareByLanguage(
@@ -185,7 +268,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final languageB = classifications[b.id]?.language ?? '未分类';
     final result = _compareText(languageA, languageB);
     if (result != 0) return result;
-    return _compareByTitleInitial(a, b);
+    return _compareByTitle(a, b);
   }
 
   String _sortInitial(String value) {
@@ -201,6 +284,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   int _compareText(String a, String b) {
     return a.trim().toLowerCase().compareTo(b.trim().toLowerCase());
+  }
+
+  Future<void> _showSortSheet() async {
+    final selected = await showModalBottomSheet<_LibrarySongSort>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _LibrarySortSheet(currentSort: _songSort),
+    );
+    if (selected == null || !mounted || selected.sameAs(_songSort)) return;
+
+    setState(() => _songSort = selected);
+    unawaited(
+      ref
+          .read(secureStorageProvider)
+          .write(key: _sortStorageKey, value: selected.storageValue),
+    );
+    if (_songsController.hasClients) {
+      await _songsController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   @override
@@ -273,42 +380,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                             )
                           : const Icon(Icons.refresh_rounded),
                     ),
-                    PopupMenuButton<_LibrarySongSort>(
+                    IconButton(
                       tooltip: '排序',
-                      initialValue: _songSort,
+                      onPressed: _showSortSheet,
                       icon: const Icon(Icons.sort_rounded),
-                      onSelected: (value) {
-                        setState(() => _songSort = value);
-                        if (_songsController.hasClients) {
-                          _songsController.animateTo(
-                            0,
-                            duration: const Duration(milliseconds: 220),
-                            curve: Curves.easeOutCubic,
-                          );
-                        }
-                      },
-                      itemBuilder: (context) {
-                        return _LibrarySongSort.values.map((sort) {
-                          return PopupMenuItem<_LibrarySongSort>(
-                            value: sort,
-                            child: Row(
-                              children: [
-                                Icon(
-                                  sort == _songSort
-                                      ? Icons.check_rounded
-                                      : Icons.sort_rounded,
-                                  size: 18,
-                                  color: sort == _songSort
-                                      ? context.primaryColor
-                                      : context.secondaryColor,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(sort.label),
-                              ],
-                            ),
-                          );
-                        }).toList();
-                      },
                     ),
                   ],
                 ),
@@ -330,6 +405,139 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LibrarySortSheet extends StatelessWidget {
+  final _LibrarySongSort currentSort;
+
+  const _LibrarySortSheet({required this.currentSort});
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottomInset),
+      decoration: BoxDecoration(
+        color: context.surfaceColor.withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: context.primaryColor.withValues(alpha: .08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .18),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: context.secondaryColor.withValues(alpha: .35),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+          Text('歌曲排序', style: context.textTitleMedium),
+          const SizedBox(height: 12),
+          for (final field in _LibrarySongSortField.values) ...[
+            Text(
+              field.label,
+              style: context.textBodyMedium.copyWith(
+                color: context.secondaryColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _SortChoiceButton(
+                    sort: _LibrarySongSort(
+                      field: field,
+                      direction: _LibrarySortDirection.ascending,
+                    ),
+                    currentSort: currentSort,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _SortChoiceButton(
+                    sort: _LibrarySongSort(
+                      field: field,
+                      direction: _LibrarySortDirection.descending,
+                    ),
+                    currentSort: currentSort,
+                  ),
+                ),
+              ],
+            ),
+            if (field != _LibrarySongSortField.values.last)
+              const SizedBox(height: 14),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SortChoiceButton extends StatelessWidget {
+  final _LibrarySongSort sort;
+  final _LibrarySongSort currentSort;
+
+  const _SortChoiceButton({required this.sort, required this.currentSort});
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = sort.sameAs(currentSort);
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).pop(sort),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? context.primaryColor.withValues(alpha: .12)
+              : context.primaryColor.withValues(alpha: .05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected
+                ? context.primaryColor.withValues(alpha: .42)
+                : context.primaryColor.withValues(alpha: .08),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : sort.direction == _LibrarySortDirection.ascending
+                  ? Icons.arrow_upward_rounded
+                  : Icons.arrow_downward_rounded,
+              size: 17,
+              color: selected ? context.primaryColor : context.secondaryColor,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              sort.direction.label,
+              style: context.textBodyMedium.copyWith(
+                color: selected ? context.primaryColor : context.secondaryColor,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

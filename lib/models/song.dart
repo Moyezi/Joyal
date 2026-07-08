@@ -11,6 +11,7 @@ class Song {
   final String contentType;
   final String suffix;
   final int playCount;
+  final DateTime? created;
 
   const Song({
     required this.id,
@@ -25,6 +26,7 @@ class Song {
     required this.contentType,
     required this.suffix,
     this.playCount = 0,
+    this.created,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -41,6 +43,7 @@ class Song {
       contentType: json['contentType'] as String? ?? '',
       suffix: json['suffix'] as String? ?? '',
       playCount: (json['playCount'] as num?)?.toInt() ?? 0,
+      created: DateTime.tryParse(json['created'] as String? ?? ''),
     );
   }
 
@@ -57,6 +60,7 @@ class Song {
     'contentType': contentType,
     'suffix': suffix,
     'playCount': playCount,
+    'created': created?.toIso8601String(),
   };
 
   /// Formatted duration string (e.g. "3:42")
