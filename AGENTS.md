@@ -38,7 +38,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 - 发现页“为你发现”横向卡片优先用本地智能分类标签筛选歌曲；分类不足时只能退化到收藏/随机等真实本地集合，不要展示没有数据支撑的 AI 推荐。发现页顶部轮播、“为你发现”分类扫描、随机漫游等派生列表要缓存，避免页面重建时全曲库重复扫描/洗牌。
 - 首页随机专辑：从 `LibraryState.albums` 按当天日期稳定随机选 8 张；“查看更多”切到曲库页并选中“专辑”Tab；底部文案固定 `----到底了----`。
 - 首页右滑打开 `HomeSidebar`：侧边栏约 70% 宽，主页内容、MiniPlayer、Dock 随进度右移/缩小/变暗。“最近添加”横向列表是排除区，由 `HomeScreen.onExclusionZoneChanged` 上报。
-- 侧边栏动画优先流畅：用 `_drawerController` + `AnimatedBuilder` 驱动预览层，主页面内容作为静态 child/RepaintBoundary；开合过程中不要用全屏动态 `BackdropFilter`。
+- 侧边栏动画优先流畅：用 `_drawerController` + `AnimatedBuilder` 驱动预览层，主页面内容作为静态 child/RepaintBoundary；预览层包裹结构必须稳定，拖拽开始时不要临时插入/移除 `ClipRRect` 等父节点，避免主页滚动状态回到初始位置；开合过程中不要用全屏动态 `BackdropFilter`。
 - 侧边栏只放真实状态；Navidrome 已连接时不显示整张连接卡，只在标题区显示连接图标，未连接/恢复中才显示提示卡。底部按钮进入设置、个性化或循环主题。
 - 侧边栏自定义图片是纯展示区：以 16:9 圆角图片显示，不在侧边栏里放选择/裁切控件；图片选择、清除和 16:9 取景调整入口放在个性化页，状态由 `sidebar_image_provider.dart` 持久化。
 
@@ -111,7 +111,7 @@ Joyal Music 是 iOS/Android Flutter 私人音乐播放器，连接用户自建 N
 
 - 静态分析：`dart analyze lib test` 或 `flutter analyze`。
 - 测试：`flutter test`。常用：`flutter test test/widget_test.dart`、`test/home_search_animation_test.dart`、`test/now_playing_visual_song_test.dart`、`test/cache_provider_test.dart`、`test/lyrics_provider_test.dart`。
-- 侧边栏手势回归：`Home content does not scroll vertically while opening sidebar`、`Home sidebar closes on a fast left fling`。
+- 侧边栏手势回归：`Home content does not scroll vertically while opening sidebar`、`Home sidebar drag preserves existing home scroll offset`、`Home sidebar closes on a fast left fling`。
 - 播放页视觉/歌词手势回归：`test/now_playing_visual_song_test.dart`。
 - APK 复核默认构建 arm64 Release：`flutter build apk --release --target-platform android-arm64 --split-per-abi --no-tree-shake-icons`。
 - Release 输出：`build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`。`--no-tree-shake-icons` 用于绕过当前项目遇到的图标树摇构建问题。
