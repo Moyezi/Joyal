@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -11,6 +13,7 @@ import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/player_provider.dart';
+import 'providers/sidebar_image_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/hotlist_screen.dart';
 import 'screens/library_screen.dart';
@@ -84,9 +87,11 @@ class _MainShellState extends ConsumerState<MainShell>
   final GlobalKey _bottomNavKey = GlobalKey();
 
   static const double _drawerWidthFactor = 0.70;
-  static const double _drawerOpenThreshold = 0.35;
+  static const double _drawerOpenThreshold = 0.28;
   static const double _drawerMinScale = 0.94;
-  static const double _drawerFlingVelocity = 420;
+  static const double _drawerFlingVelocity = 500;
+  static const double _drawerPreviewMaxRadius = 28;
+  static const double _drawerScrimMaxAlpha = 0.10;
   static const Duration _tabSwitchDuration = Duration(milliseconds: 260);
   static const Duration _tapCloseDuration = Duration(milliseconds: 220);
 
@@ -100,6 +105,7 @@ class _MainShellState extends ConsumerState<MainShell>
   late final AnimationController _tabTransitionController;
   double _lastDrawerWidth = 0;
   String? _lastLyricsPrefetchSongId;
+  String? _lastSidebarImagePrecachePath;
   final Set<String> _lyricsPrefetchInFlight = {};
   final List<_VelocitySample> _velocitySamples = [];
   final List<Rect> _drawerExclusionRects = [];
@@ -267,32 +273,39 @@ class _MainShellState extends ConsumerState<MainShell>
   void _snapAfterRelease([double? releaseVelocity]) {
     final progress = _drawerController.value;
     final pixelVelocity = releaseVelocity ?? _estimateVelocity();
-    final progressVelocity = _lastDrawerWidth > 0
-        ? (pixelVelocity / _lastDrawerWidth).abs()
-        : 0.0;
     _velocitySamples.clear();
 
-    if (pixelVelocity >= _drawerFlingVelocity ||
-        (pixelVelocity.abs() < _drawerFlingVelocity &&
-            progress >= _drawerOpenThreshold)) {
-      final remaining = 1 - progress;
-      final speed = progressVelocity.clamp(0.5, 8.0);
-      final durationMs = (remaining / speed * 1000).clamp(120.0, 220.0).toInt();
-      _drawerController.animateTo(
-        1.0,
-        duration: Duration(milliseconds: durationMs),
-        curve: Curves.easeOut,
-      );
-      return;
-    }
+    final shouldOpen = _shouldOpenDrawerAfterHorizontalDrag(
+      progress: progress,
+      primaryVelocity: pixelVelocity,
+    );
+    _settleDrawerAfterDrag(open: shouldOpen, primaryVelocity: pixelVelocity);
+  }
 
-    final remaining = progress;
-    final speed = progressVelocity.clamp(0.5, 8.0);
-    final durationMs = (remaining / speed * 1000).clamp(120.0, 220.0).toInt();
+  bool _shouldOpenDrawerAfterHorizontalDrag({
+    required double progress,
+    required double primaryVelocity,
+  }) {
+    if (primaryVelocity >= _drawerFlingVelocity) return true;
+    if (primaryVelocity <= -_drawerFlingVelocity) return false;
+    return progress >= _drawerOpenThreshold;
+  }
+
+  void _settleDrawerAfterDrag({
+    required bool open,
+    required double primaryVelocity,
+  }) {
+    final target = open ? 1.0 : 0.0;
+    final remaining = (_drawerController.value - target).abs();
+    final progressVelocity = _lastDrawerWidth > 0
+        ? (primaryVelocity / _lastDrawerWidth).abs()
+        : 0.0;
+    final speed = progressVelocity.clamp(0.9, 8.0);
+    final durationMs = (remaining / speed * 1000).clamp(120.0, 260.0).toInt();
     _drawerController.animateTo(
-      0.0,
+      target,
       duration: Duration(milliseconds: durationMs),
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
     );
   }
 
@@ -438,6 +451,19 @@ class _MainShellState extends ConsumerState<MainShell>
     }
   }
 
+  void _precacheSidebarImage(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return;
+    if (_lastSidebarImagePrecachePath == imagePath) return;
+    _lastSidebarImagePrecachePath = imagePath;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final file = File(imagePath);
+      if (!file.existsSync()) return;
+      unawaited(precacheImage(FileImage(file), context).catchError((_) {}));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<PlaybackState>(playerProvider, (previous, next) {
@@ -449,6 +475,9 @@ class _MainShellState extends ConsumerState<MainShell>
         _prefetchLyrics(next);
       }
     });
+    _precacheSidebarImage(
+      ref.watch(sidebarImageProvider.select((state) => state.imagePath)),
+    );
 
     final isStartingUp =
         ref.watch(authProvider.select((state) => state.isLoading)) ||
@@ -479,11 +508,9 @@ class _MainShellState extends ConsumerState<MainShell>
             },
             child: Stack(
               children: [
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: drawerWidth,
+                _DrawerPane(
+                  animation: _drawerController,
+                  drawerWidth: drawerWidth,
                   child: RepaintBoundary(
                     child: HomeSidebar(
                       onSettingsTap: _openSettingsHub,
@@ -508,22 +535,19 @@ class _MainShellState extends ConsumerState<MainShell>
       builder: (context, child) {
         final progress = _drawerController.value;
         final scale = 1 - ((1 - _drawerMinScale) * progress);
-        final previewBorderRadius = BorderRadius.circular(28 * progress);
+        final previewBorderRadius = BorderRadius.circular(
+          _drawerPreviewMaxRadius * progress,
+        );
         final shouldClipPreview = progress > 0.001;
         final preview = Stack(
           children: [
-            RepaintBoundary(child: child!),
+            child!,
             if (progress > 0)
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                child: _DrawerPreviewScrim(
+                  progress: progress,
+                  maxAlpha: _drawerScrimMaxAlpha,
                   onTap: _handleDrawerPreviewTap,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.10 * progress),
-                      borderRadius: previewBorderRadius,
-                    ),
-                  ),
                 ),
               ),
           ],
@@ -535,12 +559,9 @@ class _MainShellState extends ConsumerState<MainShell>
             scale: scale,
             alignment: Alignment.centerLeft,
             child: shouldClipPreview
-                ? Material(
-                    type: MaterialType.transparency,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: previewBorderRadius,
-                    ),
-                    clipBehavior: Clip.antiAlias,
+                ? ClipRRect(
+                    borderRadius: previewBorderRadius,
+                    clipBehavior: Clip.hardEdge,
                     child: preview,
                   )
                 : preview,
@@ -680,6 +701,65 @@ class _VelocitySample {
   final Duration timestamp;
   final double deltaDx;
   const _VelocitySample({required this.timestamp, required this.deltaDx});
+}
+
+class _DrawerPane extends StatelessWidget {
+  final Animation<double> animation;
+  final double drawerWidth;
+  final Widget child;
+
+  const _DrawerPane({
+    required this.animation,
+    required this.drawerWidth,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final shouldPaint = animation.value > 0.001 || animation.isAnimating;
+        return Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: drawerWidth,
+          child: IgnorePointer(
+            ignoring: !shouldPaint,
+            child: TickerMode(
+              enabled: shouldPaint,
+              child: Offstage(offstage: !shouldPaint, child: child!),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DrawerPreviewScrim extends StatelessWidget {
+  final double progress;
+  final double maxAlpha;
+  final VoidCallback onTap;
+
+  const _DrawerPreviewScrim({
+    required this.progress,
+    required this.maxAlpha,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: maxAlpha * progress),
+      ),
+    );
+  }
 }
 
 class _DrawerHorizontalDragGestureRecognizer

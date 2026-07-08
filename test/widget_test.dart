@@ -160,6 +160,37 @@ void main() {
     expect(homeScrollable.position.pixels, 0);
   });
 
+  testWidgets('Home sidebar drag preserves existing home scroll offset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        overrides: [
+          libraryProvider.overrideWith(
+            (ref) => _TestLibraryNotifier(_libraryWithManyAlbums()),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final homeScrollable = tester
+        .stateList<ScrollableState>(find.byType(Scrollable))
+        .firstWhere(
+          (state) => state.position.axisDirection == AxisDirection.down,
+        );
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
+    await tester.pumpAndSettle();
+    final scrolledOffset = homeScrollable.position.pixels;
+    expect(scrolledOffset, greaterThan(0));
+
+    await tester.dragFrom(const Offset(120, 240), const Offset(260, -90));
+    await tester.pump();
+
+    expect(homeScrollable.position.pixels, moreOrLessEquals(scrolledOffset));
+  });
+
   testWidgets('Home sidebar closes on a fast left fling', (tester) async {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();

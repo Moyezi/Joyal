@@ -92,11 +92,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  void _scheduleExclusionRectReport() {
+    if (_exclusionRectPending) return;
+    _exclusionRectPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _exclusionRectPending = false;
+      _reportExclusionRect();
+    });
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final offset = _scrollController.offset;
     final progress = (offset / _totalRange).clamp(0.0, 1.0);
     _animController.value = progress;
+    _scheduleExclusionRectReport();
   }
 
   String _greeting() {
@@ -130,13 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
 
     // 每次重建后尝试上报排除矩形（防抖：同一帧内不重复调度）
-    if (!_exclusionRectPending) {
-      _exclusionRectPending = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _exclusionRectPending = false;
-        _reportExclusionRect();
-      });
-    }
+    _scheduleExclusionRectReport();
 
     return Scaffold(
       body: Stack(
