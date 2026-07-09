@@ -12,6 +12,7 @@ import '../providers/library_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
+import '../widgets/cached_disk_image.dart';
 import '../widgets/frosted_glass.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/page_custom_background.dart';
@@ -45,6 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   static const double _totalRange = _searchBarHeight + _searchBarTopPadding;
   static const double _bottomSpacerBaseHeight = 28;
   static const double _miniPlayerHeight = 104;
+  static const double _recentCarouselHeight = 226;
 
   // ━━━ Animation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   late final AnimationController _animController;
@@ -254,25 +256,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             SliverToBoxAdapter(
               child: SizedBox(
                 key: _recentListKey,
-                height: 200,
-                child: ListView.separated(
-                  clipBehavior: Clip.none,
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.spacingLG,
-                    2,
-                    AppTheme.spacingLG,
-                    0,
+                height: _recentCarouselHeight,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: AppTheme.spacingLG),
+                  child: _RecentCardFlow(
+                    albums: recentAlbums,
+                    coverUrlFor: _coverUrl,
                   ),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: recentAlbums.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    final a = recentAlbums[index];
-                    return _RecentCard(
-                      album: a,
-                      coverUrl: _coverUrl(a.coverArt),
-                    );
-                  },
                 ),
               ),
             ),
@@ -480,48 +470,474 @@ class _DailyRecommendationsPreview extends ConsumerWidget {
 
 // ━━━ 最近添加横向卡片 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-class _RecentCard extends ConsumerWidget {
-  final Album album;
-  final String coverUrl;
-  const _RecentCard({required this.album, required this.coverUrl});
+class _RecentCardFlow extends StatefulWidget {
+  final List<Album> albums;
+  final String Function(String coverArtId) coverUrlFor;
+
+  const _RecentCardFlow({required this.albums, required this.coverUrlFor});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      width: 136,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album)),
+  State<_RecentCardFlow> createState() => _RecentCardFlowState();
+}
+
+class _RecentCardFlowState extends State<_RecentCardFlow>
+    with SingleTickerProviderStateMixin {
+  static const double _snapVelocity = 420;
+
+  late final AnimationController _snapController;
+  Animation<double>? _snapAnimation;
+  double _page = 0;
+  double _dragExtent = 220;
+
+  int get _maxPage => max(0, widget.albums.length - 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _snapController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 260),
+        )..addListener(() {
+          final animation = _snapAnimation;
+          if (animation == null) return;
+          setState(() => _page = animation.value);
+        });
+  }
+
+  @override
+  void didUpdateWidget(covariant _RecentCardFlow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_page > _maxPage) {
+      _snapController.stop();
+      _page = _maxPage.toDouble();
+    }
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    _snapController.stop();
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (widget.albums.length <= 1) return;
+    final primaryDelta = details.primaryDelta;
+    if (primaryDelta == null) return;
+
+    final nextPage = (_page - primaryDelta / _dragExtent)
+        .clamp(0.0, _maxPage.toDouble())
+        .toDouble();
+    setState(() => _page = nextPage);
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (widget.albums.length <= 1) return;
+    final velocity = details.primaryVelocity ?? 0;
+    var target = _page.round();
+    if (velocity < -_snapVelocity) {
+      target = _page.floor() + 1;
+    } else if (velocity > _snapVelocity) {
+      target = _page.ceil() - 1;
+    }
+    target = target.clamp(0, _maxPage).toInt();
+    _animateToPage(target.toDouble());
+  }
+
+  void _animateToPage(double targetPage) {
+    final target = targetPage.clamp(0.0, _maxPage.toDouble()).toDouble();
+    if ((target - _page).abs() < 0.001) {
+      setState(() => _page = target);
+      return;
+    }
+
+    _snapAnimation = Tween<double>(begin: _page, end: target).animate(
+      CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic),
+    );
+    _snapController.forward(from: 0);
+  }
+
+  void _handleCardTap(int index) {
+    if ((index - _page).abs() < 0.16) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AlbumDetailScreen(album: widget.albums[index]),
+        ),
+      );
+      return;
+    }
+    _animateToPage(index.toDouble());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.albums.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : _HomeScreenState._recentCarouselHeight;
+        final metrics = _RecentFlowMetrics.forSize(
+          viewportWidth: viewportWidth,
+          height: height,
+        );
+        _dragExtent = max(160.0, metrics.fullWidth + metrics.gap);
+
+        final baseIndex = _page.floor();
+        final startIndex = max(0, baseIndex - 1);
+        final endIndex = min(widget.albums.length - 1, baseIndex + 3);
+        final visibleCards = <_PositionedRecentCard>[];
+        for (var index = startIndex; index <= endIndex; index += 1) {
+          final slot = _slotForOffset(index - _page, metrics);
+          if (slot.opacity <= 0.01) continue;
+          visibleCards.add(
+            _PositionedRecentCard(
+              index: index,
+              album: widget.albums[index],
+              slot: slot,
+            ),
+          );
+        }
+        visibleCards.sort(
+          (a, b) => a.slot.focusAmount.compareTo(b.slot.focusAmount),
+        );
+
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: _handleDragStart,
+          onHorizontalDragUpdate: _handleDragUpdate,
+          onHorizontalDragEnd: _handleDragEnd,
+          child: SizedBox.expand(
+            child: ClipRect(
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  for (final card in visibleCards)
+                    Positioned(
+                      key: ValueKey(card.album.id),
+                      left: card.slot.x,
+                      top: 0,
+                      bottom: 0,
+                      width: card.slot.width,
+                      child: Opacity(
+                        opacity: card.slot.opacity,
+                        child: _RecentCard(
+                          album: card.album,
+                          coverUrl: widget.coverUrlFor(card.album.coverArt),
+                          focusAmount: card.slot.focusAmount,
+                          borderRadius: card.slot.radius,
+                          onTap: () => _handleCardTap(card.index),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AlbumCover(
-                coverArtUrl: coverUrl,
-                cacheKey: album.coverArt,
-                size: 136,
-                borderRadius: 16,
-                showShadow: false,
+        );
+      },
+    );
+  }
+
+  _RecentFlowSlot _slotForOffset(double offset, _RecentFlowMetrics metrics) {
+    final focus = _RecentFlowSlot(
+      x: 0,
+      width: metrics.fullWidth,
+      opacity: 1,
+      radius: 20,
+      focusAmount: 1,
+    );
+    final firstCapsule = _RecentFlowSlot(
+      x: metrics.firstCapsuleX,
+      width: metrics.firstCapsuleWidth,
+      opacity: 1,
+      radius: metrics.pillRadius,
+      focusAmount: 0,
+    );
+    final secondCapsule = _RecentFlowSlot(
+      x: metrics.secondCapsuleX,
+      width: metrics.secondCapsuleWidth,
+      opacity: 1,
+      radius: metrics.pillRadius,
+      focusAmount: 0,
+    );
+    final offRight = _RecentFlowSlot(
+      x: metrics.viewportWidth + metrics.gap,
+      width: metrics.secondCapsuleWidth,
+      opacity: 0,
+      radius: metrics.pillRadius,
+      focusAmount: 0,
+    );
+    final offLeft = _RecentFlowSlot(
+      x: -metrics.fullWidth - metrics.gap,
+      width: metrics.fullWidth,
+      opacity: 0,
+      radius: 20,
+      focusAmount: 0,
+    );
+
+    if (offset <= -1) return offLeft;
+    if (offset <= 0) {
+      return _RecentFlowSlot.lerp(offLeft, focus, offset + 1);
+    }
+    if (offset <= 1) {
+      final slot = _RecentFlowSlot.lerp(focus, firstCapsule, offset);
+      if (slot.focusAmount <= 0.001) return slot;
+      return slot.copyWith(radius: focus.radius);
+    }
+    if (offset <= 2) {
+      return _RecentFlowSlot.lerp(firstCapsule, secondCapsule, offset - 1);
+    }
+    if (offset <= 3) {
+      return _RecentFlowSlot.lerp(secondCapsule, offRight, offset - 2);
+    }
+    return offRight;
+  }
+}
+
+class _RecentFlowMetrics {
+  final double viewportWidth;
+  final double height;
+  final double gap;
+  final double fullWidth;
+  final double firstCapsuleWidth;
+  final double secondCapsuleWidth;
+
+  const _RecentFlowMetrics({
+    required this.viewportWidth,
+    required this.height,
+    required this.gap,
+    required this.fullWidth,
+    required this.firstCapsuleWidth,
+    required this.secondCapsuleWidth,
+  });
+
+  factory _RecentFlowMetrics.forSize({
+    required double viewportWidth,
+    required double height,
+  }) {
+    const gap = 12.0;
+    final fullWidth = min(height, viewportWidth * 0.62);
+    final secondCapsuleWidth = min(48.0, max(30.0, viewportWidth * 0.11));
+    final firstCapsuleWidth = min(
+      96.0,
+      max(36.0, viewportWidth - fullWidth - secondCapsuleWidth - gap * 2),
+    );
+
+    return _RecentFlowMetrics(
+      viewportWidth: viewportWidth,
+      height: height,
+      gap: gap,
+      fullWidth: fullWidth,
+      firstCapsuleWidth: firstCapsuleWidth,
+      secondCapsuleWidth: secondCapsuleWidth,
+    );
+  }
+
+  double get firstCapsuleX => fullWidth + gap;
+  double get secondCapsuleX => firstCapsuleX + firstCapsuleWidth + gap;
+  double get pillRadius => height / 2;
+}
+
+class _RecentFlowSlot {
+  final double x;
+  final double width;
+  final double opacity;
+  final double radius;
+  final double focusAmount;
+
+  const _RecentFlowSlot({
+    required this.x,
+    required this.width,
+    required this.opacity,
+    required this.radius,
+    required this.focusAmount,
+  });
+
+  _RecentFlowSlot copyWith({double? radius}) {
+    return _RecentFlowSlot(
+      x: x,
+      width: width,
+      opacity: opacity,
+      radius: radius ?? this.radius,
+      focusAmount: focusAmount,
+    );
+  }
+
+  static _RecentFlowSlot lerp(_RecentFlowSlot a, _RecentFlowSlot b, double t) {
+    final clampedT = t.clamp(0.0, 1.0).toDouble();
+    return _RecentFlowSlot(
+      x: _lerp(a.x, b.x, clampedT),
+      width: _lerp(a.width, b.width, clampedT),
+      opacity: _lerp(a.opacity, b.opacity, clampedT),
+      radius: _lerp(a.radius, b.radius, clampedT),
+      focusAmount: _lerp(a.focusAmount, b.focusAmount, clampedT),
+    );
+  }
+}
+
+class _PositionedRecentCard {
+  final int index;
+  final Album album;
+  final _RecentFlowSlot slot;
+
+  const _PositionedRecentCard({
+    required this.index,
+    required this.album,
+    required this.slot,
+  });
+}
+
+double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+class _RecentCard extends StatelessWidget {
+  final Album album;
+  final String coverUrl;
+  final VoidCallback onTap;
+  final double focusAmount;
+  final double borderRadius;
+
+  const _RecentCard({
+    required this.album,
+    required this.coverUrl,
+    required this.onTap,
+    required this.focusAmount,
+    required this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(borderRadius);
+    final contentOpacity = Curves.easeOut.transform(
+      focusAmount.clamp(0.0, 1.0).toDouble(),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: onTap,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _RecentCardImage(album: album, coverUrl: coverUrl),
+            if (contentOpacity > 0.02)
+              Opacity(
+                opacity: contentOpacity,
+                child: const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x00000000),
+                        Color(0x14000000),
+                        Color(0xB8000000),
+                      ],
+                      stops: [0.42, 0.68, 1],
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                album.name,
-                style: context.textTitleMedium.copyWith(fontSize: 15),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            if (contentOpacity > 0.04)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 14,
+                child: Opacity(
+                  opacity: contentOpacity,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        album.name,
+                        style: context.textTitleMedium.copyWith(
+                          color: Colors.white,
+                          fontSize: 16,
+                          height: 1.16,
+                          shadows: const [
+                            Shadow(
+                              blurRadius: 12,
+                              color: Color(0xAA000000),
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        album.artist,
+                        style: context.textBodySmall.copyWith(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          height: 1.15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 1),
-              Text(
-                album.artist,
-                style: context.textBodySmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentCardImage extends StatelessWidget {
+  final Album album;
+  final String coverUrl;
+
+  const _RecentCardImage({required this.album, required this.coverUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    if (coverUrl.isEmpty) return const _RecentCardPlaceholder();
+
+    return CachedDiskImage(
+      imageUrl: coverUrl,
+      cacheKey: album.coverArt,
+      fit: BoxFit.cover,
+      placeholderBuilder: (_) => const _RecentCardPlaceholder(),
+      errorBuilder: (_, _) => const _RecentCardPlaceholder(),
+      fadeInDuration: const Duration(milliseconds: 220),
+      fadeOutDuration: const Duration(milliseconds: 120),
+    );
+  }
+}
+
+class _RecentCardPlaceholder extends StatelessWidget {
+  const _RecentCardPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [context.surfaceHighlightColor, context.surfaceColor],
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.album_rounded,
+          size: 52,
+          color: context.secondaryColor.withValues(alpha: 0.54),
         ),
       ),
     );
