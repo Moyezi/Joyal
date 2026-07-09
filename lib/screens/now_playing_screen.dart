@@ -8,12 +8,14 @@ import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
+import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/dynamic_album_background.dart';
+import '../widgets/frosted_glass.dart';
 import '../widgets/now_playing_transition.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/song_actions_sheet.dart';
@@ -552,13 +554,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          color: Theme.of(context).colorScheme.onSurface,
           onPressed: _closePage,
         ),
         title: const Text('Now Playing'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.lyrics_outlined),
+            icon: const Icon(Icons.lyrics_rounded),
+            color: Theme.of(context).colorScheme.onSurface,
             tooltip: '歌词',
             onPressed: song == null ? null : _showLyrics,
           ),
@@ -1008,16 +1012,23 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     required PlaybackMode playbackMode,
   }) {
     final notifier = ref.read(playerProvider.notifier);
-    final brightness = Theme.of(context).brightness;
+    final theme = Theme.of(context);
+    final brightness = theme.brightness;
     final isDark = brightness == Brightness.dark;
-    final actionIconColor = context.primaryColor;
+    final actionIconColor = theme.colorScheme.onSurface;
     final disabledActionIconColor = actionIconColor.withValues(alpha: 0.38);
-    final playButtonBackground = isDark
-        ? context.surfaceColor
-        : context.primaryColor;
-    final playButtonForeground = isDark
-        ? context.primaryColor
-        : Theme.of(context).colorScheme.onPrimary;
+    final playButtonBackground = context.surfaceColor;
+    final playButtonForeground = theme.colorScheme.onSurface;
+    final controlsBlur = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.bottomNav),
+      ),
+    );
+    final controlsTintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.bottomNav),
+      ),
+    );
     final isStarred = ref.watch(
       libraryProvider.select(
         (state) => state.starredSongs.any((item) => item.id == song.id),
@@ -1080,7 +1091,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       icon: Icon(
                         isStarred
                             ? Icons.favorite_rounded
-                            : Icons.favorite_border,
+                            : Icons.favorite_border_rounded,
                       ),
                       style: IconButton.styleFrom(
                         foregroundColor: isStarred
@@ -1133,7 +1144,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
                     IconButton(
                       tooltip: '更多操作',
-                      icon: const Icon(Icons.more_horiz),
+                      icon: const Icon(Icons.more_horiz_rounded),
                       style: IconButton.styleFrom(
                         foregroundColor: actionIconColor,
                         disabledForegroundColor: disabledActionIconColor,
@@ -1188,83 +1199,119 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 child: IgnorePointer(
                   ignoring: _isSelecting,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingLG,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // Combined playback mode
-                        IconButton(
-                          tooltip: _playbackModeLabel(playbackMode),
-                          icon: Icon(_playbackModeIcon(playbackMode)),
-                          color: playbackMode == PlaybackMode.sequential
-                              ? actionIconColor
-                              : context.primaryColor,
-                          onPressed: () async {
-                            HapticFeedback.selectionClick();
-                            final mode = await notifier.cyclePlaybackMode();
-                            if (context.mounted) {
-                              showAppToast(
-                                context,
-                                _playbackModeLabel(mode),
-                                duration: const Duration(milliseconds: 900),
-                                replaceCurrent: true,
-                              );
-                            }
-                          },
-                        ),
-
-                        // Previous
-                        IconButton(
-                          icon: const Icon(Icons.skip_previous),
-                          iconSize: 36,
-                          onPressed: () => _slideToAdjacentTrack(
-                            _CoverSlideDirection.previous,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: FrostedGlass(
+                      blurSigma: controlsBlur,
+                      borderRadius: BorderRadius.circular(34),
+                      tintColor: theme.scaffoldBackgroundColor,
+                      tintOpacity: controlsTintOpacity,
+                      borderOpacity: 0,
+                      boxShadow: [
+                        BoxShadow(
+                          color: theme.colorScheme.shadow.withValues(
+                            alpha: isDark ? 0.22 : 0.08,
                           ),
-                        ),
-
-                        // Play / Pause (large CTA)
-                        NowPlayingSharedHero(
-                          tag: nowPlayingPlayButtonHeroTag,
-                          crossFadeOnPop: true,
-                          child: Container(
-                            width: 78,
-                            height: 78,
-                            decoration: BoxDecoration(
-                              color: playButtonBackground,
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: Icon(
-                                isPlaying ? Icons.pause : Icons.play_arrow,
-                                color: playButtonForeground,
-                                size: 40,
-                              ),
-                              onPressed: () => notifier.togglePlayPause(),
-                            ),
-                          ),
-                        ),
-
-                        // Next
-                        IconButton(
-                          icon: const Icon(Icons.skip_next),
-                          iconSize: 36,
-                          onPressed: () =>
-                              _slideToAdjacentTrack(_CoverSlideDirection.next),
-                        ),
-
-                        // Queue
-                        IconButton(
-                          tooltip: '播放队列',
-                          icon: const Icon(Icons.queue_music_outlined),
-                          style: IconButton.styleFrom(
-                            foregroundColor: actionIconColor,
-                            disabledForegroundColor: disabledActionIconColor,
-                          ),
-                          onPressed: () => PlayQueueSheet.show(context),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
                         ),
                       ],
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            // Combined playback mode
+                            IconButton(
+                              tooltip: _playbackModeLabel(playbackMode),
+                              icon: Icon(_playbackModeIcon(playbackMode)),
+                              color: playbackMode == PlaybackMode.sequential
+                                  ? actionIconColor
+                                  : theme.colorScheme.onSurface,
+                              onPressed: () async {
+                                HapticFeedback.selectionClick();
+                                final mode = await notifier.cyclePlaybackMode();
+                                if (context.mounted) {
+                                  showAppToast(
+                                    context,
+                                    _playbackModeLabel(mode),
+                                    duration: const Duration(milliseconds: 900),
+                                    replaceCurrent: true,
+                                  );
+                                }
+                              },
+                            ),
+
+                            // Previous
+                            IconButton(
+                              icon: const Icon(Icons.skip_previous_rounded),
+                              color: actionIconColor,
+                              iconSize: 34,
+                              onPressed: () => _slideToAdjacentTrack(
+                                _CoverSlideDirection.previous,
+                              ),
+                            ),
+
+                            // Play / Pause (large CTA)
+                            NowPlayingSharedHero(
+                              tag: nowPlayingPlayButtonHeroTag,
+                              crossFadeOnPop: true,
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: playButtonBackground,
+                                  borderRadius: BorderRadius.circular(22),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.shadow
+                                          .withValues(
+                                            alpha: isDark ? 0.20 : 0.10,
+                                          ),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 5),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  icon: Icon(
+                                    isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    color: playButtonForeground,
+                                    size: 36,
+                                  ),
+                                  onPressed: () => notifier.togglePlayPause(),
+                                ),
+                              ),
+                            ),
+
+                            // Next
+                            IconButton(
+                              icon: const Icon(Icons.skip_next_rounded),
+                              color: actionIconColor,
+                              iconSize: 34,
+                              onPressed: () => _slideToAdjacentTrack(
+                                _CoverSlideDirection.next,
+                              ),
+                            ),
+
+                            // Queue
+                            IconButton(
+                              tooltip: '播放队列',
+                              icon: const Icon(Icons.queue_music_rounded),
+                              style: IconButton.styleFrom(
+                                foregroundColor: actionIconColor,
+                                disabledForegroundColor:
+                                    disabledActionIconColor,
+                              ),
+                              onPressed: () => PlayQueueSheet.show(context),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),

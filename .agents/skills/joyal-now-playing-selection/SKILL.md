@@ -7,8 +7,14 @@ description: "Now-playing and selection-mode memory for Joyal Music. Use when ch
 
 ## Control Colors
 
-- Normal-state now-playing buttons, including heart, more, queue, and playback controls, use `context.primaryColor`.
+- Use `Theme.of(context).colorScheme.onSurface` for normal now-playing action icons so they match the main navigation.
 - Favorited state keeps `context.favoriteRedColor`.
+- Use rounded Material icons for top actions and transport controls.
+
+## Playback Control Rail
+
+- Wrap the five playback controls in `FrostedGlass` using `GlassEffectTarget.bottomNav`; this shares the navigation glass blur, opacity, and liquid-glass switch.
+- Keep the main play/pause Hero (`nowPlayingPlayButtonHeroTag`) as a 64px rounded rectangle (`radius: 22`) with `context.surfaceColor` and `onSurface` foreground; do not hardcode light/dark button colors.
 
 ## MiniPlayer To Now Playing
 
@@ -23,8 +29,7 @@ description: "Now-playing and selection-mode memory for Joyal Music. Use when ch
 ## Play Button Transition
 
 - MiniPlayer play button and now-playing main play button share a Hero.
-- Returning from now playing or lyrics should smoothly transition from black background to MiniPlayer white background.
-- Do not let color jump after landing.
+- Preserve the cross-fade on return and do not let the play-button color jump after landing.
 - MiniPlayer lyrics area does not participate in cross-page Hero.
 
 ## Waveform Progress
