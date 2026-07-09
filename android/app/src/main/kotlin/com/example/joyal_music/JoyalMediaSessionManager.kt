@@ -13,9 +13,11 @@ import java.io.File
 class JoyalMediaSessionManager(
     context: Context,
     private val controlChannel: MethodChannel,
-    private val oppoBridge: OppoFluidCloudBridge = OppoFluidCloudBridge(context),
+    private val oppoBridge: OppoFluidCloudBridge = OppoFluidCloudBridge(context.applicationContext),
 ) {
-    private val mediaSession = MediaSession(context, "JoyalMusicSession").apply {
+    private val appContext = context.applicationContext
+    private var foregroundServiceStarted = false
+    private val mediaSession = MediaSession(appContext, "JoyalMusicSession").apply {
         setCallback(object : MediaSession.Callback() {
             override fun onPlay() = sendControl("togglePlayPause")
             override fun onPause() = sendControl("togglePlayPause")
@@ -72,6 +74,7 @@ class JoyalMediaSessionManager(
         mediaSession.setPlaybackState(state)
         mediaSession.isActive = true
         oppoBridge.updatePlaybackState(snapshot)
+        syncForegroundService(snapshot)
     }
 
     fun clear() {
@@ -82,6 +85,7 @@ class JoyalMediaSessionManager(
                 .build(),
         )
         oppoBridge.clear()
+        stopForegroundService()
     }
 
     fun release() {
@@ -94,6 +98,25 @@ class JoyalMediaSessionManager(
             controlChannel.invokeMethod("mediaControl", action)
         } catch (error: Exception) {
             Log.w("JoyalMediaSession", "Failed to send media control: $action", error)
+        }
+    }
+
+    private fun syncForegroundService(snapshot: PlaybackSnapshot) {
+        if (!snapshot.isPlaying && !foregroundServiceStarted) return
+        try {
+            JoyalPlaybackService.update(appContext, snapshot)
+            foregroundServiceStarted = true
+        } catch (error: Exception) {
+            Log.w("JoyalMediaSession", "Failed to update playback foreground service", error)
+        }
+    }
+
+    private fun stopForegroundService() {
+        foregroundServiceStarted = false
+        try {
+            JoyalPlaybackService.stop(appContext)
+        } catch (error: Exception) {
+            Log.w("JoyalMediaSession", "Failed to stop playback foreground service", error)
         }
     }
 

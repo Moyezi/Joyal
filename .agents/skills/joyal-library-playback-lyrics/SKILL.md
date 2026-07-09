@@ -39,6 +39,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - `PlayerNotifier.playAtIndex()` is the unified entry for switching tracks and selecting queue items.
 - The user explicitly requested no abnormal auto-next recovery, no jump-back behavior, and no extra seek protection logic.
 - Keep playback as direct as possible through Navidrome `stream.view&format=raw`.
+- Lock-screen/background stop issues should be handled through platform audio support, not fake auto-next recovery: Android uses `JoyalPlaybackService` as a `mediaPlayback` foreground service and iOS declares `UIBackgroundModes/audio`.
 
 ## Listening Stats
 

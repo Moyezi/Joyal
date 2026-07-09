@@ -29,6 +29,7 @@ The visual direction is minimal, immersive, cool black/white/gray, large-radius,
 - Never write or transmit real plaintext credentials.
 - Prefer HTTPS for public Navidrome servers.
 - Android media bridge must pass only playback metadata and local cover paths. Do not pass stream URLs, tokens, passwords, or `baseUrl`.
+- Android locked-screen playback is backed by `JoyalPlaybackService`, a native `mediaPlayback` foreground service driven by `AndroidMediaBridge` snapshots; it may hold a partial wake lock while playing, but still must never receive stream URLs or credentials.
 - `OppoFluidCloudBridge` is only reserved for a future SDK. Current behavior relies on standard `MediaSession`.
 - Store the DeepSeek API key only in secure storage under `deepseek_api_key`.
 - Never write the DeepSeek API key to SQLite, JSON, logs, crash reports, or Git.
@@ -45,7 +46,8 @@ The visual direction is minimal, immersive, cool black/white/gray, large-radius,
 - Now playing and lyrics: `now_playing_screen.dart`, `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `waveform_progress.dart`, `now_playing_transition.dart`.
 - Downloads and cache: `app_cache_service.dart`, `cache_repository.dart`, `cache_provider.dart`, `cache_management_screen.dart`, `cached_disk_image.dart`.
 - Classification: `music_classification.dart`, `deepseek_classification_service.dart`, `music_classification_repository.dart`, `music_classification_provider.dart`, `music_classification_screen.dart`.
-- Android media bridge: `android/app/src/main/kotlin/com/example/joyal_music/`.
+- Android media bridge and background playback: `android/app/src/main/kotlin/com/example/joyal_music/`, especially `JoyalMediaSessionManager.kt`, `JoyalPlaybackService.kt`, and `PlaybackSnapshot.kt`.
+- iOS background audio capability: `ios/Runner/Info.plist` declares `UIBackgroundModes/audio`.
 
 ## Collaboration Boundaries
 
