@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Settings Cache Release"
+  short_description: "Settings, cache, validation, and release rules."
+  default_prompt: "Use $joyal-settings-cache-release before changing settings, cache, or release builds."

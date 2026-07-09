@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Now Playing Selection"
+  short_description: "Now playing transition and selection rules."
+  default_prompt: "Use $joyal-now-playing-selection before changing now playing transitions or selection mode."

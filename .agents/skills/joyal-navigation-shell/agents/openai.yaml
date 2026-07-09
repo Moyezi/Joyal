@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Navigation Shell"
+  short_description: "Navigation shell and sidebar rules."
+  default_prompt: "Use $joyal-navigation-shell before changing navigation or shell interactions."

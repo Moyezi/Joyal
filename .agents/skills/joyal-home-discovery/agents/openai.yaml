@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Home Discovery"
+  short_description: "Home and discovery interaction rules."
+  default_prompt: "Use $joyal-home-discovery before changing home or discovery recommendations."

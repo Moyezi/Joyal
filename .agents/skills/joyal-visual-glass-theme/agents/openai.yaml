@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Visual Glass Theme"
+  short_description: "Theme, glass, color, and background rules."
+  default_prompt: "Use $joyal-visual-glass-theme before changing visual effects or theme."

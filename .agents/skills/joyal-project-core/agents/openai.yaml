@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Project Core"
+  short_description: "Core identity, security, and paths."
+  default_prompt: "Use $joyal-project-core before changing shared architecture or security."

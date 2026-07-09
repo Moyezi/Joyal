@@ -1,0 +1,4 @@
+interface:
+  display_name: "Joyal Classification"
+  short_description: "Classification, DeepSeek, and tag rules."
+  default_prompt: "Use $joyal-classification before changing music classification or tags."
