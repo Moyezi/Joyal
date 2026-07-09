@@ -18,8 +18,10 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 
 - API/播放：`lib/services/subsonic_api.dart`、`audio_player_service.dart`、`lib/providers/player_provider.dart`、`listening_stats_provider.dart`。
 - 曲库/搜索/发现：`library_provider.dart`、`home_screen.dart`、`library_screen.dart`、`hotlist_screen.dart`、`search_screen.dart`。发现页文件仍叫 `HotlistScreen`。
+- 发现页拆分组件：`lib/widgets/discovery/discover_song_carousel.dart`（顶部 Cover Flow）、`for_you_discovery_section.dart` + `discovery_playlist_card.dart`/`discovery_card_models.dart`（为你发现卡片和推荐种子）、`classification_status_card.dart`、`discovery_section_header.dart`。
 - 导航/设置/Dock：`lib/app.dart`、`home_sidebar.dart`、`mini_player.dart`、`bottom_nav.dart`、`play_queue_sheet.dart`、`settings_hub_screen.dart`、`personalization_screen.dart`。
 - 视觉/毛玻璃/背景：`page_background_provider.dart`、`glass_effect_provider.dart`、`visual_effect_provider.dart`、`mini_player_color_provider.dart`、`frosted_glass.dart`、`glass_top_bar.dart`、`page_custom_background.dart`、`dynamic_album_background.dart`、`album_visual_palette.dart`、`mini_player_chrome.dart`。
+- 个性化页拆分组件：`lib/widgets/personalization/page_background_settings.dart`（页面背景、侧边栏图片和 16:9 取景）、`glass_effect_tile.dart`（毛玻璃预览与滑杆）、`mini_player_color_tile.dart`（迷你播放栏颜色）、`personalization_choice_tile.dart`（通用设置选项卡）。
 - 播放页/歌词：`now_playing_screen.dart`、`lyrics_screen.dart`、`lyrics_provider.dart`、`lyrics_personalization_provider.dart`、`waveform_progress.dart`、`now_playing_transition.dart`。
 - 下载/缓存：`app_cache_service.dart`、`cache_repository.dart`、`cache_provider.dart`、`cache_management_screen.dart`、`cached_disk_image.dart`。
 - 智能分类：`music_classification.dart`、`deepseek_classification_service.dart`、`music_classification_repository.dart`、`music_classification_provider.dart`、`music_classification_screen.dart`；发现页入口在 `hotlist_screen.dart`。
@@ -46,6 +48,7 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 - Cover Flow 支持封面区域横向拖动和虚拟页循环；快速滑动速度 `<180` 吸附最近页，`180-1000` 跳 1 张，`1001-2000` 跳 2 张，`>2000` 跳 3 张，并轻选择振动。
 - 发现页保留“收藏歌曲”区块，复用 `QueueSongCard` 和 `PlayQueueSheet`；点击收藏歌曲以当前收藏集合建立真实队列。
 - “为你发现”优先用本地智能分类标签筛歌；分类不足只能退化到收藏/随机等真实本地集合，不展示无数据支撑的 AI 推荐。
+- “为你发现”卡片是横向情景歌单卡：细腻渐变背景、轻描边、柔和阴影、右下角彩色氛围光；右上角两张真实专辑封面错位叠放，前景左旋、后景右旋缩小降透明；左上角小图标，底部只显示标题和副标题，不显示歌曲数量。按下时卡片轻微放大、阴影/描边/氛围光增强、封面轻微展开，松开恢复。
 
 ## 主题、毛玻璃与性能
 
@@ -67,7 +70,7 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 
 - 启动从 secure storage 恢复 Navidrome 凭据；认证恢复后等待依赖 Provider 重建再刷新曲库。启动遮罩覆盖凭据读取和本地播放会话恢复，避免 MiniPlayer/Dock 闪现。
 - `refreshLibrary()` 并行刷新专辑、全量歌曲和收藏。专辑用 `getAlbumList2.view` 分页；全量歌曲用空查询 `search3.view` + `songOffset` 分页。
-- 曲库页刷新走 `refreshLibrary()`；发现页顶栏刷新当前走 `fetchStarred()`，未连接提示，刷新后 toast 明确成功/失败。
+- 曲库页刷新走 `refreshLibrary()`；发现页刷新会先本地刷新“为你发现”推荐种子，再尝试 `fetchStarred()` 刷新收藏；未连接时只刷新本地推荐并提示收藏刷新需连接服务器。
 - 曲库歌曲排序按钮在右上角，与定位当前歌曲、刷新同一行；排序条件写 secure storage。中文歌曲名/艺术家按开头汉字拼音首字母排序。
 - 曲库歌曲 Tab 可 UI 层渐进展示，但播放、定位当前歌曲、队列建立必须使用完整排序列表，不能被可见数量截断。
 - 收藏共享状态并乐观更新，失败回滚；发现页收藏区无需手动刷新即可同步。
