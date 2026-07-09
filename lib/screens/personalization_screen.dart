@@ -216,8 +216,12 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
   @override
   Widget build(BuildContext context) {
     final glassState = ref.watch(glassEffectProvider);
-    final blurSigma = glassState.blurFor(_selectedTarget);
+    final blurSigma = _effectiveBlurFor(
+      _selectedTarget,
+      glassState.blurFor(_selectedTarget),
+    );
     final tintOpacity = glassState.opacityFor(_selectedTarget);
+    final blurMax = _blurSliderMaxFor(_selectedTarget);
 
     return Material(
       color: context.surfaceColor,
@@ -247,6 +251,10 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                       },
                       itemBuilder: (context, index) {
                         final target = GlassEffectTarget.values[index];
+                        final targetBlur = _effectiveBlurFor(
+                          target,
+                          glassState.blurFor(target),
+                        );
                         return AnimatedBuilder(
                           animation: _pageController,
                           builder: (context, child) {
@@ -267,7 +275,7 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
                                 scale: scale,
                                 child: _GlassPreview(
                                   target: target,
-                                  blurSigma: glassState.blurFor(target),
+                                  blurSigma: targetBlur,
                                   tintOpacity: glassState.opacityFor(target),
                                   alignment: Alignment(alignmentX, 0),
                                 ),
@@ -291,10 +299,10 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
             const SizedBox(height: AppTheme.spacingSM),
             _GlassEffectSlider(
               icon: Icons.blur_on_rounded,
-              value: blurSigma.clamp(0.0, 30.0).toDouble(),
+              value: blurSigma,
               min: 0,
-              max: 30,
-              divisions: 15,
+              max: blurMax,
+              divisions: _blurSliderDivisionsFor(_selectedTarget),
               label: blurSigma.toStringAsFixed(0),
               valueText: blurSigma == 0 ? '关闭' : blurSigma.toStringAsFixed(0),
               onChanged: (value) => ref
@@ -323,6 +331,18 @@ class _GlassEffectTileState extends ConsumerState<_GlassEffectTile> {
         ),
       ),
     );
+  }
+
+  double _effectiveBlurFor(GlassEffectTarget target, double value) {
+    return value.clamp(0.0, _blurSliderMaxFor(target)).toDouble();
+  }
+
+  double _blurSliderMaxFor(GlassEffectTarget target) {
+    return target == GlassEffectTarget.lyricsPage ? 12 : 30;
+  }
+
+  int _blurSliderDivisionsFor(GlassEffectTarget target) {
+    return target == GlassEffectTarget.lyricsPage ? 12 : 15;
   }
 }
 
@@ -448,6 +468,23 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.lyricsDrawer => BorderRadius.circular(28),
     };
 
+    if (target == GlassEffectTarget.lyricsPage) {
+      return SizedBox(
+        height: 148,
+        child: Align(
+          alignment: alignment,
+          child: SizedBox(
+            width: _previewWidthFor(target),
+            height: _previewHeightFor(target),
+            child: _LyricsPageGlassPreview(
+              blurSigma: blurSigma.clamp(0.0, 12.0).toDouble(),
+              opacity: tintOpacity,
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       height: 148,
       child: Align(
@@ -500,7 +537,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.searchBar => 54,
       GlassEffectTarget.bottomNav => 64,
       GlassEffectTarget.songCard => 68,
-      GlassEffectTarget.lyricsPage => 98,
+      GlassEffectTarget.lyricsPage => 112,
       GlassEffectTarget.lyricsDrawer => 112,
     };
   }
@@ -513,6 +550,87 @@ class _GlassPreview extends ConsumerWidget {
       return 0;
     }
     return isDark ? 0.08 : 0.06;
+  }
+}
+
+class _LyricsPageGlassPreview extends StatelessWidget {
+  final double blurSigma;
+  final double opacity;
+
+  const _LyricsPageGlassPreview({
+    required this.blurSigma,
+    required this.opacity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveOpacity = opacity.clamp(0.0, 1.0).toDouble();
+    final inactiveColor = Color.lerp(
+      context.secondaryColor,
+      context.primaryColor,
+      0.38,
+    )!.withValues(alpha: inactiveOpacity);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PreviewLyricLine(
+            text: '上一句慢慢退远',
+            color: inactiveColor,
+            blurSigma: blurSigma * 0.58,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '正在唱到这一句',
+            style: context.textTitleMedium.copyWith(
+              color: context.primaryColor,
+              fontWeight: FontWeight.w800,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          _PreviewLyricLine(
+            text: '下一句藏进雾里',
+            color: inactiveColor,
+            blurSigma: blurSigma,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewLyricLine extends StatelessWidget {
+  final String text;
+  final Color color;
+  final double blurSigma;
+
+  const _PreviewLyricLine({
+    required this.text,
+    required this.color,
+    required this.blurSigma,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(
+      text,
+      style: context.textBodyMedium.copyWith(
+        color: color,
+        fontWeight: FontWeight.w600,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    if (blurSigma <= 0.05) return child;
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+      child: child,
+    );
   }
 }
 
@@ -716,45 +834,7 @@ class _GlassPreviewContent extends StatelessWidget {
           ],
         ),
       ),
-      GlassEffectTarget.lyricsPage => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '正在唱到这一句',
-              style: context.textTitleMedium.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            FractionallySizedBox(
-              widthFactor: 0.72,
-              child: Container(
-                height: 6,
-                decoration: BoxDecoration(
-                  color: context.primaryColor.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            FractionallySizedBox(
-              widthFactor: 0.48,
-              child: Container(
-                height: 6,
-                decoration: BoxDecoration(
-                  color: context.primaryColor.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      GlassEffectTarget.lyricsPage => const SizedBox.shrink(),
       GlassEffectTarget.lyricsDrawer => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: Column(

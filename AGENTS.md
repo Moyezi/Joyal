@@ -78,7 +78,7 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 - 歌词缓存键按 `baseUrl + username + song.id` 作用域生成；空歌词短期缓存，失败后移除内存 Future 缓存。
 - `LyricsScreen` 初始化后立即加载，不等横滑动画完成。歌词页不显示返回键和标题“歌词”，顶部只固定当前歌曲名和歌手。
 - 歌词页出现或横滑过渡中，播放详情页外层下滑关闭手势禁用；退出歌词页走现有横滑/切换逻辑。
-- 歌词页双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写 secure storage，含颜色、对齐、字号、字体。自定义 `.ttf` 用 `file_picker` 选择后复制到应用支持目录并 `FontLoader` 注册；旧黑体/圆体/手写体值回退系统字体。
+- 歌词页双指捏合打开就地个性化抽屉；偏好由 `lyrics_personalization_provider.dart` 写 secure storage，含颜色、对齐、字号、字体。非当前句歌词的雾化由 `GlassEffectTarget.lyricsPage` 控制，当前句保持清晰；抽屉自身毛玻璃用 `lyricsDrawer`。自定义 `.ttf` 用 `file_picker` 选择后复制到应用支持目录并 `FontLoader` 注册；旧黑体/圆体/手写体值回退系统字体。
 - MiniPlayer 中间区域显示当前句和下一句歌词，不显示歌名/歌手；换句共用同一垂直轨道，动画时长按相邻歌词时间差调整。歌词布局不要在内部 `ClipRect` 里负偏移导致左侧截断。
 
 ## 智能分类

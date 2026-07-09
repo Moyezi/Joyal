@@ -437,14 +437,22 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     };
   }
 
-  Color _inactiveLyricColor(BuildContext context, Color activeColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final opacity = isDark ? 0.52 : 0.46;
+  Color _inactiveLyricColor(
+    BuildContext context,
+    Color activeColor,
+    double opacity,
+  ) {
     return Color.lerp(
       context.secondaryColor,
       activeColor,
       0.38,
-    )!.withValues(alpha: opacity);
+    )!.withValues(alpha: opacity.clamp(0.0, 1.0).toDouble());
+  }
+
+  double _inactiveLyricBlur(int distance, double maxBlur) {
+    if (distance <= 0 || maxBlur <= 0.05) return 0;
+    final ratio = (distance / 6).clamp(0.0, 1.0).toDouble();
+    return (maxBlur * ratio).clamp(0.0, maxBlur).toDouble();
   }
 
   TextAlign _textAlignFor(LyricsAlignmentMode alignment) {
@@ -467,18 +475,28 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
   Widget build(BuildContext context) {
     final active = _activeIndex;
     final preferences = ref.watch(lyricsPersonalizationProvider);
-    final overlayBlur = ref.watch(
-      glassEffectProvider.select(
-        (state) => state.blurFor(GlassEffectTarget.lyricsPage),
-      ),
-    );
-    final overlayOpacity = ref.watch(
-      glassEffectProvider.select(
-        (state) => state.opacityFor(GlassEffectTarget.lyricsPage),
-      ),
-    );
+    final inactiveBlur = ref
+        .watch(
+          glassEffectProvider.select(
+            (state) => state.blurFor(GlassEffectTarget.lyricsPage),
+          ),
+        )
+        .clamp(0.0, 12.0)
+        .toDouble();
+    final inactiveOpacity = ref
+        .watch(
+          glassEffectProvider.select(
+            (state) => state.opacityFor(GlassEffectTarget.lyricsPage),
+          ),
+        )
+        .clamp(0.0, 1.0)
+        .toDouble();
     final activeColor = _activeLyricColor(context, preferences);
-    final inactiveColor = _inactiveLyricColor(context, activeColor);
+    final inactiveColor = _inactiveLyricColor(
+      context,
+      activeColor,
+      inactiveOpacity,
+    );
     final textAlign = _textAlignFor(preferences.alignment);
     final scaleAlignment = _scaleAlignmentFor(preferences.alignment);
     final activeStyle = context.textHeadlineMedium.copyWith(
@@ -529,10 +547,10 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                   final canSeek = line.start != null;
                   final distance = active < 0
                       ? 0
-                      : (lineIndex - active).abs().clamp(0, 6);
+                      : (lineIndex - active).abs().clamp(0, 6).toInt();
                   final blurSigma = isActive
                       ? 0.0
-                      : (distance * 0.95).clamp(0.0, 4.8);
+                      : _inactiveLyricBlur(distance, inactiveBlur);
                   return GestureDetector(
                     key: _lineKeys[lineIndex],
                     behavior: HitTestBehavior.translucent,
@@ -563,10 +581,6 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                 },
               ),
             ),
-          ),
-          _LyricsGlassDepthOverlay(
-            blurSigma: overlayBlur,
-            tintOpacity: overlayOpacity,
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(22, titleTop, 22, 18),
@@ -639,12 +653,31 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(lyricsPersonalizationProvider);
-    const glassTarget = GlassEffectTarget.lyricsDrawer;
-    final blurSigma = ref.watch(
-      glassEffectProvider.select((state) => state.blurFor(glassTarget)),
+    const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
+    const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
+    final inactiveBlur = ref
+        .watch(
+          glassEffectProvider.select(
+            (state) => state.blurFor(inactiveLyricsTarget),
+          ),
+        )
+        .clamp(0.0, 12.0)
+        .toDouble();
+    final inactiveOpacity = ref
+        .watch(
+          glassEffectProvider.select(
+            (state) => state.opacityFor(inactiveLyricsTarget),
+          ),
+        )
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final drawerBlur = ref.watch(
+      glassEffectProvider.select((state) => state.blurFor(drawerGlassTarget)),
     );
-    final tintOpacity = ref.watch(
-      glassEffectProvider.select((state) => state.opacityFor(glassTarget)),
+    final drawerTintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(drawerGlassTarget),
+      ),
     );
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
@@ -655,10 +688,10 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
         maxHeight: MediaQuery.sizeOf(context).height * 0.84,
       ),
       child: FrostedGlass(
-        blurSigma: blurSigma,
+        blurSigma: drawerBlur,
         borderRadius: BorderRadius.circular(28),
         tintColor: context.surfaceColor,
-        tintOpacity: tintOpacity,
+        tintOpacity: drawerTintOpacity,
         borderColor: context.primaryColor,
         borderOpacity: isDark ? 0.08 : 0.06,
         boxShadow: [
@@ -707,14 +740,33 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                       unawaited(
                         ref
                             .read(glassEffectProvider.notifier)
-                            .setBlur(glassTarget, glassTarget.defaultBlur),
+                            .setBlur(
+                              inactiveLyricsTarget,
+                              inactiveLyricsTarget.defaultBlur,
+                            ),
                       );
                       unawaited(
                         ref
                             .read(glassEffectProvider.notifier)
                             .setOpacity(
-                              glassTarget,
-                              glassTarget.defaultOpacity,
+                              inactiveLyricsTarget,
+                              inactiveLyricsTarget.defaultOpacity,
+                            ),
+                      );
+                      unawaited(
+                        ref
+                            .read(glassEffectProvider.notifier)
+                            .setBlur(
+                              drawerGlassTarget,
+                              drawerGlassTarget.defaultBlur,
+                            ),
+                      );
+                      unawaited(
+                        ref
+                            .read(glassEffectProvider.notifier)
+                            .setOpacity(
+                              drawerGlassTarget,
+                              drawerGlassTarget.defaultOpacity,
                             ),
                       );
                     },
@@ -724,7 +776,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '双指捏合可再次打开这里，毛玻璃调整会实时应用到这个抽屉。',
+                '双指捏合可再次打开这里，非当前句和抽屉毛玻璃会实时应用。',
                 style: context.textBodySmall.copyWith(
                   color: context.secondaryColor,
                 ),
@@ -755,80 +807,80 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 18),
               _LyricsSettingsSection(
+                title: '非当前句歌词',
+                child: Column(
+                  children: [
+                    _LyricsSliderRow(
+                      icon: Icons.blur_on_rounded,
+                      value: inactiveBlur,
+                      max: 12,
+                      divisions: 12,
+                      label: inactiveBlur.toStringAsFixed(0),
+                      valueText: inactiveBlur <= 0.05
+                          ? '关闭'
+                          : inactiveBlur.toStringAsFixed(0),
+                      onChanged: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setBlur(inactiveLyricsTarget, value, persist: false),
+                      onChangeEnd: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setBlur(inactiveLyricsTarget, value),
+                    ),
+                    _LyricsSliderRow(
+                      icon: Icons.opacity_rounded,
+                      value: inactiveOpacity,
+                      max: 1,
+                      divisions: 20,
+                      label: '${(inactiveOpacity * 100).round()}%',
+                      valueText: '${(inactiveOpacity * 100).round()}%',
+                      onChanged: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setOpacity(
+                            inactiveLyricsTarget,
+                            value,
+                            persist: false,
+                          ),
+                      onChangeEnd: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setOpacity(inactiveLyricsTarget, value),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _LyricsSettingsSection(
                 title: '抽屉毛玻璃',
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.blur_on_rounded,
-                          size: 20,
-                          color: context.secondaryColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Slider(
-                            value: blurSigma.clamp(0.0, 30.0).toDouble(),
-                            min: 0,
-                            max: 30,
-                            divisions: 15,
-                            label: blurSigma.toStringAsFixed(0),
-                            onChanged: (value) => ref
-                                .read(glassEffectProvider.notifier)
-                                .setBlur(glassTarget, value, persist: false),
-                            onChangeEnd: (value) => ref
-                                .read(glassEffectProvider.notifier)
-                                .setBlur(glassTarget, value),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            blurSigma <= 0.05
-                                ? '关闭'
-                                : blurSigma.toStringAsFixed(0),
-                            textAlign: TextAlign.end,
-                            style: context.textBodySmall.copyWith(
-                              color: context.secondaryColor,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _LyricsSliderRow(
+                      icon: Icons.blur_on_rounded,
+                      value: drawerBlur.clamp(0.0, 30.0).toDouble(),
+                      max: 30,
+                      divisions: 15,
+                      label: drawerBlur.toStringAsFixed(0),
+                      valueText: drawerBlur <= 0.05
+                          ? '关闭'
+                          : drawerBlur.toStringAsFixed(0),
+                      onChanged: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setBlur(drawerGlassTarget, value, persist: false),
+                      onChangeEnd: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setBlur(drawerGlassTarget, value),
                     ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.opacity_rounded,
-                          size: 20,
-                          color: context.secondaryColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Slider(
-                            value: tintOpacity.clamp(0.0, 1.0).toDouble(),
-                            min: 0,
-                            max: 1,
-                            divisions: 20,
-                            label: '${(tintOpacity * 100).round()}%',
-                            onChanged: (value) => ref
-                                .read(glassEffectProvider.notifier)
-                                .setOpacity(glassTarget, value, persist: false),
-                            onChangeEnd: (value) => ref
-                                .read(glassEffectProvider.notifier)
-                                .setOpacity(glassTarget, value),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            '${(tintOpacity * 100).round()}%',
-                            textAlign: TextAlign.end,
-                            style: context.textBodySmall.copyWith(
-                              color: context.secondaryColor,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _LyricsSliderRow(
+                      icon: Icons.opacity_rounded,
+                      value: drawerTintOpacity.clamp(0.0, 1.0).toDouble(),
+                      max: 1,
+                      divisions: 20,
+                      label: '${(drawerTintOpacity * 100).round()}%',
+                      valueText: '${(drawerTintOpacity * 100).round()}%',
+                      onChanged: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setOpacity(drawerGlassTarget, value, persist: false),
+                      onChangeEnd: (value) => ref
+                          .read(glassEffectProvider.notifier)
+                          .setOpacity(drawerGlassTarget, value),
                     ),
                   ],
                 ),
@@ -1027,6 +1079,59 @@ class _LyricsSettingsSection extends StatelessWidget {
   }
 }
 
+class _LyricsSliderRow extends StatelessWidget {
+  final IconData icon;
+  final double value;
+  final double max;
+  final int divisions;
+  final String label;
+  final String valueText;
+  final ValueChanged<double> onChanged;
+  final ValueChanged<double> onChangeEnd;
+
+  const _LyricsSliderRow({
+    required this.icon,
+    required this.value,
+    required this.max,
+    required this.divisions,
+    required this.label,
+    required this.valueText,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: context.secondaryColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Slider(
+            value: value.clamp(0.0, max).toDouble(),
+            min: 0,
+            max: max,
+            divisions: divisions,
+            label: label,
+            onChanged: onChanged,
+            onChangeEnd: onChangeEnd,
+          ),
+        ),
+        SizedBox(
+          width: 48,
+          child: Text(
+            valueText,
+            textAlign: TextAlign.end,
+            style: context.textBodySmall.copyWith(
+              color: context.secondaryColor,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _LyricsChoiceButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1077,120 +1182,6 @@ class _LyricsChoiceButton extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LyricsGlassDepthOverlay extends StatelessWidget {
-  final double blurSigma;
-  final double tintOpacity;
-
-  const _LyricsGlassDepthOverlay({
-    required this.blurSigma,
-    required this.tintOpacity,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tint = isDark ? Colors.black : Colors.white;
-    final sigma = blurSigma.clamp(0.0, 30.0).toDouble();
-    final opacity = tintOpacity.clamp(0.0, 1.0).toDouble();
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final height = constraints.maxHeight;
-          final bandHeight = (height * 0.34).clamp(120.0, 220.0);
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Align(
-                alignment: Alignment.topCenter,
-                child: _GlassFadeBand(
-                  height: bandHeight,
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  sigma: sigma,
-                  tint: tint,
-                  tintAlpha: opacity * (isDark ? 0.67 : 0.55),
-                ),
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: _GlassFadeBand(
-                  height: bandHeight,
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  sigma: sigma <= 0.05
-                      ? 0
-                      : (sigma + 2).clamp(0.0, 30.0).toDouble(),
-                  tint: tint,
-                  tintAlpha: opacity * (isDark ? 0.91 : 0.79),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _GlassFadeBand extends StatelessWidget {
-  final double height;
-  final Alignment begin;
-  final Alignment end;
-  final double sigma;
-  final Color tint;
-  final double tintAlpha;
-
-  const _GlassFadeBand({
-    required this.height,
-    required this.begin,
-    required this.end,
-    required this.sigma,
-    required this.tint,
-    required this.tintAlpha,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final content = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: begin,
-          end: end,
-          colors: [
-            tint.withValues(alpha: tintAlpha),
-            tint.withValues(alpha: 0),
-          ],
-          stops: const [0, 1],
-        ),
-      ),
-    );
-
-    return SizedBox(
-      height: height,
-      width: double.infinity,
-      child: ClipRect(
-        child: ShaderMask(
-          blendMode: BlendMode.dstIn,
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: begin,
-              end: end,
-              colors: const [Colors.white, Colors.transparent],
-              stops: const [0.12, 1],
-            ).createShader(bounds);
-          },
-          child: sigma > 0.05
-              ? BackdropFilter(
-                  filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-                  child: content,
-                )
-              : content,
         ),
       ),
     );
