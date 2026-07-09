@@ -43,7 +43,8 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 ## Listening Stats
 
-- `ListeningStatsNotifier` records only locally listened unique song IDs.
+- `ListeningStatsNotifier` records locally listened unique song IDs and an ordered recent-played song ID list.
+- Recent-played IDs are local-only, deduped by moving repeat plays to the front, capped at 24, and persisted in secure storage with the unique heard IDs.
 - Sidebar "听歌概览" progress equals listened unique songs divided by current total library songs.
 
 ## Lyrics Cache And Prefetch

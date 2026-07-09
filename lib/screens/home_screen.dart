@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/listening_stats_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
@@ -22,7 +24,7 @@ import 'search_screen.dart';
 
 /// 主页 Tab – Spotify 风格的专辑浏览。
 ///
-/// 布局：顶部问候语 → 大搜索框 → 最近添加横向滚动 → 随机专辑双列网格。
+/// 布局：顶部问候语 → 大搜索框 → 最近播放横向滚动 → 随机专辑双列网格。
 /// 向下滚动时大搜索框缩小/上移/淡出，同时顶栏右侧搜索图标淡入放大。
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(Rect)? onExclusionZoneChanged;
@@ -59,6 +61,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   int? _dailyAlbumsCacheKey;
   List<Album>? _dailyAlbumsSource;
   List<Album> _dailyAlbumsCache = const [];
+  List<Song>? _recentSongsSource;
+  List<String>? _recentSongIdsSource;
+  List<Song> _recentSongsCache = const [];
 
   @override
   void initState() {
@@ -235,7 +240,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     final albums = state.albums;
     final randomAlbums = _dailyRandomAlbums(albums);
-    final recentAlbums = albums.take(6).toList();
+    final recentSongIds = ref.watch(
+      listeningStatsProvider.select((state) => state.recentSongIds),
+    );
+    final recentSongs = _recentlyPlayedSongs(state.songs, recentSongIds);
     final dailySongs = _dailyRecommendedSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
     final bottomSpacerHeight =
@@ -250,9 +258,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           SliverToBoxAdapter(child: SizedBox(height: topBarExtent)),
           SliverToBoxAdapter(child: _buildSearch()),
 
-          // ── 最近添加（横向滚动） ──
-          if (recentAlbums.isNotEmpty) ...[
-            SliverToBoxAdapter(child: _SectionTitle(title: '最近添加')),
+          // ── 最近播放（横向滚动） ──
+          if (recentSongs.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: _SectionTitle(
+                title: '最近播放',
+                actionLabel: '查看更多',
+                onActionTap: () => _showRecentlyPlayed(recentSongs),
+              ),
+            ),
             SliverToBoxAdapter(
               child: SizedBox(
                 key: _recentListKey,
@@ -260,8 +274,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Padding(
                   padding: const EdgeInsets.only(left: AppTheme.spacingLG),
                   child: _RecentCardFlow(
-                    albums: recentAlbums,
+                    songs: recentSongs,
                     coverUrlFor: _coverUrl,
+                    onSongTap: (index) => unawaited(
+                      ref
+                          .read(playerProvider.notifier)
+                          .playPlaylist(recentSongs, startIndex: index),
+                    ),
                   ),
                 ),
               ),
@@ -416,6 +435,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return _dailyAlbumsCache;
   }
 
+  List<Song> _recentlyPlayedSongs(List<Song> songs, List<String> recentIds) {
+    if (songs.isEmpty || recentIds.isEmpty) return const [];
+    if (identical(_recentSongsSource, songs) &&
+        identical(_recentSongIdsSource, recentIds)) {
+      return _recentSongsCache;
+    }
+    final songsById = {for (final song in songs) song.id: song};
+    final recentSongs = <Song>[];
+    for (final songId in recentIds) {
+      final song = songsById[songId];
+      if (song == null) continue;
+      recentSongs.add(song);
+      if (recentSongs.length == ListeningStatsNotifier.maxRecentSongs) break;
+    }
+    _recentSongsSource = songs;
+    _recentSongIdsSource = recentIds;
+    _recentSongsCache = List.unmodifiable(recentSongs);
+    return _recentSongsCache;
+  }
+
   int _todaySeed() {
     final today = DateTime.now();
     return today.year * 10000 + today.month * 100 + today.day;
@@ -425,6 +464,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     PlayQueueSheet.show(
       context,
       title: '每日推荐',
+      songs: songs,
+      onSongTap: (index) => ref
+          .read(playerProvider.notifier)
+          .playPlaylist(songs, startIndex: index),
+    );
+  }
+
+  void _showRecentlyPlayed(List<Song> songs) {
+    PlayQueueSheet.show(
+      context,
+      title: '最近播放',
       songs: songs,
       onSongTap: (index) => ref
           .read(playerProvider.notifier)
@@ -468,13 +518,18 @@ class _DailyRecommendationsPreview extends ConsumerWidget {
   }
 }
 
-// ━━━ 最近添加横向卡片 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━ 最近播放横向卡片 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class _RecentCardFlow extends StatefulWidget {
-  final List<Album> albums;
+  final List<Song> songs;
   final String Function(String coverArtId) coverUrlFor;
+  final void Function(int index) onSongTap;
 
-  const _RecentCardFlow({required this.albums, required this.coverUrlFor});
+  const _RecentCardFlow({
+    required this.songs,
+    required this.coverUrlFor,
+    required this.onSongTap,
+  });
 
   @override
   State<_RecentCardFlow> createState() => _RecentCardFlowState();
@@ -490,7 +545,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   double _pageMotion = 0;
   double _dragExtent = 220;
 
-  int get _maxPage => max(0, widget.albums.length - 1);
+  int get _maxPage => max(0, widget.songs.length - 1);
 
   @override
   void initState() {
@@ -526,7 +581,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
-    if (widget.albums.length <= 1) return;
+    if (widget.songs.length <= 1) return;
     final primaryDelta = details.primaryDelta;
     if (primaryDelta == null) return;
 
@@ -545,7 +600,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   }
 
   void _handleDragEnd(DragEndDetails details) {
-    if (widget.albums.length <= 1) return;
+    if (widget.songs.length <= 1) return;
     final velocity = details.primaryVelocity ?? 0;
     var target = _page.round();
     if (velocity < -_snapVelocity) {
@@ -572,11 +627,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
 
   void _handleCardTap(int index) {
     if ((index - _page).abs() < 0.16) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AlbumDetailScreen(album: widget.albums[index]),
-        ),
-      );
+      widget.onSongTap(index);
       return;
     }
     _animateToPage(index.toDouble());
@@ -584,7 +635,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.albums.isEmpty) return const SizedBox.shrink();
+    if (widget.songs.isEmpty) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -602,7 +653,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
 
         final baseIndex = _page.floor();
         final startIndex = max(0, baseIndex - 1);
-        final endIndex = min(widget.albums.length - 1, baseIndex + 3);
+        final endIndex = min(widget.songs.length - 1, baseIndex + 3);
         final visibleCards = <_PositionedRecentCard>[];
         for (var index = startIndex; index <= endIndex; index += 1) {
           final slot = _slotForOffset(
@@ -614,7 +665,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
           visibleCards.add(
             _PositionedRecentCard(
               index: index,
-              album: widget.albums[index],
+              song: widget.songs[index],
               slot: slot,
             ),
           );
@@ -635,7 +686,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
                 children: [
                   for (final card in visibleCards)
                     Positioned(
-                      key: ValueKey(card.album.id),
+                      key: ValueKey(card.song.id),
                       left: card.slot.x,
                       top: 0,
                       bottom: 0,
@@ -643,8 +694,8 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
                       child: Opacity(
                         opacity: card.slot.opacity,
                         child: _RecentCard(
-                          album: card.album,
-                          coverUrl: widget.coverUrlFor(card.album.coverArt),
+                          song: card.song,
+                          coverUrl: widget.coverUrlFor(card.song.coverArt),
                           focusAmount: card.slot.focusAmount,
                           borderRadius: card.slot.radius,
                           onTap: () => _handleCardTap(card.index),
@@ -804,12 +855,12 @@ class _RecentFlowSlot {
 
 class _PositionedRecentCard {
   final int index;
-  final Album album;
+  final Song song;
   final _RecentFlowSlot slot;
 
   const _PositionedRecentCard({
     required this.index,
-    required this.album,
+    required this.song,
     required this.slot,
   });
 }
@@ -817,14 +868,14 @@ class _PositionedRecentCard {
 double _lerp(double a, double b, double t) => a + (b - a) * t;
 
 class _RecentCard extends StatelessWidget {
-  final Album album;
+  final Song song;
   final String coverUrl;
   final VoidCallback onTap;
   final double focusAmount;
   final double borderRadius;
 
   const _RecentCard({
-    required this.album,
+    required this.song,
     required this.coverUrl,
     required this.onTap,
     required this.focusAmount,
@@ -848,7 +899,7 @@ class _RecentCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            _RecentCardImage(album: album, coverUrl: coverUrl),
+            _RecentCardImage(song: song, coverUrl: coverUrl),
             if (contentOpacity > 0.02)
               Opacity(
                 opacity: contentOpacity,
@@ -879,7 +930,7 @@ class _RecentCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        album.name,
+                        song.title,
                         style: context.textTitleMedium.copyWith(
                           color: Colors.white,
                           fontSize: 16,
@@ -897,7 +948,7 @@ class _RecentCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        album.artist,
+                        _songSubtitle(song),
                         style: context.textBodySmall.copyWith(
                           color: Colors.white.withValues(alpha: 0.82),
                           height: 1.15,
@@ -914,13 +965,19 @@ class _RecentCard extends StatelessWidget {
       ),
     );
   }
+
+  String _songSubtitle(Song song) {
+    if (song.artist.isEmpty) return song.album;
+    if (song.album.isEmpty) return song.artist;
+    return '${song.artist} · ${song.album}';
+  }
 }
 
 class _RecentCardImage extends StatelessWidget {
-  final Album album;
+  final Song song;
   final String coverUrl;
 
-  const _RecentCardImage({required this.album, required this.coverUrl});
+  const _RecentCardImage({required this.song, required this.coverUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -928,7 +985,7 @@ class _RecentCardImage extends StatelessWidget {
 
     return CachedDiskImage(
       imageUrl: coverUrl,
-      cacheKey: album.coverArt,
+      cacheKey: song.coverArt,
       fit: BoxFit.cover,
       placeholderBuilder: (_) => const _RecentCardPlaceholder(),
       errorBuilder: (_, _) => const _RecentCardPlaceholder(),
@@ -953,7 +1010,7 @@ class _RecentCardPlaceholder extends StatelessWidget {
       ),
       child: Center(
         child: Icon(
-          Icons.album_rounded,
+          Icons.music_note_rounded,
           size: 52,
           color: context.secondaryColor.withValues(alpha: 0.54),
         ),

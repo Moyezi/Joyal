@@ -13,27 +13,31 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - "查看更多" reuses `PlayQueueSheet`.
 - Cards reuse `QueueSongCard`.
 - Tapping a daily recommendation must build a real queue from those 24 songs.
+- Home "最近播放" is selected from `ListeningStatsState.recentSongIds` and mapped against `LibraryState.songs`.
+- Recently played shows at most 24 songs; skip IDs no longer present in the current library.
+- "最近播放" uses `PlayQueueSheet` for "查看更多".
+- Tapping a recently played card or sheet item must build a real queue from those recent songs.
 - Random albums are selected from `LibraryState.albums`.
 - Selection is stable by current date.
 - Pick 8 albums for the day.
 - "查看更多" switches to the library page and selects the album tab.
 - The home bottom copy is fixed as `----到底了----`.
 
-## Recently Added Card Flow
+## Recently Played Card Flow
 
-- Home "最近添加" uses a peekaboo card flow, not a normal equal-width horizontal list.
-- The focused album is a full rounded-square cover card aligned to the left edge of the section.
-- The right side shows the next two albums as narrow vertical pill capsules with clipped cover content.
+- Home "最近播放" uses a peekaboo card flow, not a normal equal-width horizontal list.
+- The focused song is a full rounded-square cover card aligned to the left edge of the section.
+- The right side shows the next two songs as narrow vertical pill capsules with clipped cover content.
 - Left dragging should make the adjacent right capsule expand directly into the full rounded-square focused card.
 - Avoid any intermediate circular/oval large-card state while expanding; once a capsule begins becoming focused, switch to the full-card corner radius and keep only width/position animating.
 - When the focused card shrinks back into a right-side capsule, lerp the radius toward the capsule radius during the shrink instead of holding the full-card radius until the final frame; distinguish this from the expansion path by page-motion direction.
 - Keep small spacing between cards and preserve rounded clipping.
-- Show album text only on the focused/full card, with a subtle bottom gradient for readability.
-- Tapping the focused card opens album detail; tapping a capsule should focus/expand that album.
+- Show song title and artist/album only on the focused/full card, with a subtle bottom gradient for readability.
+- Tapping the focused card starts playback from the recent-song queue; tapping a capsule should focus/expand that song.
 
 ## Derived Lists
 
-- Lists derived during `build`, such as daily recommendations, random albums, discovery carousel, classification scan results, and random roaming, must be cached by date and source-list identity.
+- Lists derived during `build`, such as recent played songs, daily recommendations, random albums, discovery carousel, classification scan results, and random roaming, must be cached by date and source-list identity where applicable.
 - Avoid repeated shuffle or full-library scans during page transition animation.
 
 ## Discovery Cover Flow
