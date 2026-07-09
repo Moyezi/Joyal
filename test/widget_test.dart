@@ -50,16 +50,18 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Stack(
-            children: [
-              GlassTopBar(
-                height: 92,
-                searchAnimation: controller,
-                onSearchTap: () {},
-                child: const Text('Greeting'),
-              ),
-            ],
+        ProviderScope(
+          child: MaterialApp(
+            home: Stack(
+              children: [
+                GlassTopBar(
+                  height: 92,
+                  searchAnimation: controller,
+                  onSearchTap: () {},
+                  child: const Text('Greeting'),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -73,9 +75,13 @@ void main() {
     'GlassTopBar does NOT render search icon when searchAnimation is null',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Stack(
-            children: [const GlassTopBar(height: 92, child: Text('Greeting'))],
+        ProviderScope(
+          child: MaterialApp(
+            home: Stack(
+              children: [
+                const GlassTopBar(height: 92, child: Text('Greeting')),
+              ],
+            ),
           ),
         ),
       );

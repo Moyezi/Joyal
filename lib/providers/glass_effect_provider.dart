@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 const _storage = FlutterSecureStorage();
 const _blurKeyPrefix = 'glass_effect_blur_';
 const _opacityKeyPrefix = 'glass_effect_opacity_';
+const _liquidGlassEnabledKey = 'glass_effect_liquid_enabled';
 
 enum GlassEffectTarget {
   topBar('top_bar', '顶栏', 10, 0.46),
@@ -30,11 +31,13 @@ enum GlassEffectTarget {
 class GlassEffectState {
   final Map<GlassEffectTarget, double> blurSigmas;
   final Map<GlassEffectTarget, double> tintOpacities;
+  final bool liquidGlassEnabled;
   final bool isLoading;
 
   const GlassEffectState({
     required this.blurSigmas,
     required this.tintOpacities,
+    this.liquidGlassEnabled = false,
     this.isLoading = true,
   });
 
@@ -48,6 +51,7 @@ class GlassEffectState {
         for (final target in GlassEffectTarget.values)
           target: target.defaultOpacity,
       },
+      liquidGlassEnabled: false,
       isLoading: isLoading,
     );
   }
@@ -61,11 +65,13 @@ class GlassEffectState {
   GlassEffectState copyWith({
     Map<GlassEffectTarget, double>? blurSigmas,
     Map<GlassEffectTarget, double>? tintOpacities,
+    bool? liquidGlassEnabled,
     bool? isLoading,
   }) {
     return GlassEffectState(
       blurSigmas: blurSigmas ?? this.blurSigmas,
       tintOpacities: tintOpacities ?? this.tintOpacities,
+      liquidGlassEnabled: liquidGlassEnabled ?? this.liquidGlassEnabled,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -77,26 +83,32 @@ class GlassEffectNotifier extends StateNotifier<GlassEffectState> {
   }
 
   Future<void> _load() async {
-    final loaded = await Future.wait(
-      GlassEffectTarget.values.map((target) async {
-        final values = await Future.wait([
-          _storage.read(key: _blurKeyFor(target)),
-          _storage.read(key: _opacityKeyFor(target)),
-        ]);
-        return _LoadedGlassEffect(
-          target: target,
-          blur: (double.tryParse(values[0] ?? '') ?? target.defaultBlur)
-              .clamp(0.0, 30.0)
-              .toDouble(),
-          opacity: (double.tryParse(values[1] ?? '') ?? target.defaultOpacity)
-              .clamp(0.0, 1.0)
-              .toDouble(),
-        );
-      }),
-    );
+    final results = await Future.wait<dynamic>([
+      Future.wait(
+        GlassEffectTarget.values.map((target) async {
+          final values = await Future.wait([
+            _storage.read(key: _blurKeyFor(target)),
+            _storage.read(key: _opacityKeyFor(target)),
+          ]);
+          return _LoadedGlassEffect(
+            target: target,
+            blur: (double.tryParse(values[0] ?? '') ?? target.defaultBlur)
+                .clamp(0.0, 30.0)
+                .toDouble(),
+            opacity: (double.tryParse(values[1] ?? '') ?? target.defaultOpacity)
+                .clamp(0.0, 1.0)
+                .toDouble(),
+          );
+        }),
+      ),
+      _storage.read(key: _liquidGlassEnabledKey),
+    ]);
+    final loaded = results[0] as List<_LoadedGlassEffect>;
+    final liquidGlassEnabled = results[1] == 'true';
     state = GlassEffectState(
       blurSigmas: {for (final value in loaded) value.target: value.blur},
       tintOpacities: {for (final value in loaded) value.target: value.opacity},
+      liquidGlassEnabled: liquidGlassEnabled,
       isLoading: false,
     );
   }
@@ -141,6 +153,16 @@ class GlassEffectNotifier extends StateNotifier<GlassEffectState> {
         value: next.toStringAsFixed(2),
       );
     }
+  }
+
+  Future<void> setLiquidGlassEnabled(bool enabled) async {
+    if (state.liquidGlassEnabled != enabled || state.isLoading) {
+      state = state.copyWith(liquidGlassEnabled: enabled, isLoading: false);
+    }
+    await _storage.write(
+      key: _liquidGlassEnabledKey,
+      value: enabled ? 'true' : 'false',
+    );
   }
 
   static String _blurKeyFor(GlassEffectTarget target) =>

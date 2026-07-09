@@ -1,14 +1,17 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme_context.dart';
+import '../providers/glass_effect_provider.dart';
+import 'liquid_glass_overlay.dart';
 
 /// Shared fixed header used by the three primary navigation destinations.
 ///
 /// Optionally accepts [searchAnimation] + [onSearchTap] to render an
 /// animated search icon on the right side (used by HomeScreen).
-class GlassTopBar extends StatelessWidget {
+class GlassTopBar extends ConsumerWidget {
   final double height;
   final Widget child;
   final Animation<double>? searchAnimation;
@@ -29,7 +32,7 @@ class GlassTopBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final showSearch = searchAnimation != null && onSearchTap != null;
     final statusBarHeight = MediaQuery.viewPaddingOf(context).top;
     final totalHeight = height + statusBarHeight;
@@ -48,6 +51,10 @@ class GlassTopBar extends StatelessWidget {
     final middleColor = bg.withValues(alpha: middleAlpha);
     final lowerColor = bg.withValues(alpha: lowerAlpha);
     final bottomColor = bg.withValues(alpha: bottomAlpha);
+    final liquidGlassEnabled = ref.watch(
+      glassEffectProvider.select((state) => state.liquidGlassEnabled),
+    );
+    final shouldApplyLiquid = liquidGlassEnabled && sigma > 0.05;
 
     return Positioned(
       top: 0,
@@ -80,6 +87,15 @@ class GlassTopBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (shouldApplyLiquid)
+              LiquidGlassOverlay(
+                intensity: hasPageBackground ? 0.48 : 0.30,
+                lightAlignment: Alignment.topCenter,
+                tintColor: bg,
+                tintOpacity: hasPageBackground ? 0.08 : 0.05,
+                blurSigma: sigma,
+                borderOpacity: 0,
+              ),
             // Left: original child (greeting)
             Padding(
               padding: EdgeInsets.only(top: statusBarHeight),

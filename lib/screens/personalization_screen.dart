@@ -8,6 +8,7 @@ import '../providers/sidebar_image_provider.dart';
 import '../providers/visual_effect_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/personalization/glass_effect_tile.dart';
+import '../widgets/personalization/liquid_glass_toggle_tile.dart';
 import '../widgets/personalization/mini_player_color_tile.dart';
 import '../widgets/personalization/page_background_settings.dart';
 import '../widgets/personalization/personalization_choice_tile.dart';
@@ -59,6 +60,8 @@ class PersonalizationScreen extends ConsumerWidget {
           const SizedBox(height: AppTheme.spacingLG),
           Text('毛玻璃', style: context.textTitleLarge),
           const SizedBox(height: AppTheme.spacingSM),
+          const LiquidGlassToggleTile(),
+          const SizedBox(height: AppTheme.spacingMD),
           const GlassEffectTile(),
           const SizedBox(height: AppTheme.spacingLG),
           Text('迷你播放栏', style: context.textTitleLarge),
