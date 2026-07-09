@@ -26,6 +26,7 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - The right side shows the next two albums as narrow vertical pill capsules with clipped cover content.
 - Left dragging should make the adjacent right capsule expand directly into the full rounded-square focused card.
 - Avoid any intermediate circular/oval large-card state while expanding; once a capsule begins becoming focused, switch to the full-card corner radius and keep only width/position animating.
+- When the focused card shrinks back into a right-side capsule, lerp the radius toward the capsule radius during the shrink instead of holding the full-card radius until the final frame; distinguish this from the expansion path by page-motion direction.
 - Keep small spacing between cards and preserve rounded clipping.
 - Show album text only on the focused/full card, with a subtle bottom gradient for readability.
 - Tapping the focused card opens album detail; tapping a capsule should focus/expand that album.

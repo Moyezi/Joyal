@@ -487,6 +487,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   late final AnimationController _snapController;
   Animation<double>? _snapAnimation;
   double _page = 0;
+  double _pageMotion = 0;
   double _dragExtent = 220;
 
   int get _maxPage => max(0, widget.albums.length - 1);
@@ -501,7 +502,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
         )..addListener(() {
           final animation = _snapAnimation;
           if (animation == null) return;
-          setState(() => _page = animation.value);
+          _setPage(animation.value);
         });
   }
 
@@ -532,7 +533,15 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
     final nextPage = (_page - primaryDelta / _dragExtent)
         .clamp(0.0, _maxPage.toDouble())
         .toDouble();
-    setState(() => _page = nextPage);
+    _setPage(nextPage);
+  }
+
+  void _setPage(double nextPage) {
+    final motion = nextPage.compareTo(_page).toDouble();
+    setState(() {
+      _pageMotion = motion;
+      _page = nextPage;
+    });
   }
 
   void _handleDragEnd(DragEndDetails details) {
@@ -551,7 +560,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   void _animateToPage(double targetPage) {
     final target = targetPage.clamp(0.0, _maxPage.toDouble()).toDouble();
     if ((target - _page).abs() < 0.001) {
-      setState(() => _page = target);
+      _setPage(target);
       return;
     }
 
@@ -596,7 +605,11 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
         final endIndex = min(widget.albums.length - 1, baseIndex + 3);
         final visibleCards = <_PositionedRecentCard>[];
         for (var index = startIndex; index <= endIndex; index += 1) {
-          final slot = _slotForOffset(index - _page, metrics);
+          final slot = _slotForOffset(
+            index - _page,
+            metrics,
+            pageMotion: _pageMotion,
+          );
           if (slot.opacity <= 0.01) continue;
           visibleCards.add(
             _PositionedRecentCard(
@@ -647,7 +660,11 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
     );
   }
 
-  _RecentFlowSlot _slotForOffset(double offset, _RecentFlowMetrics metrics) {
+  _RecentFlowSlot _slotForOffset(
+    double offset,
+    _RecentFlowMetrics metrics, {
+    required double pageMotion,
+  }) {
     final focus = _RecentFlowSlot(
       x: 0,
       width: metrics.fullWidth,
@@ -691,7 +708,8 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
     if (offset <= 1) {
       final slot = _RecentFlowSlot.lerp(focus, firstCapsule, offset);
       if (slot.focusAmount <= 0.001) return slot;
-      return slot.copyWith(radius: focus.radius);
+      final isShrinkingToCapsule = pageMotion < 0;
+      return isShrinkingToCapsule ? slot : slot.copyWith(radius: focus.radius);
     }
     if (offset <= 2) {
       return _RecentFlowSlot.lerp(firstCapsule, secondCapsule, offset - 1);
