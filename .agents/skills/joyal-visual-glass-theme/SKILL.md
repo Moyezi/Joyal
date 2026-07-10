@@ -72,6 +72,12 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - Now playing and lyrics backgrounds use `DynamicAlbumBackground`.
 - Moving light should be implemented with `CustomPainter` plus `sin/cos`.
 - Stop animation controllers for static gradients.
+- `BackgroundVisualStyle.albumCoverGlass` uses the current cover through
+  `CachedDiskImage` + `ImageFiltered`; it applies to both now-playing and
+  lyrics because they share `DynamicAlbumBackground`.
+- Its blur and adaptive light/dark overlay are persisted by
+  `coverGlassBackgroundProvider`. Slider updates are live; persist on drag
+  end. Do not replace this with a full-screen `BackdropFilter`.
 
 ## Files To Check
 

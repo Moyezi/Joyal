@@ -10,6 +10,7 @@ import '../utils/app_toast.dart';
 import '../widgets/personalization/glass_effect_tile.dart';
 import '../widgets/personalization/liquid_glass_toggle_tile.dart';
 import '../widgets/personalization/mini_player_color_tile.dart';
+import '../widgets/personalization/cover_glass_background_tile.dart';
 import '../widgets/personalization/page_background_settings.dart';
 import '../widgets/personalization/personalization_choice_tile.dart';
 
@@ -89,6 +90,20 @@ class PersonalizationScreen extends ConsumerWidget {
                 .read(visualEffectProvider.notifier)
                 .setBackgroundStyle(BackgroundVisualStyle.staticGradient),
           ),
+          const SizedBox(height: AppTheme.spacingMD),
+          PersonalizationChoiceTile(
+            icon: Icons.album_rounded,
+            title: '封面毛玻璃',
+            subtitle: '将专辑封面模糊为播放详情和歌词页背景',
+            selected: style == BackgroundVisualStyle.albumCoverGlass,
+            onTap: () => ref
+                .read(visualEffectProvider.notifier)
+                .setBackgroundStyle(BackgroundVisualStyle.albumCoverGlass),
+          ),
+          if (style == BackgroundVisualStyle.albumCoverGlass) ...[
+            const SizedBox(height: AppTheme.spacingMD),
+            const CoverGlassBackgroundTile(),
+          ],
         ],
       ),
     );

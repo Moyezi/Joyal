@@ -1,10 +1,12 @@
 import 'dart:math' as math;
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/visual_effect_provider.dart';
 import 'album_visual_palette.dart';
+import 'cached_disk_image.dart';
 
 /// A softly animated background derived from cached album artwork.
 class DynamicAlbumBackground extends ConsumerStatefulWidget {
@@ -98,6 +100,7 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
   Widget build(BuildContext context) {
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final style = ref.watch(visualEffectProvider);
+    final coverGlassSettings = ref.watch(coverGlassBackgroundProvider);
     if (style == BackgroundVisualStyle.flowingHalo) {
       if (!_motionController.isAnimating) _motionController.repeat();
     } else {
@@ -140,7 +143,85 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
             ),
           if (style == BackgroundVisualStyle.flowingHalo)
             const Positioned.fill(child: _FrostedLightVeil()),
+          if (style == BackgroundVisualStyle.albumCoverGlass)
+            Positioned.fill(
+              child: _CoverGlassBackground(
+                coverArtId: widget.coverArtId,
+                coverUrl: widget.coverUrl,
+                blurSigma: coverGlassSettings.blurSigma,
+                overlayOpacity: coverGlassSettings.overlayOpacity,
+              ),
+            ),
           widget.child,
+        ],
+      ),
+    );
+  }
+}
+
+class _CoverGlassBackground extends StatelessWidget {
+  final String coverArtId;
+  final String coverUrl;
+  final double blurSigma;
+  final double overlayOpacity;
+
+  const _CoverGlassBackground({
+    required this.coverArtId,
+    required this.coverUrl,
+    required this.blurSigma,
+    required this.overlayOpacity,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final veil = isDark ? Colors.black : Colors.white;
+    final effectiveBlur = blurSigma
+        .clamp(
+          CoverGlassBackgroundState.minBlurSigma,
+          CoverGlassBackgroundState.maxBlurSigma,
+        )
+        .toDouble();
+    final effectiveOverlay = overlayOpacity
+        .clamp(
+          CoverGlassBackgroundState.minOverlayOpacity,
+          CoverGlassBackgroundState.maxOverlayOpacity,
+        )
+        .toDouble();
+
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(
+                sigmaX: effectiveBlur,
+                sigmaY: effectiveBlur,
+              ),
+              child: CachedDiskImage(
+                imageUrl: coverUrl,
+                cacheKey: coverArtId,
+                fit: BoxFit.cover,
+                placeholderBuilder: (_) => const SizedBox.expand(),
+                errorBuilder: (context, error) => const SizedBox.expand(),
+                fadeInDuration: const Duration(milliseconds: 250),
+                fadeOutDuration: const Duration(milliseconds: 120),
+              ),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  veil.withValues(alpha: effectiveOverlay * 0.82),
+                  veil.withValues(alpha: effectiveOverlay),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
