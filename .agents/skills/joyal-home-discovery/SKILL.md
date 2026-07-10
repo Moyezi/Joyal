@@ -34,6 +34,9 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - Keep small spacing between cards and preserve rounded clipping.
 - Show song title and artist/album only on the focused/full card, with a subtle bottom gradient for readability.
 - Tapping the focused card starts playback from the recent-song queue; tapping a capsule should focus/expand that song.
+- The card flow is circular: swiping past either end wraps to the other end. When listening stats promote the playing song to the front, retain focus by song ID rather than by its previous numeric index.
+- On a recent-song card or sheet tap, rotate the real player queue so the selected song is index 0: `[A, B, C, D]` tapping `B` becomes `[B, C, D, A]`. Songs that were to the selected song's left belong at the queue tail, never immediately to its right.
+- When the active player queue contains exactly the same recent-song collection, use that queue order for the carousel and “查看更多” sheet so their visual order matches playback. Keep listening-stat storage itself in its normal recency order.
 
 ## Derived Lists
 

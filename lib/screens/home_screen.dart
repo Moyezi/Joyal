@@ -64,6 +64,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   List<Song>? _recentSongsSource;
   List<String>? _recentSongIdsSource;
   List<Song> _recentSongsCache = const [];
+  List<Song>? _recentQueueSource;
+  List<Song>? _recentQueuePlaylistSource;
+  List<Song> _recentQueueCache = const [];
 
   @override
   void initState() {
@@ -244,6 +247,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       listeningStatsProvider.select((state) => state.recentSongIds),
     );
     final recentSongs = _recentlyPlayedSongs(state.songs, recentSongIds);
+    final playerPlaylist = ref.watch(
+      playerProvider.select((state) => state.playlist),
+    );
+    final recentQueue = _recentQueueSongs(recentSongs, playerPlaylist);
     final dailySongs = _dailyRecommendedSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
     final bottomSpacerHeight =
@@ -264,7 +271,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: _SectionTitle(
                 title: '最近播放',
                 actionLabel: '查看更多',
-                onActionTap: () => _showRecentlyPlayed(recentSongs),
+                onActionTap: () => _showRecentlyPlayed(recentQueue),
               ),
             ),
             SliverToBoxAdapter(
@@ -274,13 +281,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Padding(
                   padding: const EdgeInsets.only(left: AppTheme.spacingLG),
                   child: _RecentCardFlow(
-                    songs: recentSongs,
+                    songs: recentQueue,
                     coverUrlFor: _coverUrl,
-                    onSongTap: (index) => unawaited(
-                      ref
-                          .read(playerProvider.notifier)
-                          .playPlaylist(recentSongs, startIndex: index),
-                    ),
+                    onSongTap: (index) =>
+                        unawaited(_playRecentSongs(recentQueue, index)),
                   ),
                 ),
               ),
@@ -455,6 +459,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return _recentSongsCache;
   }
 
+  List<Song> _recentQueueSongs(
+    List<Song> recentSongs,
+    List<Song> playerPlaylist,
+  ) {
+    if (identical(_recentQueueSource, recentSongs) &&
+        identical(_recentQueuePlaylistSource, playerPlaylist)) {
+      return _recentQueueCache;
+    }
+
+    _recentQueueSource = recentSongs;
+    _recentQueuePlaylistSource = playerPlaylist;
+    _recentQueueCache = _hasSameSongIds(recentSongs, playerPlaylist)
+        ? playerPlaylist
+        : recentSongs;
+    return _recentQueueCache;
+  }
+
+  bool _hasSameSongIds(List<Song> first, List<Song> second) {
+    if (first.isEmpty || first.length != second.length) return false;
+    final firstIds = first.map((song) => song.id).toSet();
+    final secondIds = second.map((song) => song.id).toSet();
+    return firstIds.length == first.length &&
+        secondIds.length == second.length &&
+        firstIds.containsAll(secondIds);
+  }
+
+  List<Song> _queueStartingAt(List<Song> songs, int startIndex) {
+    if (songs.isEmpty) return const [];
+    final start = startIndex.clamp(0, songs.length - 1);
+    return List.unmodifiable([...songs.skip(start), ...songs.take(start)]);
+  }
+
+  Future<void> _playRecentSongs(List<Song> songs, int startIndex) {
+    final queue = _queueStartingAt(songs, startIndex);
+    if (queue.isEmpty) return Future.value();
+    return ref.read(playerProvider.notifier).playPlaylist(queue);
+  }
+
   int _todaySeed() {
     final today = DateTime.now();
     return today.year * 10000 + today.month * 100 + today.day;
@@ -476,9 +518,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       context,
       title: '最近播放',
       songs: songs,
-      onSongTap: (index) => ref
-          .read(playerProvider.notifier)
-          .playPlaylist(songs, startIndex: index),
+      onSongTap: (index) => _playRecentSongs(songs, index),
     );
   }
 }
@@ -545,8 +585,6 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   double _pageMotion = 0;
   double _dragExtent = 220;
 
-  int get _maxPage => max(0, widget.songs.length - 1);
-
   @override
   void initState() {
     super.initState();
@@ -564,16 +602,40 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
   @override
   void didUpdateWidget(covariant _RecentCardFlow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_page > _maxPage) {
+    if (widget.songs.length <= 1) {
       _snapController.stop();
-      _page = _maxPage.toDouble();
+      _page = 0;
+      _pageMotion = 0;
+      return;
     }
+
+    if (oldWidget.songs.isEmpty) return;
+    final previousPage = _page.round();
+    final previousSongIndex = _wrappedIndex(
+      previousPage,
+      oldWidget.songs.length,
+    );
+    final focusedSongId = oldWidget.songs[previousSongIndex].id;
+    final newSongIndex = widget.songs.indexWhere(
+      (song) => song.id == focusedSongId,
+    );
+    if (newSongIndex == -1 || newSongIndex == previousSongIndex) return;
+
+    // Playing a song promotes it to the front of the recent-history source.
+    // Keep that same song focused even though its list index has changed.
+    _snapController.stop();
+    final targetPage = previousPage - previousSongIndex + newSongIndex;
+    _page += targetPage - previousPage;
+    _pageMotion = 0;
   }
 
-  @override
-  void dispose() {
-    _snapController.dispose();
-    super.dispose();
+  int _wrappedIndex(int page, int length) {
+    final index = page % length;
+    return index < 0 ? index + length : index;
+  }
+
+  Song _songAtPage(int page) {
+    return widget.songs[_wrappedIndex(page, widget.songs.length)];
   }
 
   void _handleDragStart(DragStartDetails details) {
@@ -585,10 +647,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
     final primaryDelta = details.primaryDelta;
     if (primaryDelta == null) return;
 
-    final nextPage = (_page - primaryDelta / _dragExtent)
-        .clamp(0.0, _maxPage.toDouble())
-        .toDouble();
-    _setPage(nextPage);
+    _setPage(_page - primaryDelta / _dragExtent);
   }
 
   void _setPage(double nextPage) {
@@ -608,29 +667,33 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
     } else if (velocity > _snapVelocity) {
       target = _page.ceil() - 1;
     }
-    target = target.clamp(0, _maxPage).toInt();
     _animateToPage(target.toDouble());
   }
 
   void _animateToPage(double targetPage) {
-    final target = targetPage.clamp(0.0, _maxPage.toDouble()).toDouble();
-    if ((target - _page).abs() < 0.001) {
-      _setPage(target);
+    if ((targetPage - _page).abs() < 0.001) {
+      _setPage(targetPage);
       return;
     }
 
-    _snapAnimation = Tween<double>(begin: _page, end: target).animate(
+    _snapAnimation = Tween<double>(begin: _page, end: targetPage).animate(
       CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic),
     );
     _snapController.forward(from: 0);
   }
 
-  void _handleCardTap(int index) {
-    if ((index - _page).abs() < 0.16) {
-      widget.onSongTap(index);
+  void _handleCardTap(int page, int songIndex) {
+    if ((page - _page).abs() < 0.16) {
+      widget.onSongTap(songIndex);
       return;
     }
-    _animateToPage(index.toDouble());
+    _animateToPage(page.toDouble());
+  }
+
+  @override
+  void dispose() {
+    _snapController.dispose();
+    super.dispose();
   }
 
   @override
@@ -651,21 +714,23 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
         );
         _dragExtent = max(160.0, metrics.fullWidth + metrics.gap);
 
-        final baseIndex = _page.floor();
-        final startIndex = max(0, baseIndex - 1);
-        final endIndex = min(widget.songs.length - 1, baseIndex + 3);
+        final basePage = _page.floor();
+        final startPage = basePage - 1;
+        final endPage = basePage + 3;
         final visibleCards = <_PositionedRecentCard>[];
-        for (var index = startIndex; index <= endIndex; index += 1) {
+        for (var page = startPage; page <= endPage; page += 1) {
           final slot = _slotForOffset(
-            index - _page,
+            page - _page,
             metrics,
             pageMotion: _pageMotion,
           );
           if (slot.opacity <= 0.01) continue;
+          final songIndex = _wrappedIndex(page, widget.songs.length);
           visibleCards.add(
             _PositionedRecentCard(
-              index: index,
-              song: widget.songs[index],
+              page: page,
+              songIndex: songIndex,
+              song: _songAtPage(page),
               slot: slot,
             ),
           );
@@ -686,7 +751,7 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
                 children: [
                   for (final card in visibleCards)
                     Positioned(
-                      key: ValueKey(card.song.id),
+                      key: ValueKey('recent-${card.page}-${card.song.id}'),
                       left: card.slot.x,
                       top: 0,
                       bottom: 0,
@@ -698,7 +763,8 @@ class _RecentCardFlowState extends State<_RecentCardFlow>
                           coverUrl: widget.coverUrlFor(card.song.coverArt),
                           focusAmount: card.slot.focusAmount,
                           borderRadius: card.slot.radius,
-                          onTap: () => _handleCardTap(card.index),
+                          onTap: () =>
+                              _handleCardTap(card.page, card.songIndex),
                         ),
                       ),
                     ),
@@ -854,12 +920,14 @@ class _RecentFlowSlot {
 }
 
 class _PositionedRecentCard {
-  final int index;
+  final int page;
+  final int songIndex;
   final Song song;
   final _RecentFlowSlot slot;
 
   const _PositionedRecentCard({
-    required this.index,
+    required this.page,
+    required this.songIndex,
     required this.song,
     required this.slot,
   });
