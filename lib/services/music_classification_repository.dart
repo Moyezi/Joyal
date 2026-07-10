@@ -61,6 +61,6 @@ class MusicClassificationRepository {
       'classifications': classifications.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
-    });
+    }, encodeInBackground: true);
   }
 }

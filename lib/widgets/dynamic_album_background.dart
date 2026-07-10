@@ -203,6 +203,7 @@ class _CoverGlassBackground extends StatelessWidget {
                 imageUrl: coverUrl,
                 cacheKey: coverArtId,
                 fit: BoxFit.cover,
+                decodeWidth: MediaQuery.sizeOf(context).longestSide,
                 placeholderBuilder: (_) => const SizedBox.expand(),
                 errorBuilder: (context, error) => const SizedBox.expand(),
                 fadeInDuration: const Duration(milliseconds: 250),

@@ -81,6 +81,7 @@ class DownloadRecord {
 
 /// Resumable downloads plus a persistent local-media catalogue.
 class DownloadService {
+  static const _progressUpdateInterval = Duration(milliseconds: 100);
   static const _mediaChannel = MethodChannel('joyal_music/media_store');
   static final Map<String, DownloadRecord> _records = {};
   static final _recordsController =
@@ -91,6 +92,9 @@ class DownloadService {
   final SubsonicApi? _api;
   final _controller = StreamController<DownloadProgress>.broadcast();
   final Map<String, CancelToken> _activeTokens = {};
+  final Map<String, DateTime> _lastProgressEmissions = {};
+  final Map<String, DownloadProgress> _pendingProgress = {};
+  final Map<String, Timer> _progressTimers = {};
 
   DownloadService(this._api) {
     unawaited(initialize());
@@ -108,7 +112,10 @@ class DownloadService {
     _catalogFile = File('${support.path}/downloads.json');
     if (!await _catalogFile!.exists()) return;
     try {
-      final data = jsonDecode(await _catalogFile!.readAsString()) as List;
+      final data = await compute(
+        _decodeDownloadCatalog,
+        await _catalogFile!.readAsString(),
+      );
       var removedIncompleteFile = false;
       for (final item in data) {
         final record = DownloadRecord.fromJson(
@@ -131,12 +138,11 @@ class DownloadService {
         _records[record.song.id] = record;
       }
       if (removedIncompleteFile) {
-        await _catalogFile!.writeAsString(
-          jsonEncode(
-            _sortedRecords().map((record) => record.toJson()).toList(),
-          ),
-          flush: true,
+        final encoded = await compute(
+          _encodeDownloadCatalog,
+          _sortedRecords().map((record) => record.toJson()).toList(),
         );
+        await _catalogFile!.writeAsString(encoded, flush: true);
       }
     } catch (_) {
       // Ignore old/corrupt indexes. Existing media remains in the public folder.
@@ -154,10 +160,11 @@ class DownloadService {
     final file = _catalogFile!;
     await file.parent.create(recursive: true);
     final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString(
-      jsonEncode(_sortedRecords().map((record) => record.toJson()).toList()),
-      flush: true,
+    final encoded = await compute(
+      _encodeDownloadCatalog,
+      _sortedRecords().map((record) => record.toJson()).toList(),
     );
+    await temporary.writeAsString(encoded, flush: true);
     if (await file.exists()) await file.delete();
     await temporary.rename(file.path);
     _recordsController.add(_sortedRecords());
@@ -230,7 +237,7 @@ class DownloadService {
     await initialize();
     final existingRecord = _records[song.id];
     if (existingRecord != null && await localUriForSong(song.id) != null) {
-      _controller.add(
+      _emitProgress(
         DownloadProgress(
           songId: song.id,
           progress: 1,
@@ -244,7 +251,7 @@ class DownloadService {
     }
     final adopted = await _adoptExistingPublicFile(song);
     if (adopted != null) {
-      _controller.add(
+      _emitProgress(
         DownloadProgress(
           songId: song.id,
           progress: 1,
@@ -278,7 +285,7 @@ class DownloadService {
       } catch (error) {
         if (error is DioException && CancelToken.isCancel(error)) rethrow;
         final message = _friendlyError(error);
-        _controller.add(DownloadProgress(songId: song.id, error: message));
+        _emitProgress(DownloadProgress(songId: song.id, error: message));
         throw DownloadFailure(message);
       } finally {
         _activeTokens.remove(song.id);
@@ -310,7 +317,7 @@ class DownloadService {
     } catch (error) {
       if (error is DioException && CancelToken.isCancel(error)) rethrow;
       final message = _friendlyError(error);
-      _controller.add(DownloadProgress(songId: song.id, error: message));
+      _emitProgress(DownloadProgress(songId: song.id, error: message));
       throw DownloadFailure(message);
     } finally {
       _activeTokens.remove(song.id);
@@ -343,7 +350,7 @@ class DownloadService {
       downloadedAt: DateTime.now(),
     );
     await _saveCatalog();
-    _controller.add(
+    _emitProgress(
       DownloadProgress(
         songId: song.id,
         progress: 1,
@@ -404,7 +411,7 @@ class DownloadService {
           lastStatus = systemStatus;
           lastReason = reason;
         }
-        _controller.add(
+        _emitProgress(
           DownloadProgress(
             songId: song.id,
             progress: ratio.clamp(0.0, 0.99).toDouble(),
@@ -591,7 +598,7 @@ class DownloadService {
             }
             sink.add(bytes);
             final current = requestStart + received;
-            _controller.add(
+            _emitProgress(
               DownloadProgress(
                 songId: song.id,
                 progress: (current / total).clamp(0.0, 0.99).toDouble(),
@@ -705,7 +712,7 @@ class DownloadService {
                 ? song.size!
                 : (responseLength > 0 ? offset + responseLength : 0);
             final ratio = total > 0 ? current / total : 0.0;
-            _controller.add(
+            _emitProgress(
               DownloadProgress(
                 songId: song.id,
                 progress: ratio.clamp(0.0, 0.99).toDouble(),
@@ -824,13 +831,68 @@ class DownloadService {
     await _saveCatalog();
   }
 
-  void cancel(String songId) => _activeTokens[songId]?.cancel();
+  void cancel(String songId) {
+    _activeTokens[songId]?.cancel();
+    _progressTimers.remove(songId)?.cancel();
+    _pendingProgress.remove(songId);
+    _lastProgressEmissions.remove(songId);
+  }
+
+  void _emitProgress(DownloadProgress progress) {
+    if (_controller.isClosed) return;
+    final songId = progress.songId;
+    final isTerminal = progress.completed || progress.error != null;
+    if (isTerminal) {
+      _progressTimers.remove(songId)?.cancel();
+      _pendingProgress.remove(songId);
+      _lastProgressEmissions.remove(songId);
+      _controller.add(progress);
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastEmission = _lastProgressEmissions[songId];
+    final elapsed = lastEmission == null
+        ? _progressUpdateInterval
+        : now.difference(lastEmission);
+    if (elapsed >= _progressUpdateInterval) {
+      _progressTimers.remove(songId)?.cancel();
+      _pendingProgress.remove(songId);
+      _lastProgressEmissions[songId] = now;
+      _controller.add(progress);
+      return;
+    }
+
+    _pendingProgress[songId] = progress;
+    if (_progressTimers.containsKey(songId)) return;
+    _progressTimers[songId] = Timer(_progressUpdateInterval - elapsed, () {
+      _progressTimers.remove(songId);
+      final pending = _pendingProgress.remove(songId);
+      if (pending == null || _controller.isClosed) return;
+      _lastProgressEmissions[songId] = DateTime.now();
+      _controller.add(pending);
+    });
+  }
 
   void dispose() {
     for (final token in _activeTokens.values) {
       token.cancel();
     }
     _activeTokens.clear();
+    for (final timer in _progressTimers.values) {
+      timer.cancel();
+    }
+    _progressTimers.clear();
+    _pendingProgress.clear();
+    _lastProgressEmissions.clear();
     _controller.close();
   }
+}
+
+List<dynamic> _decodeDownloadCatalog(String contents) {
+  return jsonDecode(contents) as List<dynamic>;
+}
+
+String _encodeDownloadCatalog(List<Map<String, dynamic>> records) {
+  return jsonEncode(records);
 }

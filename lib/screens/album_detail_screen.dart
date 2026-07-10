@@ -58,149 +58,148 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     }
 
     final songs = libraryState.albumSongs;
+    final starredIds = {for (final song in libraryState.starredSongs) song.id};
 
-    return ListView(
-      children: [
-        // ── Album header ──
-        Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingLG),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
             children: [
-              // Cover
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                child: SizedBox(
-                  width: 140,
-                  height: 140,
-                  child: _buildCover(album.coverArt),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingLG),
-              // Metadata
-              Expanded(
-                child: Column(
+              Padding(
+                padding: const EdgeInsets.all(AppTheme.spacingLG),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      [
-                        '专辑',
-                        if (album.year != null) '${album.year}年',
-                        '${album.songCount}首歌曲',
-                      ].join('  •  '),
-                      style: context.textCaption,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
+                      child: SizedBox(
+                        width: 140,
+                        height: 140,
+                        child: _buildCover(album.coverArt),
+                      ),
                     ),
-                    const SizedBox(height: AppTheme.spacingXS),
-                    Text(
-                      album.name,
-                      style: context.textHeadlineLarge,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: AppTheme.spacingXS),
-                    GestureDetector(
-                      onTap: () {
-                        if (album.artistId.isNotEmpty) {
-                          showArtistSheet(
-                            context,
-                            artistId: album.artistId,
-                            artistName: album.artist,
-                          );
-                        }
-                      },
-                      child: Text(
-                        album.artist,
-                        style: context.textTitleMedium.copyWith(
-                          color: context.secondaryColor,
-                          decoration: TextDecoration.underline,
-                          decorationStyle: TextDecorationStyle.dotted,
-                        ),
+                    const SizedBox(width: AppTheme.spacingLG),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            [
+                              '专辑',
+                              if (album.year != null) '${album.year}年',
+                              '${album.songCount}首歌曲',
+                            ].join('  •  '),
+                            style: context.textCaption,
+                          ),
+                          const SizedBox(height: AppTheme.spacingXS),
+                          Text(
+                            album.name,
+                            style: context.textHeadlineLarge,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: AppTheme.spacingXS),
+                          GestureDetector(
+                            onTap: () {
+                              if (album.artistId.isNotEmpty) {
+                                showArtistSheet(
+                                  context,
+                                  artistId: album.artistId,
+                                  artistName: album.artist,
+                                );
+                              }
+                            },
+                            child: Text(
+                              album.artist,
+                              style: context.textTitleMedium.copyWith(
+                                color: context.secondaryColor,
+                                decoration: TextDecoration.underline,
+                                decorationStyle: TextDecorationStyle.dotted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingLG,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.play_arrow,
+                        label: '播放全部',
+                        onTap: () => ref
+                            .read(playerProvider.notifier)
+                            .playPlaylist(songs),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spacingMD),
+                    Expanded(
+                      child: _ActionButton(
+                        icon: Icons.shuffle,
+                        label: '随机播放',
+                        light: true,
+                        onTap: () {
+                          final shuffled = List<Song>.from(songs)..shuffle();
+                          ref
+                              .read(playerProvider.notifier)
+                              .playPlaylist(shuffled);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingLG),
+              if (songs.isEmpty && !libraryState.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(AppTheme.spacingXL),
+                  child: Center(child: Text('暂无曲目', style: TextStyle())),
+                ),
             ],
           ),
         ),
-
-        // ── Play / Shuffle buttons ──
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
-          child: Row(
-            children: [
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.play_arrow,
-                  label: '播放全部',
-                  onTap: () {
-                    ref.read(playerProvider.notifier).playPlaylist(songs);
-                  },
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingMD),
-              Expanded(
-                child: _ActionButton(
-                  icon: Icons.shuffle,
-                  label: '随机播放',
-                  light: true,
-                  onTap: () {
-                    final shuffled = List<Song>.from(songs)..shuffle();
-                    ref.read(playerProvider.notifier).playPlaylist(shuffled);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: AppTheme.spacingLG),
-
-        // ── Tracklist ──
-        if (songs.isEmpty && !libraryState.isLoading)
-          const Padding(
-            padding: EdgeInsets.all(AppTheme.spacingXL),
-            child: Center(child: Text('暂无曲目', style: TextStyle())),
-          )
-        else
-          ...songs.asMap().entries.map((entry) {
-            final index = entry.key;
-            final song = entry.value;
-            final isCurrentSong = currentSongId == song.id;
-            final isStarred = libraryState.starredSongs.any(
-              (s) => s.id == song.id,
-            );
-
-            return SongTile(
-              song: song,
-              index: index,
-              isPlaying: isCurrentSong,
-              onTap: () {
-                ref
-                    .read(playerProvider.notifier)
-                    .playPlaylist(songs, startIndex: index);
-              },
-              onMore: () => SongActionsSheet.show(
-                context,
-                songTitle: song.title,
-                songArtist: song.artist,
-                isStarred: isStarred,
-                onPlayNext: () {
-                  ref.read(playerProvider.notifier).playNext(song);
-                },
-                onToggleFavorite: () {
-                  ref
-                      .read(libraryProvider.notifier)
-                      .setSongStarred(song, starred: !isStarred);
-                },
-                downloadService: ref.read(downloadServiceProvider),
-                songId: song.id,
+        if (songs.isNotEmpty)
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final song = songs[index];
+              final isStarred = starredIds.contains(song.id);
+              return SongTile(
                 song: song,
-              ),
-            );
-          }),
-
-        const SizedBox(height: 100), // Space for mini player
+                index: index,
+                isPlaying: currentSongId == song.id,
+                onTap: () => ref
+                    .read(playerProvider.notifier)
+                    .playPlaylist(songs, startIndex: index),
+                onMore: () => SongActionsSheet.show(
+                  context,
+                  songTitle: song.title,
+                  songArtist: song.artist,
+                  isStarred: isStarred,
+                  onPlayNext: () {
+                    ref.read(playerProvider.notifier).playNext(song);
+                  },
+                  onToggleFavorite: () {
+                    ref
+                        .read(libraryProvider.notifier)
+                        .setSongStarred(song, starred: !isStarred);
+                  },
+                  downloadService: ref.read(downloadServiceProvider),
+                  songId: song.id,
+                  song: song,
+                ),
+              );
+            }, childCount: songs.length),
+          ),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)),
       ],
     );
   }
@@ -218,6 +217,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       imageUrl: api.getCoverArtUrl(coverArtId),
       cacheKey: coverArtId,
       fit: BoxFit.cover,
+      decodeWidth: 140,
       placeholderBuilder: (ctx) => Container(
         color: context.surfaceColor,
         child: Icon(Icons.album, size: 48, color: context.secondaryColor),

@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -25,6 +26,7 @@ class CachedDiskImage extends StatefulWidget {
   final Widget Function(BuildContext context, Object error)? errorBuilder;
   final Duration fadeInDuration;
   final Duration fadeOutDuration;
+  final double? decodeWidth;
 
   const CachedDiskImage({
     super.key,
@@ -35,6 +37,7 @@ class CachedDiskImage extends StatefulWidget {
     this.fit = BoxFit.cover,
     this.fadeInDuration = const Duration(milliseconds: 120),
     this.fadeOutDuration = const Duration(milliseconds: 80),
+    this.decodeWidth,
   });
 
   @override
@@ -42,8 +45,11 @@ class CachedDiskImage extends StatefulWidget {
 }
 
 class _CachedDiskImageState extends State<CachedDiskImage> {
-  static final Map<String, File> _memoryFiles = {};
-  static final Set<String> _loadedKeys = {};
+  static const int _maxRememberedKeys = 256;
+  static final BaseCacheManager _cacheManager = DefaultCacheManager();
+  static final LinkedHashMap<String, File> _memoryFiles = LinkedHashMap();
+  static final LinkedHashSet<String> _loadedKeys = LinkedHashSet();
+  static final Map<String, Future<File?>> _pendingDiskLookups = {};
 
   File? _file;
   late String _cacheKey;
@@ -54,7 +60,7 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
   void initState() {
     super.initState();
     _cacheKey = widget.cacheKey;
-    _file = _memoryFiles[_cacheKey];
+    _file = _rememberedFile(_cacheKey);
     if (_file == null) {
       _loadCachedFile();
     } else {
@@ -70,7 +76,7 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
       return;
     }
     _cacheKey = widget.cacheKey;
-    _file = _memoryFiles[_cacheKey];
+    _file = _rememberedFile(_cacheKey);
     _checkedDiskCache = _file != null;
     if (_file == null) {
       _loadCachedFile();
@@ -82,12 +88,11 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
     if (_cacheLookupKey == key) return;
     _cacheLookupKey = key;
     try {
-      final info = await DefaultCacheManager().getFileFromCache(key);
-      final file = info?.file;
+      final file = await _cachedFileFor(key);
       if (!mounted || key != _cacheKey) return;
       if (file != null) {
-        _memoryFiles[key] = file;
-        _loadedKeys.add(key);
+        _rememberFile(key, file);
+        _rememberLoadedKey(key);
       }
       setState(() {
         _file = file;
@@ -111,6 +116,7 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
       return Image.file(
         file,
         fit: widget.fit,
+        cacheWidth: _decodeWidthFor(context, widget.decodeWidth),
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
           _memoryFiles.remove(widget.cacheKey);
@@ -139,9 +145,48 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
   }
 
   void _markImageLoaded() {
-    _loadedKeys.add(widget.cacheKey);
+    _rememberLoadedKey(widget.cacheKey);
     if (_memoryFiles.containsKey(widget.cacheKey)) return;
     _loadCachedFile();
+  }
+
+  static File? _rememberedFile(String key) {
+    final file = _memoryFiles.remove(key);
+    if (file != null) _memoryFiles[key] = file;
+    return file;
+  }
+
+  static void _rememberFile(String key, File file) {
+    _memoryFiles.remove(key);
+    _memoryFiles[key] = file;
+    while (_memoryFiles.length > _maxRememberedKeys) {
+      _memoryFiles.remove(_memoryFiles.keys.first);
+    }
+  }
+
+  static void _rememberLoadedKey(String key) {
+    _loadedKeys.remove(key);
+    _loadedKeys.add(key);
+    while (_loadedKeys.length > _maxRememberedKeys) {
+      _loadedKeys.remove(_loadedKeys.first);
+    }
+  }
+
+  static Future<File?> _cachedFileFor(String key) {
+    final pending = _pendingDiskLookups[key];
+    if (pending != null) return pending;
+
+    late final Future<File?> lookup;
+    final operation = _cacheManager
+        .getFileFromCache(key)
+        .then((info) => info?.file);
+    lookup = operation.whenComplete(() {
+      if (identical(_pendingDiskLookups[key], lookup)) {
+        _pendingDiskLookups.remove(key);
+      }
+    });
+    _pendingDiskLookups[key] = lookup;
+    return lookup;
   }
 }
 
@@ -165,6 +210,7 @@ class _NetworkImage extends StatelessWidget {
       imageUrl: widget.imageUrl,
       cacheKey: widget.cacheKey,
       fit: widget.fit,
+      memCacheWidth: _decodeWidthFor(context, widget.decodeWidth),
       imageBuilder: (context, imageProvider) {
         onImageLoaded();
         return Image(
@@ -183,4 +229,13 @@ class _NetworkImage extends StatelessWidget {
       fadeOutDuration: widget.fadeOutDuration,
     );
   }
+}
+
+int? _decodeWidthFor(BuildContext context, double? logicalWidth) {
+  if (logicalWidth == null || !logicalWidth.isFinite || logicalWidth <= 0) {
+    return null;
+  }
+  final physicalWidth = (logicalWidth * MediaQuery.devicePixelRatioOf(context))
+      .ceil();
+  return physicalWidth.clamp(1, 4096).toInt();
 }

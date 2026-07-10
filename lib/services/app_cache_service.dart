@@ -11,6 +11,7 @@ class AppCacheService {
   AppCacheService._();
 
   static final AppCacheService instance = AppCacheService._();
+  static const int _backgroundDecodeThreshold = 32 * 1024;
 
   @visibleForTesting
   static Directory? debugCacheDirectoryOverride;
@@ -28,18 +29,25 @@ class AppCacheService {
       final file = await _file(name);
       if (!await file.exists()) return null;
       final contents = await file.readAsString();
-      final decoded = jsonDecode(contents);
-      return decoded is Map<String, dynamic> ? decoded : null;
+      return contents.length >= _backgroundDecodeThreshold
+          ? await compute(_decodeJsonMap, contents)
+          : _decodeJsonMap(contents);
     } catch (_) {
       return null;
     }
   }
 
-  Future<void> writeJson(String name, Map<String, dynamic> value) {
+  Future<void> writeJson(
+    String name,
+    Map<String, dynamic> value, {
+    bool encodeInBackground = false,
+  }) {
     final operation = _writeTail.then((_) async {
       final file = await _file(name);
       final temporary = File('${file.path}.tmp');
-      final encoded = jsonEncode(value);
+      final encoded = encodeInBackground
+          ? await compute(_encodeJsonMap, value)
+          : _encodeJsonMap(value);
       await temporary.writeAsString(encoded, flush: true);
       if (await file.exists()) await file.delete();
       await temporary.rename(file.path);
@@ -102,3 +110,10 @@ class AppCacheService {
     return File('${directory.path}${Platform.pathSeparator}$name.json');
   }
 }
+
+Map<String, dynamic>? _decodeJsonMap(String contents) {
+  final decoded = jsonDecode(contents);
+  return decoded is Map<String, dynamic> ? decoded : null;
+}
+
+String _encodeJsonMap(Map<String, dynamic> value) => jsonEncode(value);

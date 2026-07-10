@@ -36,6 +36,9 @@ class _ForYouDiscoverySectionState
   Map<String, SongClassification>? _cachedClassifications;
   int? _cachedRefreshToken;
   List<DiscoveryCardData> _cachedCards = const [];
+  List<Song>? _tagIndexSongs;
+  Map<String, SongClassification>? _tagIndexClassifications;
+  Map<String, List<Song>> _tagIndex = const {};
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +87,6 @@ class _ForYouDiscoverySectionState
         identical(_cachedClassifications, classifications);
     if (canReuse) return _cachedCards;
 
-    final notifier = ref.read(musicClassificationProvider.notifier);
     final scenarios = DiscoveryScenario.presets;
     final cards = <DiscoveryCardData>[
       for (var i = 0; i < scenarios.length; i++)
@@ -93,9 +95,9 @@ class _ForYouDiscoverySectionState
           subtitle: scenarios[i].subtitle,
           style: scenarios[i].style,
           songs: _songsForTags(
-            notifier,
             scenarios[i].tags,
             seed + i * 101,
+            classifications,
           ).take(24).toList(),
         ),
       DiscoveryCardData(
@@ -125,18 +127,49 @@ class _ForYouDiscoverySectionState
   }
 
   List<Song> _songsForTags(
-    MusicClassificationNotifier notifier,
     List<String> tags,
     int seed,
+    Map<String, SongClassification> classifications,
   ) {
+    final songsByTag = _songsByTag(classifications);
     final seen = <String>{};
     final songs = <Song>[];
     for (final tag in tags) {
-      for (final song in notifier.songsForTag(widget.allSongs, tag)) {
+      for (final song in songsByTag[tag] ?? const <Song>[]) {
         if (seen.add(song.id)) songs.add(song);
       }
     }
     return _stableShuffle(songs, seed);
+  }
+
+  Map<String, List<Song>> _songsByTag(
+    Map<String, SongClassification> classifications,
+  ) {
+    if (identical(_tagIndexSongs, widget.allSongs) &&
+        identical(_tagIndexClassifications, classifications)) {
+      return _tagIndex;
+    }
+
+    final index = <String, List<Song>>{};
+    for (final song in widget.allSongs) {
+      final classification = classifications[song.id];
+      if (classification == null) continue;
+      final tags = <String>{
+        ...classification.genres,
+        ...classification.moods,
+        ...classification.scenes,
+        classification.language,
+        decadeLabelForSong(song),
+      };
+      for (final tag in tags) {
+        index.putIfAbsent(tag, () => <Song>[]).add(song);
+      }
+    }
+
+    _tagIndexSongs = widget.allSongs;
+    _tagIndexClassifications = classifications;
+    _tagIndex = index;
+    return _tagIndex;
   }
 
   static int _todaySeed(int offset) {

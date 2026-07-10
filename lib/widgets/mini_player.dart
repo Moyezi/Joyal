@@ -135,6 +135,7 @@ class MiniPlayer extends ConsumerWidget {
       imageUrl: url,
       cacheKey: cacheKey,
       fit: BoxFit.cover,
+      decodeWidth: _miniPlayerHeight,
       placeholderBuilder: (context) => Container(
         color: Colors.white.withValues(alpha: 0.1),
         child: const Icon(Icons.music_note, color: Colors.white54, size: 24),

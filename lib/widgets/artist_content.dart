@@ -170,6 +170,7 @@ class _ArtistAvatar extends StatelessWidget {
             imageUrl: avatarUrl!,
             cacheKey: stableImageCacheKey('artist_avatar', avatarUrl!),
             fit: BoxFit.cover,
+            decodeWidth: size,
             placeholderBuilder: (ctx) => _buildInitial(initial, size, ctx),
             errorBuilder: (ctx, error) => _buildInitial(initial, size, ctx),
           ),

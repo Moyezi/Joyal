@@ -8,6 +8,7 @@ import 'library_provider.dart';
 import 'player_provider.dart';
 
 final Map<String, Future<LyricsData>> _lyricsCache = {};
+final Expando<_LyricTimeline> _lyricTimelines = Expando<_LyricTimeline>();
 
 final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
   final api = ref.watch(subsonicApiProvider);
@@ -30,40 +31,30 @@ final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
 
 int activeLyricIndex(LyricsData data, Duration position) {
   if (!data.synced) return -1;
-  var active = -1;
-  for (var index = 0; index < data.lines.length; index++) {
-    final start = data.lines[index].start;
-    if (start != null && start <= position) active = index;
-  }
-  return active;
+  final timeline = _lyricTimelines[data] ??= _LyricTimeline(data);
+  return timeline.activeIndexAt(position);
 }
 
 ({String current, String next, int index}) lyricPairForPosition(
   LyricsData data,
   Duration position,
 ) {
-  final lines = data.lines
-      .map((line) => line.text.trim())
-      .where((text) => text.isNotEmpty)
-      .toList();
-  if (lines.isEmpty) {
+  final first = _firstNonEmptyLineIndex(data);
+  if (first < 0) {
     return (current: '\u6682\u65e0\u6b4c\u8bcd', next: '', index: -1);
   }
 
   if (!data.synced) {
+    final next = _nextNonEmptyLine(data, first);
     return (
-      current: lines.first,
-      next: lines.length > 1 ? lines[1] : '',
+      current: data.lines[first].text.trim(),
+      next: next?.text.trim() ?? '',
       index: 0,
     );
   }
 
   final active = activeLyricIndex(data, position);
   if (active < 0) {
-    final first = data.lines.indexWhere((line) => line.text.trim().isNotEmpty);
-    if (first < 0) {
-      return (current: '\u6682\u65e0\u6b4c\u8bcd', next: '', index: -1);
-    }
     final next = _nextNonEmptyLine(data, first);
     return (
       current: data.lines[first].text.trim(),
@@ -77,10 +68,7 @@ int activeLyricIndex(LyricsData data, Duration position) {
     current--;
   }
   if (current < 0) {
-    current = data.lines.indexWhere((line) => line.text.trim().isNotEmpty);
-  }
-  if (current < 0) {
-    return (current: '\u6682\u65e0\u6b4c\u8bcd', next: '', index: -1);
+    current = first;
   }
 
   final next = _nextNonEmptyLine(data, current);
@@ -91,9 +79,90 @@ int activeLyricIndex(LyricsData data, Duration position) {
   );
 }
 
+int _firstNonEmptyLineIndex(LyricsData data) {
+  for (var index = 0; index < data.lines.length; index++) {
+    if (data.lines[index].text.trim().isNotEmpty) return index;
+  }
+  return -1;
+}
+
 LyricLine? _nextNonEmptyLine(LyricsData data, int current) {
   for (var index = current + 1; index < data.lines.length; index++) {
     if (data.lines[index].text.trim().isNotEmpty) return data.lines[index];
   }
   return null;
+}
+
+class _LyricTimeline {
+  final LyricsData data;
+  final List<int> indexes;
+  final List<int> startsInMicroseconds;
+  final bool isOrdered;
+
+  const _LyricTimeline._({
+    required this.data,
+    required this.indexes,
+    required this.startsInMicroseconds,
+    required this.isOrdered,
+  });
+
+  factory _LyricTimeline(LyricsData data) {
+    final indexes = <int>[];
+    final starts = <int>[];
+    final ordered = _populateTimeline(data, indexes: indexes, starts: starts);
+    return _LyricTimeline._(
+      data: data,
+      indexes: indexes,
+      startsInMicroseconds: starts,
+      isOrdered: ordered,
+    );
+  }
+
+  int activeIndexAt(Duration position) {
+    if (!isOrdered) return _linearActiveIndex(position);
+    if (indexes.isEmpty) return -1;
+
+    final target = position.inMicroseconds;
+    var low = 0;
+    var high = startsInMicroseconds.length - 1;
+    var match = -1;
+    while (low <= high) {
+      final middle = low + ((high - low) >> 1);
+      if (startsInMicroseconds[middle] <= target) {
+        match = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return match < 0 ? -1 : indexes[match];
+  }
+
+  int _linearActiveIndex(Duration position) {
+    var active = -1;
+    for (var index = 0; index < data.lines.length; index++) {
+      final start = data.lines[index].start;
+      if (start != null && start <= position) active = index;
+    }
+    return active;
+  }
+
+  static bool _populateTimeline(
+    LyricsData data, {
+    required List<int> indexes,
+    required List<int> starts,
+  }) {
+    var ordered = true;
+    int? previous;
+    for (var index = 0; index < data.lines.length; index++) {
+      final start = data.lines[index].start;
+      if (start == null) continue;
+      final value = start.inMicroseconds;
+      if (previous != null && value < previous) ordered = false;
+      previous = value;
+      indexes.add(index);
+      starts.add(value);
+    }
+    return ordered;
+  }
 }

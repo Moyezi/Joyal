@@ -283,7 +283,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     final albums = (_results['albums'] as List<dynamic>?) ?? [];
-    final songs = (_results['songs'] as List<dynamic>?) ?? [];
+    final songs = ((_results['songs'] as List<dynamic>?) ?? []).cast<Song>();
     final artists = (_results['artists'] as List<dynamic>?) ?? [];
 
     if (artists.isEmpty && albums.isEmpty && songs.isEmpty) {
@@ -308,30 +308,64 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
     }
 
-    return ListView(
+    return CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-      children: [
+      slivers: [
         if (artists.isNotEmpty) ...[
-          const _SectionHeader(title: '艺人'),
-          ...artists.map((artist) => _ArtistResultRow(artist: artist)),
-          const SizedBox(height: 8),
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 4, 20, 0),
+            sliver: SliverToBoxAdapter(child: _SectionHeader(title: '艺人')),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _ArtistResultRow(
+                  artist: artists[index] as Map<String, dynamic>,
+                ),
+                childCount: artists.length,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
         if (albums.isNotEmpty) ...[
-          const _SectionHeader(title: '专辑'),
-          ...albums.map((album) => _AlbumResultRow(album: album as Album)),
-          const SizedBox(height: 8),
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverToBoxAdapter(child: _SectionHeader(title: '专辑')),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) =>
+                    _AlbumResultRow(album: albums[index] as Album),
+                childCount: albums.length,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
         ],
         if (songs.isNotEmpty) ...[
-          const _SectionHeader(title: '歌曲'),
-          ...songs.asMap().entries.map(
-            (entry) => _SongResultRow(
-              song: entry.value as Song,
-              queue: songs.cast<Song>(),
-              index: entry.key,
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverToBoxAdapter(child: _SectionHeader(title: '歌曲')),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) => _SongResultRow(
+                  song: songs[index],
+                  queue: songs,
+                  index: index,
+                ),
+                childCount: songs.length,
+              ),
             ),
           ),
         ],
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
       ],
     );
   }
@@ -507,6 +541,7 @@ class _SearchArtistAvatar extends StatelessWidget {
             cacheKey:
                 cacheKey ?? stableImageCacheKey('search_artist', avatarUrl!),
             fit: BoxFit.cover,
+            decodeWidth: size,
             placeholderBuilder: (ctx) => _buildInitial(ctx),
             errorBuilder: (ctx, error) => _buildInitial(ctx),
           ),

@@ -1055,6 +1055,7 @@ class _RecentCardImage extends StatelessWidget {
       imageUrl: coverUrl,
       cacheKey: song.coverArt,
       fit: BoxFit.cover,
+      decodeWidth: MediaQuery.sizeOf(context).width * 0.65,
       placeholderBuilder: (_) => const _RecentCardPlaceholder(),
       errorBuilder: (_, _) => const _RecentCardPlaceholder(),
       fadeInDuration: const Duration(milliseconds: 220),

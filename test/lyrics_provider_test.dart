@@ -36,4 +36,51 @@ void main() {
     expect(pair.next, 'third');
     expect(pair.index, 0);
   });
+
+  test('activeLyricIndex finds the last started line in a long timeline', () {
+    final data = LyricsData(
+      synced: true,
+      lines: List.generate(
+        2000,
+        (index) => LyricLine(
+          text: 'line $index',
+          start: Duration(milliseconds: index * 250),
+        ),
+      ),
+    );
+
+    expect(activeLyricIndex(data, const Duration(milliseconds: 123375)), 493);
+    expect(activeLyricIndex(data, Duration.zero), 0);
+  });
+
+  test('activeLyricIndex preserves behavior for unordered timestamps', () {
+    const data = LyricsData(
+      synced: true,
+      lines: [
+        LyricLine(text: 'late', start: Duration(seconds: 8)),
+        LyricLine(text: 'early', start: Duration(seconds: 2)),
+        LyricLine(text: 'future', start: Duration(seconds: 12)),
+      ],
+    );
+
+    expect(activeLyricIndex(data, const Duration(seconds: 9)), 1);
+  });
+
+  test('unsynced lyric pairs skip blank lines without temporary filtering', () {
+    const data = LyricsData(
+      synced: false,
+      lines: [
+        LyricLine(text: '  '),
+        LyricLine(text: 'first'),
+        LyricLine(text: ''),
+        LyricLine(text: 'second'),
+      ],
+    );
+
+    final pair = lyricPairForPosition(data, Duration.zero);
+
+    expect(pair.current, 'first');
+    expect(pair.next, 'second');
+    expect(pair.index, 0);
+  });
 }

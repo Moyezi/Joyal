@@ -40,12 +40,12 @@ class AlbumCover extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
-        child: _buildImage(),
+        child: _buildImage(context),
       ),
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage(BuildContext context) {
     if (coverArtUrl.isEmpty) {
       return _PlaceholderCover(borderRadius: borderRadius);
     }
@@ -54,6 +54,7 @@ class AlbumCover extends StatelessWidget {
       imageUrl: coverArtUrl,
       cacheKey: cacheKey,
       fit: BoxFit.cover,
+      decodeWidth: size.isFinite ? size : null,
       placeholderBuilder: (context) =>
           _PlaceholderCover(borderRadius: borderRadius),
       errorBuilder: (context, error) =>

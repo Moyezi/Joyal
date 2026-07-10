@@ -79,13 +79,13 @@ class LibraryState {
       isLoadingSongs: isLoadingSongs ?? this.isLoadingSongs,
       isLoadingStarred: isLoadingStarred ?? this.isLoadingStarred,
       error: clearError ? null : (error ?? this.error),
-      artistDetail:
-          clearArtistDetail ? null : (artistDetail ?? this.artistDetail),
+      artistDetail: clearArtistDetail
+          ? null
+          : (artistDetail ?? this.artistDetail),
       artistAlbums: artistAlbums ?? this.artistAlbums,
       artistSongs: artistSongs ?? this.artistSongs,
       isLoadingArtist: isLoadingArtist ?? this.isLoadingArtist,
-      artistError:
-          clearArtistError ? null : (artistError ?? this.artistError),
+      artistError: clearArtistError ? null : (artistError ?? this.artistError),
     );
   }
 }
@@ -167,7 +167,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       'starredSongs': snapshot.starredSongs
           .map((item) => item.toJson())
           .toList(),
-    });
+    }, encodeInBackground: true);
   }
 
   /// Fetches the album list from the server.
@@ -430,7 +430,8 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       final artistResp = await _dio.get(_api!.getArtistUrl(artistId));
       final artistData =
           artistResp.data['subsonic-response']['artist']
-              as Map<String, dynamic>? ?? {};
+              as Map<String, dynamic>? ??
+          {};
       final artist = Artist.fromJson(artistData);
       final albumList = (artistData['album'] as List<dynamic>? ?? [])
           .map((json) => Album.fromJson(json as Map<String, dynamic>))
@@ -441,8 +442,10 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         final infoResp = await _dio.get(_api.getArtistInfo2Url(artistId));
         final infoData =
             infoResp.data['subsonic-response']['artistInfo2']
-                as Map<String, dynamic>? ?? {};
-        avatarUrl = infoData['largeImageUrl'] as String? ??
+                as Map<String, dynamic>? ??
+            {};
+        avatarUrl =
+            infoData['largeImageUrl'] as String? ??
             infoData['mediumImageUrl'] as String? ??
             infoData['smallImageUrl'] as String?;
       } catch (_) {}
@@ -460,10 +463,12 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
           artistAlbums: albumList,
           isLoadingArtist: false,
         );
-        unawaited(_cacheRepo.saveArtistDetail(artistId, {
-          'artist': artistWithAvatar.toJson(),
-          'albums': albumList.map((a) => a.toJson()).toList(),
-        }));
+        unawaited(
+          _cacheRepo.saveArtistDetail(artistId, {
+            'artist': artistWithAvatar.toJson(),
+            'albums': albumList.map((a) => a.toJson()).toList(),
+          }),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -508,8 +513,9 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
         songs.addAll(
           page
               .map((json) => Song.fromJson(json as Map<String, dynamic>))
-              .where((song) =>
-                  song.artist.toLowerCase() == artistName.toLowerCase()),
+              .where(
+                (song) => song.artist.toLowerCase() == artistName.toLowerCase(),
+              ),
         );
         if (page.length < pageSize) break;
         offset += pageSize;
