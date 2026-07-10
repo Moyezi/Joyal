@@ -10,6 +10,24 @@ import '../models/song.dart';
 import 'app_cache_service.dart';
 import 'subsonic_api.dart';
 
+enum LyricsSource {
+  amll('amll', 'AMLL 逐字歌词', '优先使用 AMLL；无匹配时回退到内嵌歌词'),
+  embedded('embedded', 'Navidrome 内嵌歌词', '仅使用当前服务器提供的歌词');
+
+  const LyricsSource(this.storageValue, this.label, this.description);
+
+  final String storageValue;
+  final String label;
+  final String description;
+
+  static LyricsSource fromStorageValue(String? value) {
+    return LyricsSource.values.firstWhere(
+      (source) => source.storageValue == value,
+      orElse: () => LyricsSource.amll,
+    );
+  }
+}
+
 class AmlLyricsReference {
   final String directory;
   final String lyricId;
@@ -84,19 +102,25 @@ class LyricsService {
     AmlLyricsIndex? amllIndex,
   }) : amllIndex = amllIndex ?? _defaultAmlLyricsIndex;
 
-  Future<LyricsData> fetch(Song song, {bool forceRefresh = false}) async {
+  Future<LyricsData> fetch(
+    Song song, {
+    bool forceRefresh = false,
+    LyricsSource source = LyricsSource.amll,
+  }) async {
     final cache = AppCacheService.instance;
-    final cacheName = _cacheName(song);
+    final cacheName = _cacheName(song, source);
     final saved = await cache.readJson(cacheName);
     final cached = _readCached(saved);
     if (!forceRefresh && cached != null && _isFresh(cached)) {
       return cached.data;
     }
 
-    final ttml = await _fetchAmlTtml(song);
-    if (ttml != null && !ttml.isEmpty) {
-      await _save(cache, cacheName, ttml);
-      return ttml;
+    if (source == LyricsSource.amll) {
+      final ttml = await _fetchAmlTtml(song);
+      if (ttml != null && !ttml.isEmpty) {
+        await _save(cache, cacheName, ttml);
+        return ttml;
+      }
     }
 
     try {
@@ -109,12 +133,15 @@ class LyricsService {
     }
   }
 
-  Future<void> clearCachedLyrics(Song song) {
-    return AppCacheService.instance.deleteJson(_cacheName(song));
+  Future<void> clearCachedLyrics(
+    Song song, {
+    LyricsSource source = LyricsSource.amll,
+  }) {
+    return AppCacheService.instance.deleteJson(_cacheName(song, source));
   }
 
-  String _cacheName(Song song) {
-    return 'lyrics_${AppCacheService.instance.serverScope(api.baseUrl, '${api.username}|${song.id}')}';
+  String _cacheName(Song song, LyricsSource source) {
+    return 'lyrics_${AppCacheService.instance.serverScope(api.baseUrl, '${api.username}|${song.id}')}_${source.storageValue}';
   }
 
   Future<LyricsData?> _fetchAmlTtml(Song song) async {
@@ -473,19 +500,44 @@ String? _attributeValue(XmlElement element, String localName) {
 
 Duration? _parseTtmlTime(String? value) {
   if (value == null || value.isEmpty) return null;
-  final match = RegExp(
-    r'^(?:(\d+):)?(\d{1,2}):(\d{2})(?:[.,](\d{1,3}))?$',
-  ).firstMatch(value.trim());
-  if (match == null) return null;
-  final hours = int.tryParse(match.group(1) ?? '') ?? 0;
-  final minutes = int.tryParse(match.group(2) ?? '') ?? 0;
-  final seconds = int.tryParse(match.group(3) ?? '') ?? 0;
-  final fraction = (match.group(4) ?? '').padRight(3, '0');
-  final milliseconds = int.tryParse(fraction.isEmpty ? '0' : fraction) ?? 0;
-  return Duration(
-    hours: hours,
-    minutes: minutes,
-    seconds: seconds,
-    milliseconds: milliseconds,
-  );
+  final text = value.trim();
+  final clockMatch = RegExp(
+    r'^(?:(\d+):)?(\d{1,2}):(\d{2})(?:[.,](\d+))?$',
+  ).firstMatch(text);
+  if (clockMatch != null) {
+    final hours = int.tryParse(clockMatch.group(1) ?? '') ?? 0;
+    final minutes = int.tryParse(clockMatch.group(2) ?? '') ?? 0;
+    final seconds = int.tryParse(clockMatch.group(3) ?? '') ?? 0;
+    return Duration(
+      hours: hours,
+      minutes: minutes,
+      seconds: seconds,
+      milliseconds: _fractionalMilliseconds(clockMatch.group(4)),
+    );
+  }
+
+  // AMLL commonly uses offset time (for example `15.865`) until the first
+  // minute, then switches to the clock-time form (`1:00.186`). Supporting
+  // both forms keeps the full timeline seekable and synchronized.
+  final offsetMatch = RegExp(
+    r'^(\d+)(?:[.,](\d+))?(ms|h|m|s)?$',
+  ).firstMatch(text);
+  if (offsetMatch == null) return null;
+
+  final whole = int.tryParse(offsetMatch.group(1) ?? '');
+  if (whole == null) return null;
+  final fraction = _fractionalMilliseconds(offsetMatch.group(2));
+  final unit = offsetMatch.group(3) ?? 's';
+  return switch (unit) {
+    'ms' => Duration(milliseconds: whole),
+    'm' => Duration(minutes: whole, milliseconds: fraction * 60),
+    'h' => Duration(hours: whole, milliseconds: fraction * 60 * 60),
+    _ => Duration(seconds: whole, milliseconds: fraction),
+  };
+}
+
+int _fractionalMilliseconds(String? fraction) {
+  if (fraction == null || fraction.isEmpty) return 0;
+  final normalized = fraction.padRight(3, '0');
+  return int.tryParse(normalized.substring(0, 3)) ?? 0;
 }

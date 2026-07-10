@@ -11,6 +11,7 @@ import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/lyrics_personalization_provider.dart';
 import '../providers/lyrics_provider.dart';
+import '../providers/lyrics_source_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/lyrics_service.dart';
 import '../utils/app_toast.dart';
@@ -722,6 +723,9 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     );
     final api = ref.watch(subsonicApiProvider);
     final hasLyricsTarget = currentSong != null && api != null;
+    final lyricsSource = currentSong == null
+        ? LyricsSource.amll
+        : ref.watch(lyricsSourceForSongProvider(currentSong));
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
     final inactiveBlur = ref
@@ -891,6 +895,45 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 18),
+              if (hasLyricsTarget) ...[
+                _LyricsSettingsSection(
+                  title: '本首歌歌词来源',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        lyricsSource.description,
+                        style: context.textBodySmall.copyWith(
+                          color: context.secondaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final source in LyricsSource.values)
+                            _LyricsChoiceButton(
+                              label: source.label,
+                              icon: source == LyricsSource.amll
+                                  ? Icons.auto_awesome_rounded
+                                  : Icons.storage_rounded,
+                              selected: lyricsSource == source,
+                              onTap: () {
+                                if (lyricsSource == source) return;
+                                HapticFeedback.selectionClick();
+                                unawaited(
+                                  _setCurrentLyricsSource(context, ref, source),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+              ],
               _LyricsSettingsSection(
                 title: '歌词维护',
                 child: Column(
@@ -898,7 +941,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                   children: [
                     Text(
                       hasLyricsTarget
-                          ? '优先从 AMLL TTML 数据库获取逐字歌词；不匹配时使用 Navidrome 内嵌歌词。'
+                          ? '重新获取与清除缓存仅作用于当前选中的歌词来源。'
                           : '开始播放歌曲后可重新获取或清除当前歌曲的歌词缓存。',
                       style: context.textBodySmall.copyWith(
                         color: context.secondaryColor,
@@ -1185,16 +1228,17 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     final song = ref.read(playerProvider).currentSong;
     final api = ref.read(subsonicApiProvider);
     if (song == null || api == null) return;
+    final source = ref.read(lyricsSourceForSongProvider(song));
     try {
       await LyricsService(
         api: api,
         dio: ref.read(dioProvider),
-      ).fetch(song, forceRefresh: true);
-      invalidateLyricsMemoryCache(api, song);
+      ).fetch(song, forceRefresh: true, source: source);
+      invalidateLyricsMemoryCache(api, song, source: source);
       ref.invalidate(lyricsProvider(song));
       await ref.read(lyricsProvider(song).future);
       if (context.mounted) {
-        showAppToast(context, '歌词已重新获取', replaceCurrent: true);
+        showAppToast(context, '已重新获取${source.label}', replaceCurrent: true);
       }
     } catch (_) {
       if (context.mounted) {
@@ -1207,18 +1251,42 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     final song = ref.read(playerProvider).currentSong;
     final api = ref.read(subsonicApiProvider);
     if (song == null || api == null) return;
+    final source = ref.read(lyricsSourceForSongProvider(song));
     try {
       await LyricsService(
         api: api,
         dio: ref.read(dioProvider),
-      ).clearCachedLyrics(song);
-      invalidateLyricsMemoryCache(api, song);
+      ).clearCachedLyrics(song, source: source);
+      invalidateLyricsMemoryCache(api, song, source: source);
       if (context.mounted) {
-        showAppToast(context, '已清除当前歌曲歌词缓存', replaceCurrent: true);
+        showAppToast(context, '已清除${source.label}缓存', replaceCurrent: true);
       }
     } catch (_) {
       if (context.mounted) {
         showAppToast(context, '歌词缓存清除失败', replaceCurrent: true);
+      }
+    }
+  }
+
+  Future<void> _setCurrentLyricsSource(
+    BuildContext context,
+    WidgetRef ref,
+    LyricsSource source,
+  ) async {
+    final song = ref.read(playerProvider).currentSong;
+    final api = ref.read(subsonicApiProvider);
+    if (song == null || api == null) return;
+    try {
+      await ref
+          .read(lyricsSourceOverridesProvider.notifier)
+          .setSourceFor(api, song, source);
+      await ref.read(lyricsProvider(song).future);
+      if (context.mounted) {
+        showAppToast(context, '本首歌已切换为${source.label}', replaceCurrent: true);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showAppToast(context, '歌词来源切换失败', replaceCurrent: true);
       }
     }
   }

@@ -106,6 +106,7 @@ class _DiscoverSongCarouselState extends ConsumerState<DiscoverSongCarousel> {
                         ),
                         for (final offset in offsets)
                           _DepthCarouselCard(
+                            key: ValueKey('discover-page-${nearest + offset}'),
                             songs: songs,
                             pageIndex: nearest + offset,
                             relative: offset - (page - nearest),
@@ -140,6 +141,7 @@ class _DepthCarouselCard extends ConsumerWidget {
   final PageController controller;
 
   const _DepthCarouselCard({
+    super.key,
     required this.songs,
     required this.pageIndex,
     required this.relative,

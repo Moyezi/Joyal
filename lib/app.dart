@@ -12,6 +12,7 @@ import 'models/song.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/library_provider.dart';
+import 'providers/lyrics_source_provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/sidebar_image_provider.dart';
 import 'screens/home_screen.dart';
@@ -440,9 +441,10 @@ class _MainShellState extends ConsumerState<MainShell>
     final service = LyricsService(api: api, dio: ref.read(dioProvider));
     for (final entry in songs.entries) {
       if (!_lyricsPrefetchInFlight.add(entry.key)) continue;
+      final source = ref.read(lyricsSourceForSongProvider(entry.value));
       unawaited(
         service
-            .fetch(entry.value)
+            .fetch(entry.value, source: source)
             .then<void>((_) {}, onError: (_) {})
             .whenComplete(() {
               _lyricsPrefetchInFlight.remove(entry.key);

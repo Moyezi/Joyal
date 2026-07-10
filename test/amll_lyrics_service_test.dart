@@ -73,12 +73,46 @@ void main() {
     expect(requests, hasLength(2));
   });
 
-  test('bundled AMLL index resolves the supplied White Night example', () async {
-    final reference = await AmlLyricsIndex().match(_song);
+  test(
+    'bundled AMLL index resolves the supplied White Night example',
+    () async {
+      final reference = await AmlLyricsIndex().match(_song);
 
-    expect(reference, isNotNull);
-    expect(reference!.directory, 'qq-lyrics');
-    expect(reference.lyricId, '464890166');
+      expect(reference, isNotNull);
+      expect(reference!.directory, 'qq-lyrics');
+      expect(reference.lyricId, '464890166');
+    },
+  );
+
+  test('parses AMLL second-based time before the first minute', () async {
+    final dio = Dio();
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) => handler.resolve(
+          Response<String>(
+            requestOptions: options,
+            statusCode: 200,
+            data: _offsetTimeTtml,
+          ),
+        ),
+      ),
+    );
+    final service = LyricsService(
+      api: SubsonicApi(
+        baseUrl: 'https://music.example.test',
+        username: 'alice',
+        password: 'secret',
+      ),
+      dio: dio,
+      amllIndex: AmlLyricsIndex(loadAsset: () async => _matchingIndex),
+    );
+
+    final lyrics = await service.fetch(_song);
+
+    expect(lyrics.synced, isTrue);
+    expect(lyrics.lines[0].start, const Duration(milliseconds: 15865));
+    expect(lyrics.lines[1].start, const Duration(seconds: 59));
+    expect(lyrics.lines[2].start, const Duration(milliseconds: 60186));
   });
 }
 
@@ -101,6 +135,16 @@ const _ttml = '''
 <tt xmlns="http://www.w3.org/ns/ttml">
   <body><div>
     <p begin="00:01.000" end="00:02.000"><span begin="00:01.000" end="00:01.200">你</span><span begin="00:01.200" end="00:01.400">好</span> <span begin="00:01.400" end="00:02.000">世界</span></p>
+  </div></body>
+</tt>
+''';
+
+const _offsetTimeTtml = '''
+<tt xmlns="http://www.w3.org/ns/ttml">
+  <body><div>
+    <p begin="15.865" end="16.065"><span begin="15.865" end="16.065">前段</span></p>
+    <p begin="59.000" end="59.500"><span begin="59.000" end="59.500">一分钟前</span></p>
+    <p begin="1:00.186" end="1:00.500"><span begin="1:00.186" end="1:00.500">一分钟后</span></p>
   </div></body>
 </tt>
 ''';

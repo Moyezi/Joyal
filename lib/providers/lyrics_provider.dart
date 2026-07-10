@@ -6,18 +6,33 @@ import '../services/app_cache_service.dart';
 import '../services/lyrics_service.dart';
 import '../services/subsonic_api.dart';
 import 'library_provider.dart';
+import 'lyrics_source_provider.dart';
 import 'player_provider.dart';
 
 final Map<String, Future<LyricsData>> _lyricsCache = {};
 final Expando<_LyricTimeline> _lyricTimelines = Expando<_LyricTimeline>();
 
-String lyricsCacheKeyFor(SubsonicApi api, Song song) {
+String lyricsCacheKeyFor(
+  SubsonicApi api,
+  Song song, [
+  LyricsSource source = LyricsSource.amll,
+]) {
   return '${AppCacheService.instance.serverScope(api.baseUrl, api.username)}_'
-      '${song.id}';
+      '${song.id}_${source.storageValue}';
 }
 
-void invalidateLyricsMemoryCache(SubsonicApi api, Song song) {
-  _lyricsCache.remove(lyricsCacheKeyFor(api, song));
+void invalidateLyricsMemoryCache(
+  SubsonicApi api,
+  Song song, {
+  LyricsSource? source,
+}) {
+  if (source != null) {
+    _lyricsCache.remove(lyricsCacheKeyFor(api, song, source));
+    return;
+  }
+  for (final value in LyricsSource.values) {
+    _lyricsCache.remove(lyricsCacheKeyFor(api, song, value));
+  }
 }
 
 final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
@@ -26,12 +41,13 @@ final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
     return Future.value(const LyricsData(lines: [], synced: false));
   }
 
-  final key = lyricsCacheKeyFor(api, song);
+  final source = ref.watch(lyricsSourceForSongProvider(song));
+  final key = lyricsCacheKeyFor(api, song, source);
   return _lyricsCache.putIfAbsent(key, () {
     return LyricsService(
       api: api,
       dio: ref.read(dioProvider),
-    ).fetch(song).catchError((Object error) {
+    ).fetch(song, source: source).catchError((Object error) {
       _lyricsCache.remove(key);
       throw error;
     });
