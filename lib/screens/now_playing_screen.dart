@@ -1019,14 +1019,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final disabledActionIconColor = actionIconColor.withValues(alpha: 0.38);
     final playButtonBackground = context.surfaceColor;
     final playButtonForeground = theme.colorScheme.onSurface;
+    final playButtonRadius = BorderRadius.circular(22);
+    final playButtonShape = RoundedRectangleBorder(
+      borderRadius: playButtonRadius,
+    );
     final controlsBlur = ref.watch(
       glassEffectProvider.select(
-        (state) => state.blurFor(GlassEffectTarget.bottomNav),
+        (state) => state.blurFor(GlassEffectTarget.nowPlayingControls),
       ),
     );
     final controlsTintOpacity = ref.watch(
       glassEffectProvider.select(
-        (state) => state.opacityFor(GlassEffectTarget.bottomNav),
+        (state) => state.opacityFor(GlassEffectTarget.nowPlayingControls),
       ),
     );
     final isStarred = ref.watch(
@@ -1263,7 +1267,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                 height: 64,
                                 decoration: BoxDecoration(
                                   color: playButtonBackground,
-                                  borderRadius: BorderRadius.circular(22),
+                                  borderRadius: playButtonRadius,
                                   boxShadow: [
                                     BoxShadow(
                                       color: theme.colorScheme.shadow
@@ -1275,15 +1279,30 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                     ),
                                   ],
                                 ),
-                                child: IconButton(
-                                  icon: Icon(
-                                    isPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
-                                    color: playButtonForeground,
-                                    size: 36,
+                                child: Material(
+                                  color: Colors.transparent,
+                                  shape: playButtonShape,
+                                  borderRadius: playButtonRadius,
+                                  clipBehavior: Clip.antiAlias,
+                                  child: IconButton(
+                                    style: ButtonStyle(
+                                      overlayColor:
+                                          const WidgetStatePropertyAll(
+                                            Color(0x52B6BDC7),
+                                          ),
+                                      shape: WidgetStatePropertyAll(
+                                        playButtonShape,
+                                      ),
+                                    ),
+                                    icon: Icon(
+                                      isPlaying
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded,
+                                      color: playButtonForeground,
+                                      size: 36,
+                                    ),
+                                    onPressed: () => notifier.togglePlayPause(),
                                   ),
-                                  onPressed: () => notifier.togglePlayPause(),
                                 ),
                               ),
                             ),

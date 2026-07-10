@@ -13,8 +13,8 @@ description: "Now-playing and selection-mode memory for Joyal Music. Use when ch
 
 ## Playback Control Rail
 
-- Wrap the five playback controls in `FrostedGlass` using `GlassEffectTarget.bottomNav`; this shares the navigation glass blur, opacity, and liquid-glass switch.
-- Keep the main play/pause Hero (`nowPlayingPlayButtonHeroTag`) as a 64px rounded rectangle (`radius: 22`) with `context.surfaceColor` and `onSurface` foreground; do not hardcode light/dark button colors.
+- Wrap the five playback controls in `FrostedGlass` using `GlassEffectTarget.nowPlayingControls`; its blur and opacity are independently adjustable in the personalization “播放控制栏” preview. Keep `bottomNav` for the app navigation only.
+- Keep the main play/pause Hero (`nowPlayingPlayButtonHeroTag`) as a 64px rounded rectangle (`radius: 22`) with `context.surfaceColor` and `onSurface` foreground. Its pressed overlay must use the same rounded rectangle, never a `CircleBorder`.
 
 ## MiniPlayer To Now Playing
 

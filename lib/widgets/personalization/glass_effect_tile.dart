@@ -287,6 +287,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.topBar => BorderRadius.circular(18),
       GlassEffectTarget.searchBar => BorderRadius.circular(18),
       GlassEffectTarget.bottomNav => BorderRadius.circular(34),
+      GlassEffectTarget.nowPlayingControls => BorderRadius.circular(34),
       GlassEffectTarget.miniPlayer => BorderRadius.circular(44),
       GlassEffectTarget.songCard => BorderRadius.circular(18),
       GlassEffectTarget.lyricsPage => BorderRadius.circular(24),
@@ -349,6 +350,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.miniPlayer => 304,
       GlassEffectTarget.searchBar => 280,
       GlassEffectTarget.bottomNav => 304,
+      GlassEffectTarget.nowPlayingControls => 304,
       GlassEffectTarget.songCard => 304,
       GlassEffectTarget.lyricsPage => 304,
       GlassEffectTarget.lyricsDrawer => 304,
@@ -361,6 +363,7 @@ class _GlassPreview extends ConsumerWidget {
       GlassEffectTarget.miniPlayer => 76,
       GlassEffectTarget.searchBar => 54,
       GlassEffectTarget.bottomNav => 64,
+      GlassEffectTarget.nowPlayingControls => 80,
       GlassEffectTarget.songCard => 68,
       GlassEffectTarget.lyricsPage => 112,
       GlassEffectTarget.lyricsDrawer => 112,
@@ -370,6 +373,7 @@ class _GlassPreview extends ConsumerWidget {
   double _previewBorderOpacity(GlassEffectTarget target, bool isDark) {
     if (target == GlassEffectTarget.searchBar ||
         target == GlassEffectTarget.bottomNav ||
+        target == GlassEffectTarget.nowPlayingControls ||
         target == GlassEffectTarget.miniPlayer ||
         target == GlassEffectTarget.songCard) {
       return 0;
@@ -582,6 +586,19 @@ class _GlassPreviewContent extends StatelessWidget {
           _PreviewNavItem(icon: Icons.explore_outlined, label: '发现'),
         ],
       ),
+      GlassEffectTarget.nowPlayingControls => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Icon(Icons.shuffle_rounded, size: 22),
+            Icon(Icons.skip_previous_rounded, size: 30),
+            _PreviewNowPlayingButton(),
+            Icon(Icons.skip_next_rounded, size: 30),
+            Icon(Icons.queue_music_rounded, size: 22),
+          ],
+        ),
+      ),
       GlassEffectTarget.miniPlayer => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
@@ -714,6 +731,27 @@ class _GlassPreviewContent extends StatelessWidget {
         ),
       ),
     };
+  }
+}
+
+class _PreviewNowPlayingButton extends StatelessWidget {
+  const _PreviewNowPlayingButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Icon(
+        Icons.pause_rounded,
+        size: 30,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
   }
 }
 

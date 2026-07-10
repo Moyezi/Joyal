@@ -11,6 +11,7 @@ enum GlassEffectTarget {
   miniPlayer('mini_player', '迷你播放栏', 18, 0.58),
   searchBar('search_bar', '搜索框', 16, 0.40),
   bottomNav('bottom_nav', '导航栏', 18, 0.48),
+  nowPlayingControls('now_playing_controls', '播放控制栏', 18, 0.48),
   songCard('song_card', '歌曲卡片', 14, 0.42),
   lyricsPage('lyrics_page', '非当前歌词', 5, 0.50),
   lyricsDrawer('lyrics_drawer', '歌词抽屉', 14, 0.33);
