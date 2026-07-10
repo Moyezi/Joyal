@@ -160,15 +160,15 @@ class _DepthCarouselCard extends ConsumerWidget {
     final scale = (1 - distance * 0.14).clamp(0.56, 1.0);
     final opacity = (1 - distance * 0.22).clamp(0.34, 1.0);
     final blur = distance == 0 ? 0.0 : distance * 0.7;
-    final size = centerSize * scale;
-    final x = viewportCenter - size / 2 + relative * centerSize * 0.37;
-    final y = cardCenterY - size / 2 + distance * 10;
     final isCenter = distance < 0.5;
     final currentSong = songs[index];
     final coverCard = _DiscoverCoverCard(
       song: currentSong,
       isCenter: isCenter,
-      size: size,
+      // Keep the image's layout and decode size fixed while the card moves.
+      // Recreating ImageProvider instances at every drag frame could briefly
+      // replace an otherwise cached cover with an empty frame.
+      size: centerSize,
       onPlay: () => ref
           .read(playerProvider.notifier)
           .playPlaylist(songs, startIndex: index),
@@ -184,19 +184,25 @@ class _DepthCarouselCard extends ConsumerWidget {
         : filteredCard;
 
     return Positioned(
-      left: x,
-      top: y,
-      width: size,
-      height: size,
-      child: GestureDetector(
-        onTap: isCenter
-            ? null
-            : () => controller.animateToPage(
-                pageIndex,
-                duration: const Duration(milliseconds: 320),
-                curve: Curves.easeOutCubic,
-              ),
-        child: visualCard,
+      left: viewportCenter - centerSize / 2,
+      top: cardCenterY - centerSize / 2,
+      width: centerSize,
+      height: centerSize,
+      child: Transform.translate(
+        offset: Offset(relative * centerSize * 0.37, distance * 10),
+        child: Transform.scale(
+          scale: scale,
+          child: GestureDetector(
+            onTap: isCenter
+                ? null
+                : () => controller.animateToPage(
+                    pageIndex,
+                    duration: const Duration(milliseconds: 320),
+                    curve: Curves.easeOutCubic,
+                  ),
+            child: visualCard,
+          ),
+        ),
       ),
     );
   }
