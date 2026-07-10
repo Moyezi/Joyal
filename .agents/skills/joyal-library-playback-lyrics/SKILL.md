@@ -54,6 +54,10 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Lyrics cache keys are scoped by `baseUrl + username + song.id`.
 - Empty lyrics are cached only short-term.
 - On lyrics failure, remove the in-memory Future cache.
+- `raw-lyrics-index.jsonl` is bundled as a Flutter asset. `LyricsService` loads it once, conservatively matches title plus artist (and prefers matching album), then tries AMLL TTML before Navidrome lyrics.
+- AMLL source priority is `qq-lyrics`, `ncm-lyrics`, `spotify-lyrics`, then `am-lyrics`; download URLs use `https://raw.githubusercontent.com/amll-dev/amll-ttml-db/refs/heads/main/<source>/<id>.ttml`.
+- Parse TTML `<p>` and timed foreground `<span>` elements into `LyricLine.words`, cache the parsed timing with the lyric JSON, and fall back to Navidrome structured/legacy embedded lyrics whenever index matching, download, or parsing fails.
+- The lyrics personalization drawer can re-fetch or clear the current song's cache. Clearing keeps the visible lyric until the next request; re-fetch bypasses fresh cache.
 
 ## Lyrics Screen
 
@@ -68,6 +72,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Pinch with two fingers on the lyrics page opens the in-place personalization drawer.
 - Preferences are stored by `lyrics_personalization_provider.dart` in secure storage.
 - Preferences include color, alignment, font size, and font family.
+- Preferences also include the persisted `wordByWordEnabled` switch. It only affects presentation when the active TTML line has word timing; downloading and caching still proceed while it is off.
 - Non-current lyric fogging is controlled by `GlassEffectTarget.lyricsPage`.
 - The current lyric remains clear.
 - The drawer glass target is `lyricsDrawer`.

@@ -4,11 +4,21 @@ import '../models/lyrics.dart';
 import '../models/song.dart';
 import '../services/app_cache_service.dart';
 import '../services/lyrics_service.dart';
+import '../services/subsonic_api.dart';
 import 'library_provider.dart';
 import 'player_provider.dart';
 
 final Map<String, Future<LyricsData>> _lyricsCache = {};
 final Expando<_LyricTimeline> _lyricTimelines = Expando<_LyricTimeline>();
+
+String lyricsCacheKeyFor(SubsonicApi api, Song song) {
+  return '${AppCacheService.instance.serverScope(api.baseUrl, api.username)}_'
+      '${song.id}';
+}
+
+void invalidateLyricsMemoryCache(SubsonicApi api, Song song) {
+  _lyricsCache.remove(lyricsCacheKeyFor(api, song));
+}
 
 final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
   final api = ref.watch(subsonicApiProvider);
@@ -16,8 +26,7 @@ final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
     return Future.value(const LyricsData(lines: [], synced: false));
   }
 
-  final key =
-      '${AppCacheService.instance.serverScope(api.baseUrl, api.username)}_${song.id}';
+  final key = lyricsCacheKeyFor(api, song);
   return _lyricsCache.putIfAbsent(key, () {
     return LyricsService(
       api: api,
@@ -28,6 +37,17 @@ final lyricsProvider = FutureProvider.family<LyricsData, Song>((ref, song) {
     });
   });
 });
+
+double lyricWordProgress(LyricWord word, Duration position) {
+  final start = word.start;
+  if (start == null) return 1;
+  if (position < start) return 0;
+  final end = word.end;
+  if (end == null || end <= start) return 1;
+  return ((position - start).inMicroseconds / (end - start).inMicroseconds)
+      .clamp(0.0, 1.0)
+      .toDouble();
+}
 
 int activeLyricIndex(LyricsData data, Duration position) {
   if (!data.synced) return -1;

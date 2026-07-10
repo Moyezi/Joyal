@@ -11,6 +11,7 @@ const _colorModeKey = 'lyrics_color_mode';
 const _alignmentKey = 'lyrics_alignment';
 const _fontFamilyKey = 'lyrics_font_family';
 const _fontSizeKey = 'lyrics_font_size';
+const _wordByWordEnabledKey = 'lyrics_word_by_word_enabled';
 const _customFontPathKey = 'lyrics_custom_font_path';
 const _customFontNameKey = 'lyrics_custom_font_name';
 const _customFontFamilyKey = 'lyrics_custom_font_family';
@@ -80,6 +81,7 @@ class LyricsPersonalizationState {
   final LyricsAlignmentMode alignment;
   final LyricsFontFamily fontFamily;
   final double fontSize;
+  final bool wordByWordEnabled;
   final String? customFontPath;
   final String? customFontName;
   final String? customFontFamily;
@@ -90,6 +92,7 @@ class LyricsPersonalizationState {
     this.alignment = LyricsAlignmentMode.left,
     this.fontFamily = LyricsFontFamily.system,
     this.fontSize = defaultFontSize,
+    this.wordByWordEnabled = true,
     this.customFontPath,
     this.customFontName,
     this.customFontFamily,
@@ -112,6 +115,7 @@ class LyricsPersonalizationState {
     LyricsAlignmentMode? alignment,
     LyricsFontFamily? fontFamily,
     double? fontSize,
+    bool? wordByWordEnabled,
     String? customFontPath,
     String? customFontName,
     String? customFontFamily,
@@ -123,6 +127,7 @@ class LyricsPersonalizationState {
       alignment: alignment ?? this.alignment,
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
+      wordByWordEnabled: wordByWordEnabled ?? this.wordByWordEnabled,
       customFontPath: clearCustomFont
           ? null
           : customFontPath ?? this.customFontPath,
@@ -156,6 +161,8 @@ class LyricsPersonalizationNotifier
     final savedFontSize = double.tryParse(
       await _storage.read(key: _fontSizeKey) ?? '',
     );
+    final wordByWordEnabled =
+        await _storage.read(key: _wordByWordEnabledKey) != 'false';
     var customFontPath = await _storage.read(key: _customFontPathKey);
     var customFontName = await _storage.read(key: _customFontNameKey);
     var customFontFamily = await _storage.read(key: _customFontFamilyKey);
@@ -210,6 +217,7 @@ class LyricsPersonalizationNotifier
       alignment: alignment,
       fontFamily: resolvedFontFamily,
       fontSize: fontSize,
+      wordByWordEnabled: wordByWordEnabled,
       customFontPath: customFontPath,
       customFontName: customFontName,
       customFontFamily: customFontFamily,
@@ -293,6 +301,12 @@ class LyricsPersonalizationNotifier
     await _storage.write(key: _fontSizeKey, value: next.toStringAsFixed(1));
   }
 
+  Future<void> setWordByWordEnabled(bool enabled) async {
+    if (state.wordByWordEnabled == enabled && !state.isLoading) return;
+    state = state.copyWith(wordByWordEnabled: enabled, isLoading: false);
+    await _storage.write(key: _wordByWordEnabledKey, value: enabled.toString());
+  }
+
   Future<void> reset() async {
     final oldPath = state.customFontPath;
     state = const LyricsPersonalizationState(isLoading: false);
@@ -301,6 +315,7 @@ class LyricsPersonalizationNotifier
       _storage.delete(key: _alignmentKey),
       _storage.delete(key: _fontFamilyKey),
       _storage.delete(key: _fontSizeKey),
+      _storage.delete(key: _wordByWordEnabledKey),
       _storage.delete(key: _customFontPathKey),
       _storage.delete(key: _customFontNameKey),
       _storage.delete(key: _customFontFamilyKey),

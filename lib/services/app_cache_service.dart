@@ -59,6 +59,18 @@ class AppCacheService {
     return safeOperation;
   }
 
+  Future<void> deleteJson(String name) {
+    final operation = _writeTail.then((_) async {
+      final file = await _file(name);
+      if (await file.exists()) await file.delete();
+    });
+    final safeOperation = operation.catchError((Object error) {
+      debugPrint('[AppCacheService] delete failed: $error');
+    });
+    _writeTail = safeOperation;
+    return safeOperation;
+  }
+
   Future<void> prune({
     required String prefix,
     required int maxFiles,

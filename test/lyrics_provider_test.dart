@@ -83,4 +83,19 @@ void main() {
     expect(pair.next, 'second');
     expect(pair.index, 0);
   });
+
+  test('lyricWordProgress interpolates a TTML word time range', () {
+    const word = LyricWord(
+      text: '你',
+      start: Duration(seconds: 1),
+      end: Duration(milliseconds: 1500),
+    );
+
+    expect(lyricWordProgress(word, const Duration(milliseconds: 750)), 0);
+    expect(
+      lyricWordProgress(word, const Duration(milliseconds: 1250)),
+      closeTo(0.5, 0.001),
+    );
+    expect(lyricWordProgress(word, const Duration(seconds: 2)), 1);
+  });
 }

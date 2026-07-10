@@ -8,9 +8,11 @@ import 'package:flutter/services.dart';
 import '../config/theme_context.dart';
 import '../models/lyrics.dart';
 import '../providers/glass_effect_provider.dart';
+import '../providers/library_provider.dart';
 import '../providers/lyrics_personalization_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/lyrics_service.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/dynamic_album_background.dart';
@@ -543,7 +545,6 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                 itemBuilder: (context, lineIndex) {
                   final line = data.lines[lineIndex];
                   final isActive = lineIndex == active;
-                  final text = line.text.isEmpty ? ' ' : line.text;
                   final canSeek = line.start != null;
                   final distance = active < 0
                       ? 0
@@ -564,8 +565,11 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                         curve: Curves.easeOutCubic,
                         child: _LyricDepthFilteredLine(
                           blurSigma: blurSigma,
-                          child: Text(
-                            text,
+                          child: _TimedLyricText(
+                            line: line,
+                            position: position,
+                            enabled: preferences.wordByWordEnabled,
+                            isActive: isActive,
                             textAlign: textAlign,
                             style: activeStyle.copyWith(
                               color: isActive ? activeColor : inactiveColor,
@@ -647,12 +651,77 @@ class _LyricDepthFilteredLine extends StatelessWidget {
   }
 }
 
+class _TimedLyricText extends StatelessWidget {
+  final LyricLine line;
+  final Duration position;
+  final bool enabled;
+  final bool isActive;
+  final TextAlign textAlign;
+  final TextStyle style;
+
+  const _TimedLyricText({
+    required this.line,
+    required this.position,
+    required this.enabled,
+    required this.isActive,
+    required this.textAlign,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasWordTiming = line.words.any((word) => word.start != null);
+    if (!enabled || !isActive || !hasWordTiming) {
+      return Text(
+        line.text.isEmpty ? ' ' : line.text,
+        textAlign: textAlign,
+        style: style,
+      );
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: position.inMicroseconds.toDouble()),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.linear,
+      builder: (context, microseconds, child) {
+        final animatedPosition = Duration(microseconds: microseconds.round());
+        final pendingColor = style.color!.withValues(alpha: 0.30);
+        return Text.rich(
+          TextSpan(
+            children: [
+              for (final word in line.words)
+                TextSpan(
+                  text: word.text,
+                  style: style.copyWith(
+                    color: Color.lerp(
+                      pendingColor,
+                      style.color,
+                      Curves.easeOut.transform(
+                        lyricWordProgress(word, animatedPosition),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          textAlign: textAlign,
+        );
+      },
+    );
+  }
+}
+
 class _LyricsPersonalizationSheet extends ConsumerWidget {
   const _LyricsPersonalizationSheet();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preferences = ref.watch(lyricsPersonalizationProvider);
+    final currentSong = ref.watch(
+      playerProvider.select((state) => state.currentSong),
+    );
+    final api = ref.watch(subsonicApiProvider);
+    final hasLyricsTarget = currentSong != null && api != null;
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
     final inactiveBlur = ref
@@ -776,9 +845,94 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '双指捏合可再次打开这里，非当前句和抽屉毛玻璃会实时应用。',
+                '双指捏合可再次打开这里，逐字效果、显示样式和缓存操作会即时应用。',
                 style: context.textBodySmall.copyWith(
                   color: context.secondaryColor,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _LyricsSettingsSection(
+                title: '逐字歌词',
+                child: Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: context.surfaceColor.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: SwitchListTile.adaptive(
+                        value: preferences.wordByWordEnabled,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        title: Text(
+                          '逐字高亮动画',
+                          style: context.textBodyLarge.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '仅在 AMLL TTML 提供逐字时间轴时显示。',
+                          style: context.textBodySmall.copyWith(
+                            color: context.secondaryColor,
+                          ),
+                        ),
+                        onChanged: (enabled) {
+                          HapticFeedback.selectionClick();
+                          unawaited(
+                            ref
+                                .read(lyricsPersonalizationProvider.notifier)
+                                .setWordByWordEnabled(enabled),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              _LyricsSettingsSection(
+                title: '歌词维护',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasLyricsTarget
+                          ? '优先从 AMLL TTML 数据库获取逐字歌词；不匹配时使用 Navidrome 内嵌歌词。'
+                          : '开始播放歌曲后可重新获取或清除当前歌曲的歌词缓存。',
+                      style: context.textBodySmall.copyWith(
+                        color: context.secondaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: hasLyricsTarget
+                                ? () => unawaited(
+                                    _refreshCurrentLyrics(context, ref),
+                                  )
+                                : null,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('重新获取'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: hasLyricsTarget
+                                ? () => unawaited(
+                                    _clearCurrentLyrics(context, ref),
+                                  )
+                                : null,
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('清除缓存'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 18),
@@ -1022,6 +1176,51 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
       picked ? '自定义字体已更新' : '字体加载失败，请选择有效的 .ttf 文件',
       replaceCurrent: true,
     );
+  }
+
+  Future<void> _refreshCurrentLyrics(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final song = ref.read(playerProvider).currentSong;
+    final api = ref.read(subsonicApiProvider);
+    if (song == null || api == null) return;
+    try {
+      await LyricsService(
+        api: api,
+        dio: ref.read(dioProvider),
+      ).fetch(song, forceRefresh: true);
+      invalidateLyricsMemoryCache(api, song);
+      ref.invalidate(lyricsProvider(song));
+      await ref.read(lyricsProvider(song).future);
+      if (context.mounted) {
+        showAppToast(context, '歌词已重新获取', replaceCurrent: true);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showAppToast(context, '歌词重新获取失败', replaceCurrent: true);
+      }
+    }
+  }
+
+  Future<void> _clearCurrentLyrics(BuildContext context, WidgetRef ref) async {
+    final song = ref.read(playerProvider).currentSong;
+    final api = ref.read(subsonicApiProvider);
+    if (song == null || api == null) return;
+    try {
+      await LyricsService(
+        api: api,
+        dio: ref.read(dioProvider),
+      ).clearCachedLyrics(song);
+      invalidateLyricsMemoryCache(api, song);
+      if (context.mounted) {
+        showAppToast(context, '已清除当前歌曲歌词缓存', replaceCurrent: true);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showAppToast(context, '歌词缓存清除失败', replaceCurrent: true);
+      }
+    }
   }
 
   String _customFontLabel(LyricsPersonalizationState preferences) {

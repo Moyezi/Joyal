@@ -1,19 +1,59 @@
-class LyricLine {
-  final Duration? start;
+class LyricWord {
   final String text;
+  final Duration? start;
+  final Duration? end;
 
-  const LyricLine({required this.text, this.start});
+  const LyricWord({required this.text, this.start, this.end});
 
-  factory LyricLine.fromJson(Map<String, dynamic> json) => LyricLine(
+  factory LyricWord.fromJson(Map<String, dynamic> json) => LyricWord(
     text: json['text'] as String? ?? '',
     start: json['startMs'] is num
         ? Duration(milliseconds: (json['startMs'] as num).toInt())
+        : null,
+    end: json['endMs'] is num
+        ? Duration(milliseconds: (json['endMs'] as num).toInt())
         : null,
   );
 
   Map<String, dynamic> toJson() => {
     'text': text,
     'startMs': start?.inMilliseconds,
+    'endMs': end?.inMilliseconds,
+  };
+}
+
+class LyricLine {
+  final Duration? start;
+  final Duration? end;
+  final String text;
+  final List<LyricWord> words;
+
+  const LyricLine({
+    required this.text,
+    this.start,
+    this.end,
+    this.words = const [],
+  });
+
+  factory LyricLine.fromJson(Map<String, dynamic> json) => LyricLine(
+    text: json['text'] as String? ?? '',
+    start: json['startMs'] is num
+        ? Duration(milliseconds: (json['startMs'] as num).toInt())
+        : null,
+    end: json['endMs'] is num
+        ? Duration(milliseconds: (json['endMs'] as num).toInt())
+        : null,
+    words: (json['words'] as List<dynamic>? ?? [])
+        .whereType<Map>()
+        .map((item) => LyricWord.fromJson(Map<String, dynamic>.from(item)))
+        .toList(growable: false),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'startMs': start?.inMilliseconds,
+    'endMs': end?.inMilliseconds,
+    if (words.isNotEmpty) 'words': words.map((word) => word.toJson()).toList(),
   };
 }
 
