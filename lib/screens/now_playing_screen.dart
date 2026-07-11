@@ -69,6 +69,12 @@ bool shouldShowLyricsAfterHorizontalDrag({
   return progress >= openThreshold;
 }
 
+@visibleForTesting
+double nowPlayingSurfaceVisibilityForLyricsProgress(double progress) {
+  final normalized = progress.clamp(0.0, 1.0).toDouble();
+  return 1 - Curves.easeOut.transform(normalized);
+}
+
 enum _CoverSlideDirection { previous, next }
 
 class _NowPlayingEntrance extends StatelessWidget {
@@ -155,6 +161,25 @@ class _NowPlayingControlsEntrance extends StatelessWidget {
   }
 }
 
+class _LyricsContentFade extends StatelessWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const _LyricsContentFade({required this.animation, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) => Opacity(
+        opacity: nowPlayingSurfaceVisibilityForLyricsProgress(animation.value),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _HeroCoverShapeFrame extends StatelessWidget {
   final double circleProgress;
   final double shadowOpacity;
@@ -230,6 +255,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   String? _paletteCoverArtId;
   bool _lyricsInitialized = false;
   bool _lyricsForeground = false;
+  bool _lyricsTransitionActive = false;
   bool _lyricsSettingsOpen = false;
   bool _allowRoutePop = false;
   bool _isSelecting = false;
@@ -302,18 +328,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     super.dispose();
   }
 
-  void _initializeLyrics() {
-    if (_lyricsInitialized) return;
-    setState(() => _lyricsInitialized = true);
+  void _beginLyricsTransition({required bool initializeLyrics}) {
+    if ((!initializeLyrics || _lyricsInitialized) && _lyricsTransitionActive) {
+      return;
+    }
+    setState(() {
+      if (initializeLyrics) _lyricsInitialized = true;
+      _lyricsTransitionActive = true;
+    });
   }
 
   void _showLyrics() {
-    _initializeLyrics();
+    _beginLyricsTransition(initializeLyrics: true);
     _lyricsProgress.animateTo(1, curve: Curves.easeOutCubic);
   }
 
-  void _hideLyrics() =>
-      _lyricsProgress.animateBack(0, curve: Curves.easeOutCubic);
+  void _hideLyrics() {
+    if (_lyricsProgress.value <= 0) return;
+    _beginLyricsTransition(initializeLyrics: false);
+    _lyricsProgress.animateBack(0, curve: Curves.easeOutCubic);
+  }
 
   void _handleLyricsStatus(AnimationStatus status) {
     if (!mounted ||
@@ -322,8 +356,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       return;
     }
     final foreground = _lyricsProgress.value >= 0.999;
-    if (_lyricsForeground == foreground) return;
-    setState(() => _lyricsForeground = foreground);
+    if (_lyricsForeground == foreground && !_lyricsTransitionActive) return;
+    setState(() {
+      _lyricsForeground = foreground;
+      _lyricsTransitionActive = false;
+    });
   }
 
   void _handleLyricsSettingsVisibility(bool visible) {
@@ -336,9 +373,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     required double primaryVelocity,
     required double width,
   }) {
-    if (show) _initializeLyrics();
+    if (show && !_lyricsInitialized) {
+      _beginLyricsTransition(initializeLyrics: true);
+    }
     final target = show ? 1.0 : 0.0;
     final remaining = (_lyricsProgress.value - target).abs();
+    if (remaining <= 0.0001) {
+      _handleLyricsStatus(
+        show ? AnimationStatus.completed : AnimationStatus.dismissed,
+      );
+      return;
+    }
     final progressVelocity = width > 0 ? (primaryVelocity / width).abs() : 0.0;
     final speed = progressVelocity.clamp(0.9, 8.0);
     final durationMs = (remaining / speed * 1000).clamp(120.0, 260.0).toInt();
@@ -488,7 +533,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           coverArtId: visualSong?.coverArt ?? '',
           coverUrl: _coverUrl(ref, visualSong),
           motionSeed: visualSong?.id,
-          motionEnabled: !_lyricsSettingsOpen,
+          motionEnabled: !_lyricsSettingsOpen && !_lyricsTransitionActive,
           child: Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: _onDismissPointerDown,
@@ -500,7 +545,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 behavior: HitTestBehavior.translucent,
                 onHorizontalDragStart: (!hasSong || _isSelecting)
                     ? null
-                    : (_) => _initializeLyrics(),
+                    : (_) => _beginLyricsTransition(initializeLyrics: true),
                 onHorizontalDragUpdate: (!hasSong || _isSelecting)
                     ? null
                     : (details) {
@@ -522,6 +567,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           width: constraints.maxWidth,
                         );
                       },
+                onHorizontalDragCancel: (!hasSong || _isSelecting)
+                    ? null
+                    : () => _settleLyricsAfterDrag(
+                        show: shouldShowLyricsAfterHorizontalDrag(
+                          progress: _lyricsProgress.value,
+                          primaryVelocity: 0,
+                        ),
+                        primaryVelocity: 0,
+                        width: constraints.maxWidth,
+                      ),
                 child: AnimatedBuilder(
                   animation: _lyricsProgress,
                   builder: (context, _) {
@@ -531,22 +586,23 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     final width = constraints.maxWidth;
                     return Stack(
                       children: [
+                        // Backdrop and liquid filters cannot sit under the
+                        // page-wide animated opacity without resampling at
+                        // gesture boundaries. Plain content fades locally;
+                        // the control rail interpolates its own glass values.
                         TickerMode(
                           enabled: _lyricsProgress.value < 0.99,
-                          child: Opacity(
-                            opacity: 1 - progress,
-                            child: Transform.translate(
-                              offset: Offset(-width * 0.1 * progress, 0),
-                              child: Transform.scale(
-                                scale: 1 - 0.055 * progress,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(
-                                    28 * progress,
-                                  ),
-                                  child: IgnorePointer(
-                                    ignoring: _lyricsProgress.value > 0.01,
-                                    child: playerPage,
-                                  ),
+                          child: Transform.translate(
+                            offset: Offset(-width * 0.1 * progress, 0),
+                            child: Transform.scale(
+                              scale: 1 - 0.055 * progress,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(
+                                  28 * progress,
+                                ),
+                                child: IgnorePointer(
+                                  ignoring: _lyricsProgress.value > 0.01,
+                                  child: playerPage,
                                 ),
                               ),
                             ),
@@ -601,18 +657,27 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          color: Theme.of(context).colorScheme.onSurface,
-          onPressed: _closePage,
-        ),
-        title: const Text('Now Playing'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.lyrics_rounded),
+        leading: _LyricsContentFade(
+          animation: _lyricsProgress,
+          child: IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
             color: Theme.of(context).colorScheme.onSurface,
-            tooltip: '歌词',
-            onPressed: song == null ? null : _showLyrics,
+            onPressed: _closePage,
+          ),
+        ),
+        title: _LyricsContentFade(
+          animation: _lyricsProgress,
+          child: const Text('Now Playing'),
+        ),
+        actions: [
+          _LyricsContentFade(
+            animation: _lyricsProgress,
+            child: IconButton(
+              icon: const Icon(Icons.lyrics_rounded),
+              color: Theme.of(context).colorScheme.onSurface,
+              tooltip: '歌词',
+              onPressed: song == null ? null : _showLyrics,
+            ),
           ),
         ],
       ),
@@ -1109,19 +1174,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         // ── Album cover ──
         Expanded(
           flex: 5,
-          child: Center(
-            child: _isSelecting
-                ? _buildSelectionCovers(ref, playlist, currentIndex)
-                : Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingXL,
+          child: _LyricsContentFade(
+            animation: _lyricsProgress,
+            child: Center(
+              child: _isSelecting
+                  ? _buildSelectionCovers(ref, playlist, currentIndex)
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingXL,
+                      ),
+                      child: GestureDetector(
+                        onLongPressStart: (_) =>
+                            _enterSelectionMode(playlist, currentIndex),
+                        child: _nowPlayingCover(song: song),
+                      ),
                     ),
-                    child: GestureDetector(
-                      onLongPressStart: (_) =>
-                          _enterSelectionMode(playlist, currentIndex),
-                      child: _nowPlayingCover(song: song),
-                    ),
-                  ),
+            ),
           ),
         ),
 
@@ -1132,117 +1200,129 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               const SizedBox(height: AppTheme.spacingLG),
 
               // ── Song info ──
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingLG,
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: isStarred ? '取消收藏' : '加入收藏',
-                      icon: Icon(
-                        isStarred
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                      ),
-                      style: IconButton.styleFrom(
-                        foregroundColor: isStarred
-                            ? context.favoriteRedColor
-                            : actionIconColor,
-                        disabledForegroundColor: disabledActionIconColor,
-                      ),
-                      onPressed: _isSelecting
-                          ? null
-                          : () async {
-                              try {
-                                await ref
-                                    .read(libraryProvider.notifier)
-                                    .setSongStarred(song, starred: !isStarred);
-                                if (context.mounted) {
-                                  showAppToast(
-                                    context,
-                                    isStarred ? '已取消收藏' : '已加入收藏',
-                                  );
+              _LyricsContentFade(
+                animation: _lyricsProgress,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingLG,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: isStarred ? '取消收藏' : '加入收藏',
+                        icon: Icon(
+                          isStarred
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                        ),
+                        style: IconButton.styleFrom(
+                          foregroundColor: isStarred
+                              ? context.favoriteRedColor
+                              : actionIconColor,
+                          disabledForegroundColor: disabledActionIconColor,
+                        ),
+                        onPressed: _isSelecting
+                            ? null
+                            : () async {
+                                try {
+                                  await ref
+                                      .read(libraryProvider.notifier)
+                                      .setSongStarred(
+                                        song,
+                                        starred: !isStarred,
+                                      );
+                                  if (context.mounted) {
+                                    showAppToast(
+                                      context,
+                                      isStarred ? '已取消收藏' : '已加入收藏',
+                                    );
+                                  }
+                                } catch (error) {
+                                  if (context.mounted) {
+                                    showAppToast(context, '收藏失败：$error');
+                                  }
                                 }
-                              } catch (error) {
-                                if (context.mounted) {
-                                  showAppToast(context, '收藏失败：$error');
-                                }
-                              }
-                            },
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            displaySong.title,
-                            style: context.textHeadlineMedium,
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: AppTheme.spacingXS),
-                          Text(
-                            displaySong.artist,
-                            style: context.textTitleMedium.copyWith(
-                              color: context.secondaryColor,
+                              },
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(
+                              displaySong.title,
+                              style: context.textHeadlineMedium,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: '更多操作',
-                      icon: const Icon(Icons.more_horiz_rounded),
-                      style: IconButton.styleFrom(
-                        foregroundColor: actionIconColor,
-                        disabledForegroundColor: disabledActionIconColor,
-                      ),
-                      onPressed: _isSelecting
-                          ? null
-                          : () => SongActionsSheet.show(
-                              context,
-                              songTitle: song.title,
-                              songArtist: song.artist,
-                              isStarred: isStarred,
-                              onPlayNext: () {
-                                ref
-                                    .read(playerProvider.notifier)
-                                    .playNext(song);
-                              },
-                              onToggleFavorite: () {
-                                ref
-                                    .read(libraryProvider.notifier)
-                                    .setSongStarred(song, starred: !isStarred);
-                              },
-                              downloadService: ref.read(
-                                downloadServiceProvider,
+                            const SizedBox(height: AppTheme.spacingXS),
+                            Text(
+                              displaySong.artist,
+                              style: context.textTitleMedium.copyWith(
+                                color: context.secondaryColor,
                               ),
-                              songId: song.id,
-                              song: song,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                    ),
-                  ],
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '更多操作',
+                        icon: const Icon(Icons.more_horiz_rounded),
+                        style: IconButton.styleFrom(
+                          foregroundColor: actionIconColor,
+                          disabledForegroundColor: disabledActionIconColor,
+                        ),
+                        onPressed: _isSelecting
+                            ? null
+                            : () => SongActionsSheet.show(
+                                context,
+                                songTitle: song.title,
+                                songArtist: song.artist,
+                                isStarred: isStarred,
+                                onPlayNext: () {
+                                  ref
+                                      .read(playerProvider.notifier)
+                                      .playNext(song);
+                                },
+                                onToggleFavorite: () {
+                                  ref
+                                      .read(libraryProvider.notifier)
+                                      .setSongStarred(
+                                        song,
+                                        starred: !isStarred,
+                                      );
+                                },
+                                downloadService: ref.read(
+                                  downloadServiceProvider,
+                                ),
+                                songId: song.id,
+                                song: song,
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
               const SizedBox(height: AppTheme.spacingLG),
 
-              _NowPlayingProgressSection(
-                isSelecting: _isSelecting,
-                positionUpdatesEnabled:
-                    !_lyricsForeground && !_lyricsSettingsOpen,
-                trackKey: song.id,
-                playedColor: _visualPalette.waveformAccentFor(brightness),
-                unplayedColor: _visualPalette.waveformTrackFor(brightness),
-                onSeekFailed: () {
-                  if (context.mounted) {
-                    showAppToast(context, '跳转失败，已恢复原进度');
-                  }
-                },
+              _LyricsContentFade(
+                animation: _lyricsProgress,
+                child: _NowPlayingProgressSection(
+                  isSelecting: _isSelecting,
+                  positionUpdatesEnabled:
+                      !_lyricsForeground && !_lyricsSettingsOpen,
+                  trackKey: song.id,
+                  playedColor: _visualPalette.waveformAccentFor(brightness),
+                  unplayedColor: _visualPalette.waveformTrackFor(brightness),
+                  onSeekFailed: () {
+                    if (context.mounted) {
+                      showAppToast(context, '跳转失败，已恢复原进度');
+                    }
+                  },
+                ),
               ),
 
               const SizedBox(height: AppTheme.spacingMD),
@@ -1254,21 +1334,32 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   ignoring: _isSelecting,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: FrostedGlass(
-                      blurSigma: controlsBlur,
-                      borderRadius: BorderRadius.circular(34),
-                      tintColor: theme.scaffoldBackgroundColor,
-                      tintOpacity: controlsTintOpacity,
-                      borderOpacity: 0,
-                      boxShadow: [
-                        BoxShadow(
-                          color: theme.colorScheme.shadow.withValues(
-                            alpha: isDark ? 0.22 : 0.08,
-                          ),
-                          blurRadius: 24,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                    child: AnimatedBuilder(
+                      animation: _lyricsProgress,
+                      builder: (context, child) {
+                        final visibility =
+                            nowPlayingSurfaceVisibilityForLyricsProgress(
+                              _lyricsProgress.value,
+                            );
+                        return FrostedGlass(
+                          blurSigma: controlsBlur * visibility,
+                          borderRadius: BorderRadius.circular(34),
+                          tintColor: theme.scaffoldBackgroundColor,
+                          tintOpacity: controlsTintOpacity * visibility,
+                          borderOpacity: 0,
+                          liquidGlassIntensityScale: visibility,
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.colorScheme.shadow.withValues(
+                                alpha: (isDark ? 0.22 : 0.08) * visibility,
+                              ),
+                              blurRadius: 24 * visibility,
+                              offset: Offset(0, 10 * visibility),
+                            ),
+                          ],
+                          child: Opacity(opacity: visibility, child: child),
+                        );
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,

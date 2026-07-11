@@ -18,6 +18,9 @@ class FrostedGlass extends ConsumerWidget {
   final bool useBackdropGroup;
   final bool? liquidGlassEnabled;
 
+  /// Scales refraction while preserving the shared liquid-glass preference.
+  final double liquidGlassIntensityScale;
+
   const FrostedGlass({
     super.key,
     required this.child,
@@ -30,6 +33,7 @@ class FrostedGlass extends ConsumerWidget {
     this.boxShadow,
     this.useBackdropGroup = false,
     this.liquidGlassEnabled,
+    this.liquidGlassIntensityScale = 1,
   });
 
   @override
@@ -37,20 +41,25 @@ class FrostedGlass extends ConsumerWidget {
     final sigma = blurSigma.clamp(0.0, 30.0).toDouble();
     final tintAlpha = tintOpacity.clamp(0.0, 1.0).toDouble();
     final strokeAlpha = borderOpacity.clamp(0.0, 1.0).toDouble();
+    final liquidScale = liquidGlassIntensityScale.clamp(0.0, 1.0).toDouble();
     final shouldBlur = sigma > 0.05 && tintAlpha < 0.995;
     final bool liquidEnabled =
         liquidGlassEnabled ??
         ref.watch(
           glassEffectProvider.select((state) => state.liquidGlassEnabled),
         );
-    final shouldApplyLiquid =
-        liquidEnabled && tintAlpha < 0.96 && (sigma > 0.05 || tintAlpha < 0.8);
-    final liquidIntensity = shouldApplyLiquid
+    final canApplyLiquid =
+        liquidEnabled &&
+        liquidScale > 0.01 &&
+        tintAlpha < 0.96 &&
+        (sigma > 0.05 || tintAlpha < 0.8);
+    final liquidIntensity = canApplyLiquid
         ? ((1 - tintAlpha * 0.48) * (0.58 + sigma / 70))
-              .clamp(0.0, 1.0)
-              .toDouble()
+                  .clamp(0.0, 1.0)
+                  .toDouble() *
+              liquidScale
         : 0.0;
-    if (shouldApplyLiquid) {
+    if (liquidIntensity > 0.01) {
       return DecoratedBox(
         decoration: BoxDecoration(boxShadow: boxShadow),
         child: LiquidGlassOverlay(

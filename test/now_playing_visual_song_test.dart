@@ -96,6 +96,24 @@ void main() {
       );
     });
   });
+
+  group('nowPlayingSurfaceVisibilityForLyricsProgress', () {
+    test('keeps exact settled endpoints', () {
+      expect(nowPlayingSurfaceVisibilityForLyricsProgress(0), 1);
+      expect(nowPlayingSurfaceVisibilityForLyricsProgress(1), 0);
+      expect(nowPlayingSurfaceVisibilityForLyricsProgress(-1), 1);
+      expect(nowPlayingSurfaceVisibilityForLyricsProgress(2), 0);
+    });
+
+    test('fades monotonically through the interactive swipe', () {
+      final start = nowPlayingSurfaceVisibilityForLyricsProgress(0.2);
+      final middle = nowPlayingSurfaceVisibilityForLyricsProgress(0.5);
+      final end = nowPlayingSurfaceVisibilityForLyricsProgress(0.8);
+
+      expect(start, greaterThan(middle));
+      expect(middle, greaterThan(end));
+    });
+  });
 }
 
 Song _song(String id, String coverArt) {
