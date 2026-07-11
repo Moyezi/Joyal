@@ -134,8 +134,14 @@ void main() {
 
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('服务器连接'), findsOneWidget);
-    expect(find.text('刷新曲库'), findsOneWidget);
+    expect(find.text('个性化设置'), findsOneWidget);
+    expect(find.text('刷新曲库'), findsNothing);
+    expect(find.text('外观'), findsNothing);
     expect(find.text('下载管理'), findsOneWidget);
+
+    await tester.drag(find.byType(GridView), const Offset(0, -420));
+    await tester.pumpAndSettle();
+
     expect(find.text('缓存管理'), findsOneWidget);
     expect(find.text('关于 Joyal'), findsOneWidget);
   });

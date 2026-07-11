@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../providers/auth_provider.dart';
+import '../providers/library_provider.dart';
 import '../utils/app_toast.dart';
 
 /// Navidrome 服务器连接设置页面。
@@ -22,6 +23,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -93,6 +95,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _usernameController.clear();
       _passwordController.clear();
     }
+  }
+
+  Future<void> _refreshLibrary() async {
+    if (_isRefreshing) return;
+
+    if (!ref.read(authProvider).isConnected) {
+      showAppToast(context, '请先连接服务器');
+      return;
+    }
+
+    setState(() => _isRefreshing = true);
+    showAppToast(context, '正在刷新曲库');
+
+    Object? refreshError;
+    try {
+      await ref.read(libraryProvider.notifier).refreshLibrary();
+    } catch (error) {
+      refreshError = error;
+    }
+
+    if (!mounted) return;
+
+    setState(() => _isRefreshing = false);
+    if (refreshError != null) {
+      showAppToast(context, '刷新失败: $refreshError');
+      return;
+    }
+
+    final stateError = ref.read(libraryProvider).error;
+    showAppToast(context, stateError == null ? '曲库已刷新' : '刷新失败: $stateError');
   }
 
   @override
@@ -273,6 +305,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 child: const Text('断开连接', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingMD),
+            SizedBox(
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: _isRefreshing ? null : _refreshLibrary,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.primaryColor,
+                  side: BorderSide(
+                    color: context.secondaryColor.withValues(alpha: 0.35),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
+                ),
+                icon: _isRefreshing
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: context.primaryColor,
+                        ),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 20),
+                label: Text(_isRefreshing ? '正在刷新曲库' : '刷新曲库'),
               ),
             ),
           ],
