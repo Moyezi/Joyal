@@ -9,8 +9,17 @@ description: "Settings, cache, download, and build memory for Joyal Music. Use w
 
 - Settings entry is the lower-left button in the home right-swipe sidebar.
 - It opens `SettingsHubScreen`.
-- Refreshing the library from settings calls `libraryProvider.notifier.refreshLibrary()`.
-- If disconnected, do not report refresh success.
+- `SettingsHubScreen` is a two-column grid with six cards: server connection,
+  personalization, intelligent classification, downloads, cache, and about.
+- Its cards follow the "为你发现" visual language: restrained gradient,
+  subtle border/shadow, lower-right ambient light, and a small pressed-state
+  scale/motif response. Do not restore the old one-column list layout.
+- Personalization is entered from the `个性化设置` card. Do not add back the
+  former `外观` card or duplicate theme-mode cycling there.
+- Library refresh belongs to the connected state of `SettingsScreen` (server
+  connection), not as a top-level settings card. It calls
+  `libraryProvider.notifier.refreshLibrary()` and must never report success
+  when disconnected.
 
 ## Cache And Downloads
 
@@ -67,7 +76,8 @@ flutter build apk --release --target-platform android-arm64 --split-per-abi --no
 
 ## Files To Check
 
-- Settings: `settings_hub_screen.dart`, `personalization_screen.dart`.
+- Settings: `settings_hub_screen.dart`, `settings_screen.dart`,
+  `personalization_screen.dart`.
 - Cache: `app_cache_service.dart`, `cache_repository.dart`, `cache_provider.dart`, `cache_management_screen.dart`.
 - Images: `cached_disk_image.dart`.
 - Android build: `android/build.gradle.kts`, `pubspec.yaml`, `pubspec.lock`.
