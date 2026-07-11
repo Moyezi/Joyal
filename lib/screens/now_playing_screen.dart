@@ -229,6 +229,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   AlbumVisualPalette _visualPalette = AlbumVisualPalette.fallback;
   String? _paletteCoverArtId;
   bool _lyricsInitialized = false;
+  bool _lyricsForeground = false;
+  bool _lyricsSettingsOpen = false;
   bool _allowRoutePop = false;
   bool _isSelecting = false;
   int _candidateIndex = 0;
@@ -276,6 +278,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   void initState() {
     super.initState();
+    _lyricsProgress.addStatusListener(_handleLyricsStatus);
     _selSnapCtrl.addListener(() {
       if (mounted && _selSnapCtrl.isAnimating) setState(() {});
     });
@@ -291,6 +294,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   @override
   void dispose() {
+    _lyricsProgress.removeStatusListener(_handleLyricsStatus);
     _lyricsProgress.dispose();
     _selEnterCtrl.dispose();
     _coverSlideCtrl.dispose();
@@ -311,6 +315,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _hideLyrics() =>
       _lyricsProgress.animateBack(0, curve: Curves.easeOutCubic);
 
+  void _handleLyricsStatus(AnimationStatus status) {
+    if (!mounted ||
+        (status != AnimationStatus.completed &&
+            status != AnimationStatus.dismissed)) {
+      return;
+    }
+    final foreground = _lyricsProgress.value >= 0.999;
+    if (_lyricsForeground == foreground) return;
+    setState(() => _lyricsForeground = foreground);
+  }
+
+  void _handleLyricsSettingsVisibility(bool visible) {
+    if (!mounted || _lyricsSettingsOpen == visible) return;
+    setState(() => _lyricsSettingsOpen = visible);
+  }
+
   void _settleLyricsAfterDrag({
     required bool show,
     required double primaryVelocity,
@@ -322,11 +342,23 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final progressVelocity = width > 0 ? (primaryVelocity / width).abs() : 0.0;
     final speed = progressVelocity.clamp(0.9, 8.0);
     final durationMs = (remaining / speed * 1000).clamp(120.0, 260.0).toInt();
-    _lyricsProgress.animateTo(
-      target,
-      duration: Duration(milliseconds: durationMs),
-      curve: Curves.easeOutCubic,
-    );
+    final duration = Duration(milliseconds: durationMs);
+    if (show) {
+      _lyricsProgress.animateTo(
+        target,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      // Keep swipe-back on the same reverse path as the system back gesture.
+      // animateTo(0) can complete with a forward/completed status, which used
+      // to leave the hidden player page permanently paused.
+      _lyricsProgress.animateBack(
+        target,
+        duration: duration,
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   void _syncVisualPalette(Song? song) {
@@ -438,7 +470,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _syncVisualPalette(visualSong);
     final playerPage = RepaintBoundary(child: _buildPlayerPage(context));
     final lyricsPage = _lyricsInitialized
-        ? RepaintBoundary(child: LyricsScreen(onBack: _hideLyrics))
+        ? RepaintBoundary(
+            child: LyricsScreen(
+              onBack: _hideLyrics,
+              positionUpdatesEnabled: _lyricsForeground && !_lyricsSettingsOpen,
+              onSettingsSheetVisibilityChanged: _handleLyricsSettingsVisibility,
+            ),
+          )
         : const SizedBox.expand();
     return PopScope(
       canPop: _allowRoutePop,
@@ -450,6 +488,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           coverArtId: visualSong?.coverArt ?? '',
           coverUrl: _coverUrl(ref, visualSong),
           motionSeed: visualSong?.id,
+          motionEnabled: !_lyricsSettingsOpen,
           child: Listener(
             behavior: HitTestBehavior.translucent,
             onPointerDown: _onDismissPointerDown,
@@ -492,30 +531,39 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     final width = constraints.maxWidth;
                     return Stack(
                       children: [
-                        Transform.translate(
-                          offset: Offset(-width * 0.1 * progress, 0),
-                          child: Transform.scale(
-                            scale: 1 - 0.055 * progress,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                28 * progress,
-                              ),
-                              child: IgnorePointer(
-                                ignoring: _lyricsProgress.value > 0.01,
-                                child: playerPage,
+                        TickerMode(
+                          enabled: _lyricsProgress.value < 0.99,
+                          child: Opacity(
+                            opacity: 1 - progress,
+                            child: Transform.translate(
+                              offset: Offset(-width * 0.1 * progress, 0),
+                              child: Transform.scale(
+                                scale: 1 - 0.055 * progress,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                    28 * progress,
+                                  ),
+                                  child: IgnorePointer(
+                                    ignoring: _lyricsProgress.value > 0.01,
+                                    child: playerPage,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                        Transform.translate(
-                          offset: Offset(width * (1 - progress), 0),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              28 * (1 - progress),
-                            ),
-                            child: IgnorePointer(
-                              ignoring: _lyricsProgress.value < 0.99,
-                              child: lyricsPage,
+                        TickerMode(
+                          enabled: _lyricsProgress.value > 0.01,
+                          child: Transform.translate(
+                            offset: Offset(width * (1 - progress), 0),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                28 * (1 - progress),
+                              ),
+                              child: IgnorePointer(
+                                ignoring: _lyricsProgress.value < 0.99,
+                                child: lyricsPage,
+                              ),
                             ),
                           ),
                         ),
@@ -1185,6 +1233,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
               _NowPlayingProgressSection(
                 isSelecting: _isSelecting,
+                positionUpdatesEnabled:
+                    !_lyricsForeground && !_lyricsSettingsOpen,
                 trackKey: song.id,
                 playedColor: _visualPalette.waveformAccentFor(brightness),
                 unplayedColor: _visualPalette.waveformTrackFor(brightness),
@@ -1365,6 +1415,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
 class _NowPlayingProgressSection extends ConsumerWidget {
   final bool isSelecting;
+  final bool positionUpdatesEnabled;
   final String trackKey;
   final Color playedColor;
   final Color unplayedColor;
@@ -1372,6 +1423,7 @@ class _NowPlayingProgressSection extends ConsumerWidget {
 
   const _NowPlayingProgressSection({
     required this.isSelecting,
+    required this.positionUpdatesEnabled,
     required this.trackKey,
     required this.playedColor,
     required this.unplayedColor,
@@ -1380,15 +1432,21 @@ class _NowPlayingProgressSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final progress = ref.watch(
-      playerProvider.select(
-        (state) => (
-          position: state.position,
-          duration: state.duration ?? Duration.zero,
-          isPlaying: state.isPlaying,
-        ),
-      ),
-    );
+    final progress = positionUpdatesEnabled
+        ? ref.watch(
+            playerProvider.select(
+              (state) => (
+                position: state.position,
+                duration: state.duration ?? Duration.zero,
+                isPlaying: state.isPlaying,
+              ),
+            ),
+          )
+        : (
+            position: ref.read(playerProvider).position,
+            duration: ref.read(playerProvider).duration ?? Duration.zero,
+            isPlaying: false,
+          );
 
     return Column(
       mainAxisSize: MainAxisSize.min,

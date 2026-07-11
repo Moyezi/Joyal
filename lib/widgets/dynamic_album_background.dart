@@ -13,6 +13,7 @@ class DynamicAlbumBackground extends ConsumerStatefulWidget {
   final String coverArtId;
   final String coverUrl;
   final String? motionSeed;
+  final bool motionEnabled;
   final Widget child;
 
   const DynamicAlbumBackground({
@@ -20,6 +21,7 @@ class DynamicAlbumBackground extends ConsumerStatefulWidget {
     required this.coverArtId,
     required this.coverUrl,
     this.motionSeed,
+    this.motionEnabled = true,
     required this.child,
   });
 
@@ -34,14 +36,23 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
   Brightness? _brightness;
   bool _paletteLoaded = false;
   late _FlowingMotionProfile _motionProfile;
-  late final AnimationController _motionController = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 32),
-  )..repeat();
+  late final AnimationController _motionController;
+  late final _ThrottledRepaint _motionRepaint;
 
   @override
   void initState() {
     super.initState();
+    _motionController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 32),
+    );
+    // The halos move very slowly, so the default 20 FPS remains smooth for a
+    // 32-second cycle while cutting full-screen paint work. Personalization
+    // can adjust this throttle without rebuilding the background every tick.
+    _motionRepaint = _ThrottledRepaint(
+      _motionController,
+      framesPerSecond: FlowingHaloBackgroundState.defaultFrameRate,
+    );
     _motionProfile = _FlowingMotionProfile.fromSeed(_motionSeed);
   }
 
@@ -71,6 +82,7 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
 
   @override
   void dispose() {
+    _motionRepaint.dispose();
     _motionController.dispose();
     super.dispose();
   }
@@ -100,8 +112,12 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
   Widget build(BuildContext context) {
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final style = ref.watch(visualEffectProvider);
+    final motionFrameRate = ref.watch(
+      flowingHaloBackgroundProvider.select((state) => state.frameRate),
+    );
     final coverGlassSettings = ref.watch(coverGlassBackgroundProvider);
-    if (style == BackgroundVisualStyle.flowingHalo) {
+    _motionRepaint.updateFrameRate(motionFrameRate);
+    if (style == BackgroundVisualStyle.flowingHalo && widget.motionEnabled) {
       if (!_motionController.isAnimating) _motionController.repeat();
     } else {
       _motionController.stop();
@@ -127,16 +143,12 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
                 duration: const Duration(milliseconds: 1200),
                 curve: Curves.easeInOutCubic,
                 builder: (context, motionProfile, _) {
-                  return AnimatedBuilder(
-                    animation: _motionController,
-                    builder: (context, _) {
-                      return _FlowingLightField(
-                        palette: _palette,
-                        scaffoldBg: scaffoldBg,
-                        phase: _motionController.value,
-                        motionProfile: motionProfile,
-                      );
-                    },
+                  return _FlowingLightField(
+                    palette: _palette,
+                    scaffoldBg: scaffoldBg,
+                    phaseAnimation: _motionController,
+                    repaint: _motionRepaint,
+                    motionProfile: motionProfile,
                   );
                 },
               ),
@@ -189,41 +201,46 @@ class _CoverGlassBackground extends StatelessWidget {
         )
         .toDouble();
 
-    return ClipRect(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          RepaintBoundary(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: effectiveBlur,
-                sigmaY: effectiveBlur,
-              ),
-              child: CachedDiskImage(
-                imageUrl: coverUrl,
-                cacheKey: coverArtId,
-                fit: BoxFit.cover,
-                decodeWidth: MediaQuery.sizeOf(context).longestSide,
-                placeholderBuilder: (_) => const SizedBox.expand(),
-                errorBuilder: (context, error) => const SizedBox.expand(),
-                fadeInDuration: const Duration(milliseconds: 250),
-                fadeOutDuration: const Duration(milliseconds: 120),
+    final cover = CachedDiskImage(
+      imageUrl: coverUrl,
+      cacheKey: coverArtId,
+      fit: BoxFit.cover,
+      decodeWidth: MediaQuery.sizeOf(context).longestSide,
+      placeholderBuilder: (_) => const SizedBox.expand(),
+      errorBuilder: (context, error) => const SizedBox.expand(),
+      fadeInDuration: const Duration(milliseconds: 250),
+      fadeOutDuration: const Duration(milliseconds: 120),
+    );
+    final filteredCover = effectiveBlur <= 0.05
+        ? cover
+        : ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: effectiveBlur,
+              sigmaY: effectiveBlur,
+            ),
+            child: cover,
+          );
+
+    return RepaintBoundary(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            filteredCover,
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    veil.withValues(alpha: effectiveOverlay * 0.82),
+                    veil.withValues(alpha: effectiveOverlay),
+                  ],
+                ),
               ),
             ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  veil.withValues(alpha: effectiveOverlay * 0.82),
-                  veil.withValues(alpha: effectiveOverlay),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -232,13 +249,15 @@ class _CoverGlassBackground extends StatelessWidget {
 class _FlowingLightField extends StatelessWidget {
   final AlbumVisualPalette palette;
   final Color scaffoldBg;
-  final double phase;
+  final Animation<double> phaseAnimation;
+  final Listenable repaint;
   final _FlowingMotionProfile motionProfile;
 
   const _FlowingLightField({
     required this.palette,
     required this.scaffoldBg,
-    required this.phase,
+    required this.phaseAnimation,
+    required this.repaint,
     required this.motionProfile,
   });
 
@@ -246,7 +265,6 @@ class _FlowingLightField extends StatelessWidget {
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
-    final p = phase * math.pi * 2;
     final sourceHue = HSLColor.fromColor(palette.waveformAccent).hue;
     final warmHalo = _haloColor(
       palette.top,
@@ -283,7 +301,8 @@ class _FlowingLightField extends StatelessWidget {
         return CustomPaint(
           size: size,
           painter: _FlowingLightPainter(
-            phase: p,
+            phaseAnimation: phaseAnimation,
+            repaint: repaint,
             motionProfile: motionProfile,
             isDark: isDark,
             warmHalo: warmHalo,
@@ -420,7 +439,7 @@ class _FlowingMotionProfileTween extends Tween<_FlowingMotionProfile> {
 }
 
 class _FlowingLightPainter extends CustomPainter {
-  final double phase;
+  final Animation<double> phaseAnimation;
   final _FlowingMotionProfile motionProfile;
   final bool isDark;
   final Color warmHalo;
@@ -428,18 +447,20 @@ class _FlowingLightPainter extends CustomPainter {
   final Color violetHalo;
   final Color deepHalo;
 
-  const _FlowingLightPainter({
-    required this.phase,
+  _FlowingLightPainter({
+    required this.phaseAnimation,
+    required Listenable repaint,
     required this.motionProfile,
     required this.isDark,
     required this.warmHalo,
     required this.blueHalo,
     required this.violetHalo,
     required this.deepHalo,
-  });
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
+    final phase = phaseAnimation.value * math.pi * 2;
     final base = math.max(size.width, size.height);
     final breathing = 1 + 0.05 * math.sin(phase * 2);
 
@@ -552,13 +573,53 @@ class _FlowingLightPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FlowingLightPainter oldDelegate) {
-    return phase != oldDelegate.phase ||
+    return phaseAnimation != oldDelegate.phaseAnimation ||
         motionProfile != oldDelegate.motionProfile ||
         isDark != oldDelegate.isDark ||
         warmHalo != oldDelegate.warmHalo ||
         blueHalo != oldDelegate.blueHalo ||
         violetHalo != oldDelegate.violetHalo ||
         deepHalo != oldDelegate.deepHalo;
+  }
+}
+
+class _ThrottledRepaint extends ChangeNotifier {
+  final Listenable source;
+  int _minIntervalMicros;
+  final Stopwatch _clock = Stopwatch()..start();
+  int _lastNotificationMicros = -1;
+
+  _ThrottledRepaint(this.source, {required int framesPerSecond})
+    : _minIntervalMicros = _intervalFor(framesPerSecond) {
+    source.addListener(_handleTick);
+  }
+
+  void updateFrameRate(int framesPerSecond) {
+    _minIntervalMicros = _intervalFor(framesPerSecond);
+  }
+
+  static int _intervalFor(int framesPerSecond) {
+    final safeFrameRate = framesPerSecond.clamp(
+      FlowingHaloBackgroundState.minFrameRate,
+      FlowingHaloBackgroundState.maxFrameRate,
+    );
+    return Duration.microsecondsPerSecond ~/ safeFrameRate;
+  }
+
+  void _handleTick() {
+    final elapsed = _clock.elapsedMicroseconds;
+    if (_lastNotificationMicros >= 0 &&
+        elapsed - _lastNotificationMicros < _minIntervalMicros) {
+      return;
+    }
+    _lastNotificationMicros = elapsed;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    source.removeListener(_handleTick);
+    super.dispose();
   }
 }
 

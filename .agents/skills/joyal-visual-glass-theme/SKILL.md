@@ -47,12 +47,23 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - When enabled, `FrostedGlass` uses `LiquidGlassLens` / `OpticalRefraction` through `liquid_glass_overlay.dart` for real refraction.
 - When disabled, `FrostedGlass` keeps the original `BackdropFilter` path.
 
+## Performance Is A Design Constraint
+
+- Treat battery use, thermals, and frame pacing as part of visual quality. A visually rich effect is not acceptable when it continuously repaints or recomputes while the user cannot see a meaningful change.
+- Default to a static or cached composition. Continuous animation must have a visible purpose, a single owner, and a lifecycle that stops it when the surface is hidden, fully covered, or no longer interactive.
+- Never stack duplicate full-screen dynamic backgrounds during page transitions. Now playing and lyrics share one `DynamicAlbumBackground`; child pages render only their foreground content.
+- Hidden playback/lyrics pages must disable tickers, high-frequency position subscriptions, and painting. Every exit path — system back, button, and swipe — must restore the newly visible page's updates.
+- Full-screen cover blur must use `CachedDiskImage` + `ImageFiltered` inside a `RepaintBoundary`; do not use a full-screen `BackdropFilter` as a replacement. Skip an ineffective blur entirely.
+- Moving or dragging a large glass drawer must not keep a dynamic background or full-area refraction filter live underneath it. Freeze the background while the drawer is open; use a tinted no-blur transition treatment, then restore glass only after the route settles.
+- High-frequency playback position may update only the smallest visual unit that needs it: active word timing, the progress control, or a changed MiniPlayer lyric pair. It must not rebuild whole pages, lyric lists, album palettes, backgrounds, or glass surfaces.
+- For user-tunable continuous effects, update in memory during drag and persist on release. The flowing-halo frame rate is persisted through `flowingHaloBackgroundProvider`, defaults to 20 FPS, and offers 5–60 FPS in `FlowingHaloBackgroundTile`.
+
 ## Performance Rules
 
 - Do not create a `BackdropFilter` when blur is ineffective or the mask is nearly opaque.
 - If only blurring the widget's own image, use `ImageFiltered`.
 - Avoid full-screen dynamic `BackdropFilter`.
-- High-frequency playback position must not rebuild whole pages, whole lists, backgrounds, palette extraction, or glass surfaces.
+- The flowing-halo painter is throttled through `_ThrottledRepaint`; do not restore a widget-level `AnimatedBuilder` that rebuilds its full background at display refresh rate.
 - Prefer `provider.select` or local `Consumer` for high-frequency position UI.
 
 ## Borders And Chrome
@@ -85,4 +96,4 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - Glass widgets: `frosted_glass.dart`, `liquid_glass_overlay.dart`.
 - Backgrounds and palettes: `page_custom_background.dart`, `dynamic_album_background.dart`, `album_visual_palette.dart`.
 - MiniPlayer chrome: `mini_player_chrome.dart`.
-- Personalization: `page_background_settings.dart`, `glass_effect_tile.dart`, `liquid_glass_toggle_tile.dart`, `mini_player_color_tile.dart`, `personalization_choice_tile.dart`.
+- Personalization: `page_background_settings.dart`, `glass_effect_tile.dart`, `liquid_glass_toggle_tile.dart`, `mini_player_color_tile.dart`, `flowing_halo_background_tile.dart`, `personalization_choice_tile.dart`.

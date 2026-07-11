@@ -384,27 +384,33 @@ class _MiniLyricsForSong extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(
-      playerProvider.select((state) => state.position),
+    final lyrics = ref.watch(lyricsProvider(song));
+    final pair = ref.watch(
+      playerProvider.select(
+        (state) => lyrics.when(
+          loading: () => const _MiniLyricPair(
+            current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d',
+            next: '',
+            index: -2,
+          ),
+          error: (error, stackTrace) => const _MiniLyricPair(
+            current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
+            next: '',
+            index: -3,
+          ),
+          data: (data) => _MiniLyricPair.fromLyrics(data, state.position),
+        ),
+      ),
     );
-    return _MiniLyrics(
-      songId: song.id,
-      lyrics: ref.watch(lyricsProvider(song)),
-      position: position,
-    );
+    return _MiniLyrics(songId: song.id, pair: pair);
   }
 }
 
 class _MiniLyrics extends StatefulWidget {
   final String songId;
-  final AsyncValue<LyricsData> lyrics;
-  final Duration position;
+  final _MiniLyricPair pair;
 
-  const _MiniLyrics({
-    required this.songId,
-    required this.lyrics,
-    required this.position,
-  });
+  const _MiniLyrics({required this.songId, required this.pair});
 
   @override
   State<_MiniLyrics> createState() => _MiniLyricsState();
@@ -437,7 +443,7 @@ class _MiniLyricsState extends State<_MiniLyrics>
   @override
   void didUpdateWidget(covariant _MiniLyrics oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final nextPair = _resolvePair();
+    final nextPair = widget.pair;
     final currentPair = _displayPair;
     if (currentPair == null ||
         nextPair.index == currentPair.index ||
@@ -454,22 +460,6 @@ class _MiniLyricsState extends State<_MiniLyrics>
       ..duration = _rollDurationFor(nextPair)
       ..value = 0
       ..forward();
-  }
-
-  _MiniLyricPair _resolvePair() {
-    return widget.lyrics.when(
-      loading: () => const _MiniLyricPair(
-        current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d',
-        next: '',
-        index: -2,
-      ),
-      error: (error, stackTrace) => const _MiniLyricPair(
-        current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
-        next: '',
-        index: -3,
-      ),
-      data: (data) => _MiniLyricPair.fromLyrics(data, widget.position),
-    );
   }
 
   Duration _rollDurationFor(_MiniLyricPair pair) {
@@ -498,7 +488,7 @@ class _MiniLyricsState extends State<_MiniLyrics>
 
   @override
   Widget build(BuildContext context) {
-    final pair = _displayPair = _displayPair ?? _resolvePair();
+    final pair = _displayPair = _displayPair ?? widget.pair;
     final previous = _previousPair;
     if (previous == null || _controller.value == 1) {
       return _MiniLyricsText(current: pair.current, next: pair.next);
@@ -567,6 +557,20 @@ class _MiniLyricPair {
       nextStart: nextStart,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return other is _MiniLyricPair &&
+        other.current == current &&
+        other.next == next &&
+        other.index == index &&
+        other.currentStart == currentStart &&
+        other.nextStart == nextStart;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(current, next, index, currentStart, nextStart);
 }
 
 class _MiniLyricsText extends StatelessWidget {

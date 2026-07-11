@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const _storage = FlutterSecureStorage();
 const _backgroundStyleKey = 'background_visual_style';
+const _flowingHaloFrameRateKey = 'flowing_halo_frame_rate';
 
 enum BackgroundVisualStyle { flowingHalo, staticGradient, albumCoverGlass }
 
@@ -31,6 +32,71 @@ final visualEffectProvider =
     StateNotifierProvider<VisualEffectNotifier, BackgroundVisualStyle>((ref) {
       return VisualEffectNotifier();
     });
+
+class FlowingHaloBackgroundState {
+  static const defaultFrameRate = 20;
+  static const minFrameRate = 5;
+  static const maxFrameRate = 60;
+
+  final int frameRate;
+  final bool isLoading;
+
+  const FlowingHaloBackgroundState({
+    this.frameRate = defaultFrameRate,
+    this.isLoading = true,
+  });
+
+  FlowingHaloBackgroundState copyWith({int? frameRate, bool? isLoading}) {
+    return FlowingHaloBackgroundState(
+      frameRate: frameRate ?? this.frameRate,
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
+}
+
+class FlowingHaloBackgroundNotifier
+    extends StateNotifier<FlowingHaloBackgroundState> {
+  FlowingHaloBackgroundNotifier() : super(const FlowingHaloBackgroundState()) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final saved = await _storage.read(key: _flowingHaloFrameRateKey);
+    if (!state.isLoading) return;
+    final frameRate =
+        (int.tryParse(saved ?? '') ??
+                FlowingHaloBackgroundState.defaultFrameRate)
+            .clamp(
+              FlowingHaloBackgroundState.minFrameRate,
+              FlowingHaloBackgroundState.maxFrameRate,
+            )
+            .toInt();
+    state = FlowingHaloBackgroundState(frameRate: frameRate, isLoading: false);
+  }
+
+  Future<void> setFrameRate(double value, {bool persist = true}) async {
+    final frameRate = value
+        .round()
+        .clamp(
+          FlowingHaloBackgroundState.minFrameRate,
+          FlowingHaloBackgroundState.maxFrameRate,
+        )
+        .toInt();
+    state = state.copyWith(frameRate: frameRate, isLoading: false);
+    if (persist) {
+      await _storage.write(
+        key: _flowingHaloFrameRateKey,
+        value: frameRate.toString(),
+      );
+    }
+  }
+}
+
+final flowingHaloBackgroundProvider =
+    StateNotifierProvider<
+      FlowingHaloBackgroundNotifier,
+      FlowingHaloBackgroundState
+    >((ref) => FlowingHaloBackgroundNotifier());
 
 class CoverGlassBackgroundState {
   static const defaultBlurSigma = 18.0;

@@ -16,7 +16,6 @@ import '../providers/player_provider.dart';
 import '../services/lyrics_service.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
-import '../widgets/dynamic_album_background.dart';
 import '../widgets/frosted_glass.dart';
 
 class _LyricsPaletteRequest {
@@ -101,8 +100,15 @@ Color _withMaximumLuminance(Color color, double target) {
 
 class LyricsScreen extends ConsumerStatefulWidget {
   final VoidCallback? onBack;
+  final bool positionUpdatesEnabled;
+  final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
 
-  const LyricsScreen({super.key, this.onBack});
+  const LyricsScreen({
+    super.key,
+    this.onBack,
+    this.positionUpdatesEnabled = true,
+    this.onSettingsSheetVisibilityChanged,
+  });
 
   @override
   ConsumerState<LyricsScreen> createState() => _LyricsScreenState();
@@ -145,53 +151,54 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
       extendBody: true,
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
-      body: DynamicAlbumBackground(
-        coverArtId: song?.coverArt ?? '',
-        coverUrl: coverUrl,
-        motionSeed: song?.id,
-        child: song == null
-            ? const SafeArea(
-                child: Center(
-                  child: Text('\u6682\u65e0\u64ad\u653e\u6b4c\u66f2'),
-                ),
-              )
-            : ref
-                  .watch(lyricsProvider(song))
-                  .when(
-                    loading: () {
+      // The enclosing now-playing route owns the shared album background.
+      // Keeping one background avoids stacking two full-screen blur/animation
+      // layers while preserving exactly the same visual beneath both pages.
+      body: song == null
+          ? const SafeArea(
+              child: Center(
+                child: Text('\u6682\u65e0\u64ad\u653e\u6b4c\u66f2'),
+              ),
+            )
+          : ref
+                .watch(lyricsProvider(song))
+                .when(
+                  loading: () {
+                    return const SafeArea(
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  },
+                  error: (error, stackTrace) {
+                    return SafeArea(
+                      child: _Message(
+                        icon: Icons.cloud_off_outlined,
+                        text: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
+                        detail: error.toString(),
+                      ),
+                    );
+                  },
+                  data: (lyrics) {
+                    if (lyrics.isEmpty) {
                       return const SafeArea(
-                        child: Center(child: CircularProgressIndicator()),
-                      );
-                    },
-                    error: (error, stackTrace) {
-                      return SafeArea(
                         child: _Message(
-                          icon: Icons.cloud_off_outlined,
-                          text: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
-                          detail: error.toString(),
+                          icon: Icons.lyrics_outlined,
+                          text: '\u6682\u65e0\u6b4c\u8bcd',
+                          detail:
+                              '\u5f53\u524d\u670d\u52a1\u5668\u672a\u63d0\u4f9b\u8fd9\u9996\u6b4c\u7684\u6b4c\u8bcd',
                         ),
                       );
-                    },
-                    data: (lyrics) {
-                      if (lyrics.isEmpty) {
-                        return const SafeArea(
-                          child: _Message(
-                            icon: Icons.lyrics_outlined,
-                            text: '\u6682\u65e0\u6b4c\u8bcd',
-                            detail:
-                                '\u5f53\u524d\u670d\u52a1\u5668\u672a\u63d0\u4f9b\u8fd9\u9996\u6b4c\u7684\u6b4c\u8bcd',
-                          ),
-                        );
-                      }
-                      return _LyricsPositionedList(
-                        data: lyrics,
-                        title: song.title,
-                        artist: song.artist,
-                        dynamicColor: dynamicLyricColor,
-                      );
-                    },
-                  ),
-      ),
+                    }
+                    return _LyricsPositionedList(
+                      data: lyrics,
+                      title: song.title,
+                      artist: song.artist,
+                      dynamicColor: dynamicLyricColor,
+                      positionUpdatesEnabled: widget.positionUpdatesEnabled,
+                      onSettingsSheetVisibilityChanged:
+                          widget.onSettingsSheetVisibilityChanged,
+                    );
+                  },
+                ),
     );
   }
 }
@@ -201,25 +208,31 @@ class _LyricsPositionedList extends ConsumerWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final bool positionUpdatesEnabled;
+  final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
 
   const _LyricsPositionedList({
     required this.data,
     required this.title,
     required this.artist,
     this.dynamicColor,
+    required this.positionUpdatesEnabled,
+    this.onSettingsSheetVisibilityChanged,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(
-      playerProvider.select((state) => state.position),
+    final activeIndex = ref.watch(
+      playerProvider.select((state) => activeLyricIndex(data, state.position)),
     );
     return _LyricsList(
       data: data,
-      position: position,
+      activeIndex: activeIndex,
       title: title,
       artist: artist,
       dynamicColor: dynamicColor,
+      positionUpdatesEnabled: positionUpdatesEnabled,
+      onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
       onSeek: (position) {
         unawaited(ref.read(playerProvider.notifier).seek(position));
       },
@@ -229,18 +242,22 @@ class _LyricsPositionedList extends ConsumerWidget {
 
 class _LyricsList extends ConsumerStatefulWidget {
   final LyricsData data;
-  final Duration position;
+  final int activeIndex;
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final bool positionUpdatesEnabled;
+  final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
   final ValueChanged<Duration> onSeek;
 
   const _LyricsList({
     required this.data,
-    required this.position,
+    required this.activeIndex,
     required this.title,
     required this.artist,
     required this.dynamicColor,
+    required this.positionUpdatesEnabled,
+    this.onSettingsSheetVisibilityChanged,
     required this.onSeek,
   });
 
@@ -260,9 +277,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
   int _lastCenteredIndex = -1;
 
   LyricsData get data => widget.data;
-  Duration get position => widget.position;
-
-  int get _activeIndex => activeLyricIndex(data, position);
+  int get _activeIndex => widget.activeIndex;
 
   @override
   void initState() {
@@ -410,6 +425,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
   Future<void> _showPersonalizationSheet() async {
     if (_settingsSheetOpen || !mounted) return;
     _settingsSheetOpen = true;
+    widget.onSettingsSheetVisibilityChanged?.call(true);
     try {
       await showModalBottomSheet<void>(
         context: context,
@@ -419,6 +435,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
         builder: (_) => const _LyricsPersonalizationSheet(),
       );
     } finally {
+      widget.onSettingsSheetVisibilityChanged?.call(false);
       if (mounted) {
         _settingsSheetOpen = false;
         _scheduleCenter(force: true);
@@ -568,9 +585,10 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                           blurSigma: blurSigma,
                           child: _TimedLyricText(
                             line: line,
-                            position: position,
                             enabled: preferences.wordByWordEnabled,
                             isActive: isActive,
+                            positionUpdatesEnabled:
+                                widget.positionUpdatesEnabled,
                             textAlign: textAlign,
                             style: activeStyle.copyWith(
                               color: isActive ? activeColor : inactiveColor,
@@ -652,33 +670,36 @@ class _LyricDepthFilteredLine extends StatelessWidget {
   }
 }
 
-class _TimedLyricText extends StatelessWidget {
+class _TimedLyricText extends ConsumerWidget {
   final LyricLine line;
-  final Duration position;
   final bool enabled;
   final bool isActive;
+  final bool positionUpdatesEnabled;
   final TextAlign textAlign;
   final TextStyle style;
 
   const _TimedLyricText({
     required this.line,
-    required this.position,
     required this.enabled,
     required this.isActive,
+    required this.positionUpdatesEnabled,
     required this.textAlign,
     required this.style,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final hasWordTiming = line.words.any((word) => word.start != null);
-    if (!enabled || !isActive || !hasWordTiming) {
+    if (!enabled || !isActive || !hasWordTiming || !positionUpdatesEnabled) {
       return Text(
         line.text.isEmpty ? ' ' : line.text,
         textAlign: textAlign,
         style: style,
       );
     }
+    final position = ref.watch(
+      playerProvider.select((state) => state.position),
+    );
 
     return TweenAnimationBuilder<double>(
       tween: Tween(end: position.inMicroseconds.toDouble()),
@@ -760,20 +781,12 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.sizeOf(context).height * 0.84,
       ),
-      child: FrostedGlass(
+      child: _LyricsDrawerGlass(
         blurSigma: drawerBlur,
-        borderRadius: BorderRadius.circular(28),
         tintColor: context.surfaceColor,
         tintOpacity: drawerTintOpacity,
         borderColor: context.primaryColor,
         borderOpacity: isDark ? 0.08 : 0.06,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
-          ),
-        ],
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(18, 10, 18, bottomInset + 18),
           child: Column(
@@ -1321,6 +1334,64 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
       LyricsFontFamily.system => Icons.text_fields_rounded,
       LyricsFontFamily.custom => Icons.upload_file_rounded,
     };
+  }
+}
+
+class _LyricsDrawerGlass extends StatelessWidget {
+  final double blurSigma;
+  final Color tintColor;
+  final double tintOpacity;
+  final Color borderColor;
+  final double borderOpacity;
+  final Widget child;
+
+  const _LyricsDrawerGlass({
+    required this.blurSigma,
+    required this.tintColor,
+    required this.tintOpacity,
+    required this.borderColor,
+    required this.borderOpacity,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final routeAnimation = ModalRoute.of(context)?.animation;
+    if (routeAnimation == null) {
+      return _buildGlass(filtersSettled: true, child: child);
+    }
+    return AnimatedBuilder(
+      animation: routeAnimation,
+      child: child,
+      builder: (context, child) => _buildGlass(
+        filtersSettled: routeAnimation.status == AnimationStatus.completed,
+        child: child!,
+      ),
+    );
+  }
+
+  Widget _buildGlass({required bool filtersSettled, required Widget child}) {
+    final movingTintOpacity = tintOpacity < 0.72 ? 0.72 : tintOpacity;
+    return FrostedGlass(
+      // A moving, nearly full-screen backdrop/refraction filter is the worst
+      // case for the GPU. Keep the glass tint during route movement, then
+      // restore the full blur/refraction as soon as the drawer settles.
+      blurSigma: filtersSettled ? blurSigma : 0,
+      liquidGlassEnabled: filtersSettled ? null : false,
+      borderRadius: BorderRadius.circular(28),
+      tintColor: tintColor,
+      tintOpacity: filtersSettled ? tintOpacity : movingTintOpacity,
+      borderColor: borderColor,
+      borderOpacity: borderOpacity,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.22),
+          blurRadius: 28,
+          offset: const Offset(0, 14),
+        ),
+      ],
+      child: child,
+    );
   }
 }
 

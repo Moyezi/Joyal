@@ -11,6 +11,7 @@ import '../widgets/personalization/glass_effect_tile.dart';
 import '../widgets/personalization/liquid_glass_toggle_tile.dart';
 import '../widgets/personalization/mini_player_color_tile.dart';
 import '../widgets/personalization/cover_glass_background_tile.dart';
+import '../widgets/personalization/flowing_halo_background_tile.dart';
 import '../widgets/personalization/page_background_settings.dart';
 import '../widgets/personalization/personalization_choice_tile.dart';
 
@@ -80,6 +81,10 @@ class PersonalizationScreen extends ConsumerWidget {
                 .read(visualEffectProvider.notifier)
                 .setBackgroundStyle(BackgroundVisualStyle.flowingHalo),
           ),
+          if (style == BackgroundVisualStyle.flowingHalo) ...[
+            const SizedBox(height: AppTheme.spacingMD),
+            const FlowingHaloBackgroundTile(),
+          ],
           const SizedBox(height: AppTheme.spacingMD),
           PersonalizationChoiceTile(
             icon: Icons.gradient_rounded,
