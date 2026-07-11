@@ -862,58 +862,20 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '双指捏合可再次打开这里，逐字效果、显示样式和缓存操作会即时应用。',
+                '双指捏合可再次打开；所有更改会立即生效。',
                 style: context.textBodySmall.copyWith(
                   color: context.secondaryColor,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 22),
               _LyricsSettingsSection(
-                title: '逐字歌词',
+                title: '歌词内容',
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: context.surfaceColor.withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: SwitchListTile.adaptive(
-                        value: preferences.wordByWordEnabled,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                        ),
-                        title: Text(
-                          '逐字高亮动画',
-                          style: context.textBodyLarge.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '仅在 AMLL TTML 提供逐字时间轴时显示。',
-                          style: context.textBodySmall.copyWith(
-                            color: context.secondaryColor,
-                          ),
-                        ),
-                        onChanged: (enabled) {
-                          HapticFeedback.selectionClick();
-                          unawaited(
-                            ref
-                                .read(lyricsPersonalizationProvider.notifier)
-                                .setWordByWordEnabled(enabled),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (hasLyricsTarget) ...[
-                _LyricsSettingsSection(
-                  title: '本首歌歌词来源',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                    if (hasLyricsTarget) ...[
+                      const _LyricsOptionLabel(title: '歌词来源'),
+                      const SizedBox(height: 4),
                       Text(
                         lyricsSource.description,
                         style: context.textBodySmall.copyWith(
@@ -921,13 +883,11 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
+                      _LyricsChoiceGrid(
                         children: [
                           for (final source in LyricsSource.values)
                             _LyricsChoiceButton(
-                              label: source.label,
+                              label: _lyricsSourceLabel(source),
                               icon: source == LyricsSource.amll
                                   ? Icons.auto_awesome_rounded
                                   : Icons.storage_rounded,
@@ -942,82 +902,148 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                             ),
                         ],
                       ),
+                      const _LyricsSectionDivider(),
                     ],
-                  ),
+                    _LyricsToggleTile(
+                      title: '逐字高亮',
+                      subtitle: 'AMLL 含逐字时间轴时生效',
+                      value: preferences.wordByWordEnabled,
+                      onChanged: (enabled) {
+                        HapticFeedback.selectionClick();
+                        unawaited(
+                          ref
+                              .read(lyricsPersonalizationProvider.notifier)
+                              .setWordByWordEnabled(enabled),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 18),
-              ],
+              ),
+              const SizedBox(height: 24),
               _LyricsSettingsSection(
-                title: '歌词维护',
+                title: '文字',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const _LyricsOptionLabel(title: '对齐'),
+                    const SizedBox(height: 8),
+                    _LyricsChoiceGrid(
+                      columns: 3,
+                      children: [
+                        for (final alignment in LyricsAlignmentMode.values)
+                          _LyricsChoiceButton(
+                            label: _lyricsAlignmentLabel(alignment),
+                            icon: _iconForAlignment(alignment),
+                            selected: preferences.alignment == alignment,
+                            compact: true,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              unawaited(
+                                ref
+                                    .read(
+                                      lyricsPersonalizationProvider.notifier,
+                                    )
+                                    .setAlignment(alignment),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const _LyricsOptionLabel(title: '字号'),
+                    const SizedBox(height: 4),
+                    _LyricsSliderRow(
+                      icon: Icons.format_size_rounded,
+                      value: preferences.fontSize,
+                      min: LyricsPersonalizationState.minFontSize,
+                      max: LyricsPersonalizationState.maxFontSize,
+                      divisions: 24,
+                      label: preferences.fontSize.toStringAsFixed(0),
+                      valueText: preferences.fontSize.toStringAsFixed(0),
+                      onChanged: (value) => ref
+                          .read(lyricsPersonalizationProvider.notifier)
+                          .setFontSize(value),
+                      onChangeEnd: (_) {},
+                    ),
+                    const SizedBox(height: 8),
+                    _LyricsChoiceGrid(
+                      children: [
+                        _LyricsChoiceButton(
+                          label: '系统字体',
+                          icon: _iconForFontFamily(LyricsFontFamily.system),
+                          selected:
+                              preferences.fontFamily == LyricsFontFamily.system,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            unawaited(
+                              ref
+                                  .read(lyricsPersonalizationProvider.notifier)
+                                  .setFontFamily(LyricsFontFamily.system),
+                            );
+                          },
+                        ),
+                        _LyricsChoiceButton(
+                          label: _customFontLabel(preferences),
+                          icon: _iconForFontFamily(LyricsFontFamily.custom),
+                          selected:
+                              preferences.fontFamily ==
+                                  LyricsFontFamily.custom &&
+                              preferences.hasCustomFont,
+                          onTap: () {
+                            unawaited(
+                              _handleCustomFontTap(context, ref, preferences),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Text(
-                      hasLyricsTarget
-                          ? '重新获取与清除缓存仅作用于当前选中的歌词来源。'
-                          : '开始播放歌曲后可重新获取或清除当前歌曲的歌词缓存。',
+                      preferences.hasCustomFont
+                          ? '已使用 ${preferences.customFontName}；点击可更换。'
+                          : '可导入 .ttf 字体，仅用于歌词显示。',
                       style: context.textBodySmall.copyWith(
                         color: context.secondaryColor,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _LyricsSettingsSection(
+                title: '显示样式',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _LyricsOptionLabel(title: '颜色'),
+                    const SizedBox(height: 8),
+                    _LyricsChoiceGrid(
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: hasLyricsTarget
-                                ? () => unawaited(
-                                    _refreshCurrentLyrics(context, ref),
-                                  )
-                                : null,
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: const Text('重新获取'),
+                        for (final mode in LyricsColorMode.values)
+                          _LyricsChoiceButton(
+                            label: mode.label,
+                            icon: _iconForColorMode(mode),
+                            selected: preferences.colorMode == mode,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              unawaited(
+                                ref
+                                    .read(
+                                      lyricsPersonalizationProvider.notifier,
+                                    )
+                                    .setColorMode(mode),
+                              );
+                            },
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: hasLyricsTarget
-                                ? () => unawaited(
-                                    _clearCurrentLyrics(context, ref),
-                                  )
-                                : null,
-                            icon: const Icon(Icons.delete_outline_rounded),
-                            label: const Text('清除缓存'),
-                          ),
-                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               _LyricsSettingsSection(
-                title: '歌词颜色',
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final mode in LyricsColorMode.values)
-                      _LyricsChoiceButton(
-                        label: mode.label,
-                        icon: _iconForColorMode(mode),
-                        selected: preferences.colorMode == mode,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          unawaited(
-                            ref
-                                .read(lyricsPersonalizationProvider.notifier)
-                                .setColorMode(mode),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _LyricsSettingsSection(
-                title: '非当前句歌词',
+                title: '非当前行',
                 child: Column(
                   children: [
                     _LyricsSliderRow(
@@ -1057,9 +1083,9 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               _LyricsSettingsSection(
-                title: '抽屉毛玻璃',
+                title: '设置面板',
                 child: Column(
                   children: [
                     _LyricsSliderRow(
@@ -1095,109 +1121,45 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               _LyricsSettingsSection(
-                title: '对齐方式',
-                child: Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final alignment in LyricsAlignmentMode.values)
-                      _LyricsChoiceButton(
-                        label: alignment.label,
-                        icon: _iconForAlignment(alignment),
-                        selected: preferences.alignment == alignment,
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          unawaited(
-                            ref
-                                .read(lyricsPersonalizationProvider.notifier)
-                                .setAlignment(alignment),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-              _LyricsSettingsSection(
-                title: '字体字号',
+                title: '缓存管理',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.format_size_rounded,
-                          size: 20,
-                          color: context.secondaryColor,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Slider(
-                            value: preferences.fontSize,
-                            min: LyricsPersonalizationState.minFontSize,
-                            max: LyricsPersonalizationState.maxFontSize,
-                            label: preferences.fontSize.toStringAsFixed(0),
-                            onChanged: (value) => ref
-                                .read(lyricsPersonalizationProvider.notifier)
-                                .setFontSize(value),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            preferences.fontSize.toStringAsFixed(0),
-                            textAlign: TextAlign.end,
-                            style: context.textBodySmall.copyWith(
-                              color: context.secondaryColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: [
-                        _LyricsChoiceButton(
-                          label: LyricsFontFamily.system.label,
-                          icon: _iconForFontFamily(LyricsFontFamily.system),
-                          selected:
-                              preferences.fontFamily == LyricsFontFamily.system,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            unawaited(
-                              ref
-                                  .read(lyricsPersonalizationProvider.notifier)
-                                  .setFontFamily(LyricsFontFamily.system),
-                            );
-                          },
-                        ),
-                        _LyricsChoiceButton(
-                          label: _customFontLabel(preferences),
-                          icon: _iconForFontFamily(LyricsFontFamily.custom),
-                          selected:
-                              preferences.fontFamily ==
-                                  LyricsFontFamily.custom &&
-                              preferences.hasCustomFont,
-                          onTap: () {
-                            unawaited(
-                              _handleCustomFontTap(context, ref, preferences),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
                     Text(
-                      preferences.hasCustomFont
-                          ? '当前自定义：${preferences.customFontName}。选中后再次点击可更换 .ttf 文件。'
-                          : '支持选择 .ttf 字体文件，文件会保存到本地后用于歌词显示。',
+                      hasLyricsTarget ? '仅操作当前歌词来源。' : '播放歌曲后可管理缓存。',
                       style: context.textBodySmall.copyWith(
                         color: context.secondaryColor,
                       ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _LyricsActionButton(
+                            onPressed: hasLyricsTarget
+                                ? () => unawaited(
+                                    _refreshCurrentLyrics(context, ref),
+                                  )
+                                : null,
+                            icon: Icons.refresh_rounded,
+                            label: '刷新歌词',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _LyricsActionButton(
+                            onPressed: hasLyricsTarget
+                                ? () => unawaited(
+                                    _clearCurrentLyrics(context, ref),
+                                  )
+                                : null,
+                            icon: Icons.delete_outline_rounded,
+                            label: '清除缓存',
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1312,6 +1274,21 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     return '${name.substring(0, maxLength - 1)}…';
   }
 
+  String _lyricsSourceLabel(LyricsSource source) {
+    return switch (source) {
+      LyricsSource.amll => 'AMLL 逐字',
+      LyricsSource.embedded => '内嵌歌词',
+    };
+  }
+
+  String _lyricsAlignmentLabel(LyricsAlignmentMode alignment) {
+    return switch (alignment) {
+      LyricsAlignmentMode.center => '居中',
+      LyricsAlignmentMode.left => '左对齐',
+      LyricsAlignmentMode.justify => '两端',
+    };
+  }
+
   IconData _iconForColorMode(LyricsColorMode mode) {
     return switch (mode) {
       LyricsColorMode.system => Icons.brightness_auto_rounded,
@@ -1417,9 +1394,160 @@ class _LyricsSettingsSection extends StatelessWidget {
   }
 }
 
+class _LyricsOptionLabel extends StatelessWidget {
+  final String title;
+
+  const _LyricsOptionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: context.textBodyMedium.copyWith(
+        color: context.secondaryColor,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _LyricsSectionDivider extends StatelessWidget {
+  const _LyricsSectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Container(
+        height: 1,
+        color: context.primaryColor.withValues(alpha: 0.08),
+      ),
+    );
+  }
+}
+
+class _LyricsToggleTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _LyricsToggleTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: context.primaryColor.withValues(alpha: 0.055),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: context.textBodyLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: context.textBodySmall.copyWith(
+                    color: context.secondaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _LyricsChoiceGrid extends StatelessWidget {
+  final List<Widget> children;
+  final int columns;
+
+  const _LyricsChoiceGrid({required this.children, this.columns = 2});
+
+  @override
+  Widget build(BuildContext context) {
+    const spacing = 8.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tileWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final child in children)
+              SizedBox(width: tileWidth, child: child),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LyricsActionButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+
+  const _LyricsActionButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final foreground = enabled ? context.primaryColor : context.secondaryColor;
+
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: foreground,
+          backgroundColor: context.primaryColor.withValues(
+            alpha: enabled ? 0.055 : 0.025,
+          ),
+          side: BorderSide(
+            color: foreground.withValues(alpha: enabled ? 0.22 : 0.08),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        icon: Icon(icon, size: 20),
+        label: Text(
+          label,
+          style: context.textBodyMedium.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
 class _LyricsSliderRow extends StatelessWidget {
   final IconData icon;
   final double value;
+  final double min;
   final double max;
   final int divisions;
   final String label;
@@ -1430,6 +1558,7 @@ class _LyricsSliderRow extends StatelessWidget {
   const _LyricsSliderRow({
     required this.icon,
     required this.value,
+    this.min = 0,
     required this.max,
     required this.divisions,
     required this.label,
@@ -1446,8 +1575,8 @@ class _LyricsSliderRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Slider(
-            value: value.clamp(0.0, max).toDouble(),
-            min: 0,
+            value: value.clamp(min, max).toDouble(),
+            min: min,
             max: max,
             divisions: divisions,
             label: label,
@@ -1474,12 +1603,14 @@ class _LyricsChoiceButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
+  final bool compact;
   final VoidCallback onTap;
 
   const _LyricsChoiceButton({
     required this.label,
     required this.icon,
     required this.selected,
+    this.compact = false,
     required this.onTap,
   });
 
@@ -1490,32 +1621,40 @@ class _LyricsChoiceButton extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          height: compact ? 42 : 48,
+          padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12),
           decoration: BoxDecoration(
             color: selected
-                ? context.primaryColor.withValues(alpha: 0.12)
-                : context.primaryColor.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(16),
+                ? context.primaryColor.withValues(alpha: 0.14)
+                : context.primaryColor.withValues(alpha: 0.055),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? context.primaryColor.withValues(alpha: 0.42)
-                  : context.primaryColor.withValues(alpha: 0.08),
+                  ? context.primaryColor.withValues(alpha: 0.36)
+                  : Colors.transparent,
             ),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 18, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: context.textBodyMedium.copyWith(
-                  color: foreground,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              SizedBox(width: compact ? 5 : 7),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      (compact ? context.textBodySmall : context.textBodyMedium)
+                          .copyWith(
+                            color: foreground,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                          ),
                 ),
               ),
             ],

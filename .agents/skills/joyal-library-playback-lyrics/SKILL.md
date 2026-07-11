@@ -78,6 +78,8 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - The drawer glass target is `lyricsDrawer`.
 - Custom `.ttf` selection uses `file_picker`, then copies the font to app support storage and registers it through `FontLoader`.
 - Legacy blackbody/rounded/handwriting font values fall back to system fonts.
+- Keep the drawer order as: lyrics content (source and word highlighting), typography (alignment, size, font), display color, visual effects, then cache management. Keep copy brief and state that changes apply immediately.
+- Use equal-width two-column choice grids; alignment is a compact three-column grid. Cache actions are paired equal-width buttons at the bottom. Do not change source/cache behavior when reshaping this UI.
 
 ## MiniPlayer Lyrics
 
