@@ -56,6 +56,8 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Only the discovery page title-bar icon opens it. Do not restore the former
   classification-status card below `为你发现`.
 - The screen has separate tag, climax, and service tabs. Keep tag classification and manual correction available.
+- Show the selected tag, climax, or service tab as a gray rounded capsule; suppress any sharp rectangular press/splash backing when switching tabs.
+- Keep the `你的音乐整理台` header icon container square (currently `60 x 60`) so the pulse mark is not visually compressed.
 - Before first classification, if no API key exists, show configuration guidance.
 - Do not add "创建歌单" or "相似歌曲" buttons until provider/service capability exists.
 - Do not ship placeholder entrances for incomplete classification features.

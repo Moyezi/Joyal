@@ -574,8 +574,8 @@ class _JoHeader extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 66,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(
               color: context.backgroundColor,
               borderRadius: BorderRadius.circular(22),
@@ -673,6 +673,8 @@ class _JoTabBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
       child: TabBar(
         dividerColor: Colors.transparent,
+        splashFactory: NoSplash.splashFactory,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         indicatorSize: TabBarIndicatorSize.tab,
         indicator: BoxDecoration(
           color: context.surfaceColor,

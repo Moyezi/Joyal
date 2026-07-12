@@ -29,6 +29,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 - Build `LibraryCanvasScreen` from the full `libraryProvider.songs` collection while rendering only the visible spatial neighborhood.
 - Center-card play must start the full library queue at that song; toggling the already-current song may use play/pause. "下一首播放" must call `PlayerNotifier.playNext()`.
+- Drive the center-card play action icon and tooltip from whether that card is the current playing song: show pause only while it is actively playing, otherwise show play. Select this state inside the action subtree so playback changes do not rebuild the whole canvas.
 - Keep playback actions available on the cards, but do not embed a MiniPlayer capsule in the canvas route.
 
 ## Favorites

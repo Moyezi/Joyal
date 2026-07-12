@@ -487,10 +487,23 @@ class _SongCanvasCardState extends ConsumerState<_SongCanvasCard> {
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 160),
                         opacity: widget.isFocused ? 1 : 0,
-                        child: _CardAction(
-                          icon: Icons.play_arrow_rounded,
-                          tooltip: '播放',
-                          onTap: widget.onPlay,
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final isPlayingThisSong = ref.watch(
+                              playerProvider.select(
+                                (state) =>
+                                    state.currentSong?.id == widget.song.id &&
+                                    state.isPlaying,
+                              ),
+                            );
+                            return _CardAction(
+                              icon: isPlayingThisSong
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              tooltip: isPlayingThisSong ? '暂停' : '播放',
+                              onTap: widget.onPlay,
+                            );
+                          },
                         ),
                       ),
                     ),
