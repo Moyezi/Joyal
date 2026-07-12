@@ -64,4 +64,42 @@ void main() {
 
     expect(flowingLightTokensForLine(line), isEmpty);
   });
+
+  test(
+    'flowing light scatters common Chinese lines across three to four rows',
+    () {
+      final shortLayout = flowingLightPlacementsForTokens('陪伴三个季节'.split(''));
+      final longLayout = flowingLightPlacementsForTokens(
+        '陪伴三个季节还是承受'.split(''),
+      );
+
+      expect(shortLayout.map((item) => item.row).toSet().length, 3);
+      expect(longLayout.map((item) => item.row).toSet().length, 4);
+      for (final layout in [shortLayout, longLayout]) {
+        final rowCounts = <int, int>{};
+        for (final item in layout) {
+          rowCounts.update(item.row, (count) => count + 1, ifAbsent: () => 1);
+          expect(item.rotationDegrees, inInclusiveRange(-25, 25));
+        }
+        expect(
+          rowCounts.values.every((count) => count >= 2 && count <= 3),
+          isTrue,
+        );
+      }
+    },
+  );
+
+  test('flowing light scattered layout is stable for the same lyric', () {
+    final first = flowingLightPlacementsForTokens('陪伴三个季节'.split(''));
+    final second = flowingLightPlacementsForTokens('陪伴三个季节'.split(''));
+
+    expect(
+      first.map((item) => item.rotationDegrees),
+      orderedEquals(second.map((item) => item.rotationDegrees)),
+    );
+    expect(
+      first.map((item) => item.rowShift),
+      orderedEquals(second.map((item) => item.rowShift)),
+    );
+  });
 }

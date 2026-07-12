@@ -234,6 +234,84 @@ class FlowingLightToken {
   });
 }
 
+@immutable
+class FlowingLightTokenPlacement {
+  final int row;
+  final double rotationDegrees;
+  final double horizontalJitter;
+  final double verticalJitter;
+  final double scale;
+  final double gapAfter;
+  final double rowShift;
+
+  const FlowingLightTokenPlacement({
+    required this.row,
+    required this.rotationDegrees,
+    required this.horizontalJitter,
+    required this.verticalJitter,
+    required this.scale,
+    required this.gapAfter,
+    required this.rowShift,
+  });
+}
+
+/// Produces a stable, hand-scattered composition for one lyric line.
+///
+/// Common six-to-twelve token lines use three or four rows. Random-looking
+/// values are derived from the lyric itself so rebuilds never make glyphs jump.
+List<FlowingLightTokenPlacement> flowingLightPlacementsForTokens(
+  List<String> tokenTexts,
+) {
+  if (tokenTexts.isEmpty) return const [];
+  final rowCount = switch (tokenTexts.length) {
+    <= 3 => 1,
+    <= 5 => 2,
+    <= 9 => 3,
+    _ => 4,
+  };
+  final random = math.Random(_stableTokenSeed(tokenTexts));
+  final rowSizes = List<int>.filled(rowCount, tokenTexts.length ~/ rowCount);
+  final extraRows = List<int>.generate(rowCount, (index) => index)
+    ..shuffle(random);
+  for (var index = 0; index < tokenTexts.length % rowCount; index++) {
+    rowSizes[extraRows[index]]++;
+  }
+
+  final placements = <FlowingLightTokenPlacement>[];
+  for (var row = 0; row < rowCount; row++) {
+    final rowShift = (_normalSample(random) * 0.34).clamp(-0.72, 0.72);
+    for (var column = 0; column < rowSizes[row]; column++) {
+      placements.add(
+        FlowingLightTokenPlacement(
+          row: row,
+          rotationDegrees: (_normalSample(random) * 8.5).clamp(-25.0, 25.0),
+          horizontalJitter: (_normalSample(random) * 0.11).clamp(-0.24, 0.24),
+          verticalJitter: (_normalSample(random) * 0.10).clamp(-0.22, 0.22),
+          scale: (1 + _normalSample(random) * 0.045).clamp(0.91, 1.09),
+          gapAfter: (0.12 + random.nextDouble() * 0.22),
+          rowShift: rowShift,
+        ),
+      );
+    }
+  }
+  return placements;
+}
+
+int _stableTokenSeed(List<String> tokenTexts) {
+  var hash = 0x811c9dc5;
+  for (final codeUnit in tokenTexts.join('\u241f').codeUnits) {
+    hash ^= codeUnit;
+    hash = (hash * 0x01000193) & 0x7fffffff;
+  }
+  return hash;
+}
+
+double _normalSample(math.Random random) {
+  final first = math.max(random.nextDouble(), 0.000001);
+  final second = random.nextDouble();
+  return math.sqrt(-2 * math.log(first)) * math.cos(2 * math.pi * second);
+}
+
 List<FlowingLightToken> flowingLightTokensForLine(LyricLine line) {
   final tokens = <FlowingLightToken>[];
   for (var wordIndex = 0; wordIndex < line.words.length; wordIndex++) {
@@ -328,6 +406,10 @@ class _FlowingLightActiveLine extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = flowingLightTokensForLine(line);
     final hasWordTiming = tokens.isNotEmpty;
+    final displayPieces = hasWordTiming
+        ? tokens.map((token) => token.text).toList(growable: false)
+        : _flowingLightDisplayPieces(line.text);
+    final placements = flowingLightPlacementsForTokens(displayPieces);
     final shouldTrack =
         positionUpdatesEnabled && wordByWordEnabled && hasWordTiming;
     final position = shouldTrack
@@ -354,30 +436,126 @@ class _FlowingLightActiveLine extends ConsumerWidget {
           ],
         );
         if (!wordByWordEnabled || !hasWordTiming) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 30),
-            child: Text(line.text, textAlign: TextAlign.center, style: style),
+          return _ScatteredFlowingLightLayout(
+            placements: placements,
+            fontSize: fontSize,
+            children: [
+              for (final piece in displayPieces) Text(piece, style: style),
+            ],
           );
         }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 38),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 1,
-            runSpacing: 7,
-            children: [
-              for (final token in tokens)
-                _FlowingLightTokenView(
-                  token: token,
-                  position: animatedPosition,
-                  style: style,
-                  color: activeColor,
-                ),
-            ],
-          ),
+        return _ScatteredFlowingLightLayout(
+          placements: placements,
+          fontSize: fontSize,
+          children: [
+            for (final token in tokens)
+              _FlowingLightTokenView(
+                token: token,
+                position: animatedPosition,
+                style: style,
+                color: activeColor,
+              ),
+          ],
         );
       },
+    );
+  }
+}
+
+List<String> _flowingLightDisplayPieces(String text) {
+  final pieces = <String>[];
+  final glyphs = text.characters.toList(growable: false);
+  var index = 0;
+  while (index < glyphs.length) {
+    if (_isWhitespace(glyphs[index])) {
+      index++;
+      continue;
+    }
+    final start = index;
+    if (_isLatinWordGlyph(glyphs[index])) {
+      while (index < glyphs.length && _isLatinWordGlyph(glyphs[index])) {
+        index++;
+      }
+      pieces.add(glyphs.sublist(start, index).join());
+    } else {
+      pieces.add(glyphs[index]);
+      index++;
+    }
+  }
+  return pieces;
+}
+
+class _ScatteredFlowingLightLayout extends StatelessWidget {
+  final List<FlowingLightTokenPlacement> placements;
+  final List<Widget> children;
+  final double fontSize;
+
+  const _ScatteredFlowingLightLayout({
+    required this.placements,
+    required this.children,
+    required this.fontSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    final rows = <List<int>>[];
+    for (var index = 0; index < placements.length; index++) {
+      while (rows.length <= placements[index].row) {
+        rows.add(<int>[]);
+      }
+      rows[placements[index].row].add(index);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 22),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var row = 0; row < rows.length; row++) ...[
+              if (row > 0)
+                SizedBox(height: fontSize * (0.06 + (row.isOdd ? 0.09 : 0.02))),
+              Transform.translate(
+                offset: Offset(
+                  placements[rows[row].first].rowShift * fontSize,
+                  0,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    for (final index in rows[row])
+                      Padding(
+                        padding: EdgeInsets.only(
+                          right: index == rows[row].last
+                              ? 0
+                              : placements[index].gapAfter * fontSize,
+                        ),
+                        child: Transform.translate(
+                          offset: Offset(
+                            placements[index].horizontalJitter * fontSize,
+                            placements[index].verticalJitter * fontSize,
+                          ),
+                          child: Transform.rotate(
+                            angle:
+                                placements[index].rotationDegrees *
+                                math.pi /
+                                180,
+                            child: Transform.scale(
+                              scale: placements[index].scale,
+                              child: children[index],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
