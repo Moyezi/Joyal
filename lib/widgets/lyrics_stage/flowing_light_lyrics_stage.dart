@@ -410,6 +410,8 @@ class _FlowingLightActiveLine extends ConsumerWidget {
         ? tokens.map((token) => token.text).toList(growable: false)
         : _flowingLightDisplayPieces(line.text);
     final placements = flowingLightPlacementsForTokens(displayPieces);
+    final ambientMotionEnabled =
+        positionUpdatesEnabled && !MediaQuery.disableAnimationsOf(context);
     final shouldTrack =
         positionUpdatesEnabled && wordByWordEnabled && hasWordTiming;
     final position = shouldTrack
@@ -439,6 +441,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
           return _ScatteredFlowingLightLayout(
             placements: placements,
             fontSize: fontSize,
+            ambientMotionEnabled: ambientMotionEnabled,
             children: [
               for (final piece in displayPieces) Text(piece, style: style),
             ],
@@ -447,6 +450,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
         return _ScatteredFlowingLightLayout(
           placements: placements,
           fontSize: fontSize,
+          ambientMotionEnabled: ambientMotionEnabled,
           children: [
             for (final token in tokens)
               _FlowingLightTokenView(
@@ -485,28 +489,73 @@ List<String> _flowingLightDisplayPieces(String text) {
   return pieces;
 }
 
-class _ScatteredFlowingLightLayout extends StatelessWidget {
+class _ScatteredFlowingLightLayout extends StatefulWidget {
   final List<FlowingLightTokenPlacement> placements;
   final List<Widget> children;
   final double fontSize;
+  final bool ambientMotionEnabled;
 
   const _ScatteredFlowingLightLayout({
     required this.placements,
     required this.children,
     required this.fontSize,
+    required this.ambientMotionEnabled,
   });
 
   @override
+  State<_ScatteredFlowingLightLayout> createState() =>
+      _ScatteredFlowingLightLayoutState();
+}
+
+class _ScatteredFlowingLightLayoutState
+    extends State<_ScatteredFlowingLightLayout>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _floatController;
+
+  @override
+  void initState() {
+    super.initState();
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3600),
+    );
+    _syncAmbientMotion();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ScatteredFlowingLightLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ambientMotionEnabled != widget.ambientMotionEnabled) {
+      _syncAmbientMotion();
+    }
+  }
+
+  void _syncAmbientMotion() {
+    if (widget.ambientMotionEnabled) {
+      _floatController.repeat();
+    } else {
+      _floatController.stop();
+      _floatController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _floatController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (children.isEmpty) return const SizedBox.shrink();
+    if (widget.children.isEmpty) return const SizedBox.shrink();
     final rows = <List<int>>[];
-    for (var index = 0; index < placements.length; index++) {
-      while (rows.length <= placements[index].row) {
+    for (var index = 0; index < widget.placements.length; index++) {
+      while (rows.length <= widget.placements[index].row) {
         rows.add(<int>[]);
       }
-      rows[placements[index].row].add(index);
+      rows[widget.placements[index].row].add(index);
     }
-    return Padding(
+    final composition = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 22),
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -515,10 +564,12 @@ class _ScatteredFlowingLightLayout extends StatelessWidget {
           children: [
             for (var row = 0; row < rows.length; row++) ...[
               if (row > 0)
-                SizedBox(height: fontSize * (0.06 + (row.isOdd ? 0.09 : 0.02))),
+                SizedBox(
+                  height: widget.fontSize * (0.06 + (row.isOdd ? 0.09 : 0.02)),
+                ),
               Transform.translate(
                 offset: Offset(
-                  placements[rows[row].first].rowShift * fontSize,
+                  widget.placements[rows[row].first].rowShift * widget.fontSize,
                   0,
                 ),
                 child: Row(
@@ -530,21 +581,24 @@ class _ScatteredFlowingLightLayout extends StatelessWidget {
                         padding: EdgeInsets.only(
                           right: index == rows[row].last
                               ? 0
-                              : placements[index].gapAfter * fontSize,
+                              : widget.placements[index].gapAfter *
+                                    widget.fontSize,
                         ),
                         child: Transform.translate(
                           offset: Offset(
-                            placements[index].horizontalJitter * fontSize,
-                            placements[index].verticalJitter * fontSize,
+                            widget.placements[index].horizontalJitter *
+                                widget.fontSize,
+                            widget.placements[index].verticalJitter *
+                                widget.fontSize,
                           ),
                           child: Transform.rotate(
                             angle:
-                                placements[index].rotationDegrees *
+                                widget.placements[index].rotationDegrees *
                                 math.pi /
                                 180,
                             child: Transform.scale(
-                              scale: placements[index].scale,
-                              child: children[index],
+                              scale: widget.placements[index].scale,
+                              child: widget.children[index],
                             ),
                           ),
                         ),
@@ -557,7 +611,35 @@ class _ScatteredFlowingLightLayout extends StatelessWidget {
         ),
       ),
     );
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _floatController,
+        child: composition,
+        builder: (context, child) => Transform.translate(
+          offset: Offset(
+            0,
+            flowingLightFloatFactor(_floatController.value) * widget.fontSize,
+          ),
+          child: child,
+        ),
+      ),
+    );
   }
+}
+
+double flowingLightEntranceScale(double progress) {
+  final clamped = progress.clamp(0.0, 1.0).toDouble();
+  return 1 + 0.16 * (1 - Curves.easeOutCubic.transform(clamped));
+}
+
+double flowingLightGlowIntensity(double progress) {
+  final normalized = (progress / 0.82).clamp(0.0, 1.0).toDouble();
+  return math.sin(math.pi * normalized);
+}
+
+double flowingLightFloatFactor(double phase) {
+  final normalized = phase.clamp(0.0, 1.0).toDouble();
+  return -0.05 * (1 - math.cos(2 * math.pi * normalized));
 }
 
 class _FlowingLightTokenView extends StatelessWidget {
@@ -590,8 +672,28 @@ class _FlowingLightTokenView extends StatelessWidget {
         child: Opacity(opacity: 0, child: text),
       );
     }
-    final scale = 0.18 + 0.82 * Curves.elasticOut.transform(reveal);
-    final lift = 12 * (1 - Curves.easeOutCubic.transform(reveal));
+    final scale = flowingLightEntranceScale(reveal);
+    final glowIntensity = flowingLightGlowIntensity(reveal);
+    final lift = 7 * (1 - Curves.easeOutCubic.transform(reveal));
+    final highlightColor = Color.lerp(color, Colors.white, 0.46)!;
+    final highlightedText = Text(
+      token.text,
+      style: style.copyWith(
+        shadows: [
+          ...?style.shadows,
+          if (glowIntensity > 0)
+            Shadow(
+              color: highlightColor.withValues(alpha: 0.82 * glowIntensity),
+              blurRadius: 12 + 16 * glowIntensity,
+            ),
+          if (glowIntensity > 0)
+            Shadow(
+              color: color.withValues(alpha: 0.58 * glowIntensity),
+              blurRadius: 28 + 18 * glowIntensity,
+            ),
+        ],
+      ),
+    );
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       child: Transform.translate(
@@ -602,20 +704,22 @@ class _FlowingLightTokenView extends StatelessWidget {
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
-              if (reveal < 1)
+              if (glowIntensity > 0)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: CustomPaint(
-                      painter: _TokenRingPainter(
+                      painter: _TokenGlowPainter(
                         color: color,
+                        highlightColor: highlightColor,
                         progress: reveal,
+                        intensity: glowIntensity,
                       ),
                     ),
                   ),
                 ),
               Opacity(
                 opacity: (reveal * 4).clamp(0.0, 1.0).toDouble(),
-                child: text,
+                child: highlightedText,
               ),
             ],
           ),
@@ -625,26 +729,51 @@ class _FlowingLightTokenView extends StatelessWidget {
   }
 }
 
-class _TokenRingPainter extends CustomPainter {
+class _TokenGlowPainter extends CustomPainter {
   final Color color;
+  final Color highlightColor;
   final double progress;
+  final double intensity;
 
-  const _TokenRingPainter({required this.color, required this.progress});
+  const _TokenGlowPainter({
+    required this.color,
+    required this.highlightColor,
+    required this.progress,
+    required this.intensity,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final eased = Curves.easeOutCubic.transform(progress);
     final radius = math.max(size.width, size.height) * (0.42 + eased * 1.05);
-    final paint = Paint()
+    final center = Offset(size.width / 2, size.height / 2);
+    final haloPaint = Paint()
+      ..color = highlightColor.withValues(alpha: 0.3 * intensity)
+      ..maskFilter = MaskFilter.blur(
+        BlurStyle.normal,
+        8 + math.max(size.width, size.height) * 0.16,
+      );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: center,
+        width: size.width * (1.12 + intensity * 0.34),
+        height: size.height * (1.08 + intensity * 0.28),
+      ),
+      haloPaint,
+    );
+    final ringPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.4 * (1 - progress) + 0.7
-      ..color = color.withValues(alpha: 0.5 * (1 - progress));
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, paint);
+      ..color = color.withValues(alpha: 0.48 * intensity);
+    canvas.drawCircle(center, radius, ringPaint);
   }
 
   @override
-  bool shouldRepaint(covariant _TokenRingPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.color != color;
+  bool shouldRepaint(covariant _TokenGlowPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.intensity != intensity ||
+        oldDelegate.color != color ||
+        oldDelegate.highlightColor != highlightColor;
   }
 }

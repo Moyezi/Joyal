@@ -102,4 +102,22 @@ void main() {
       orderedEquals(second.map((item) => item.rowShift)),
     );
   });
+
+  test(
+    'flowing light token enters slightly large and settles at full size',
+    () {
+      expect(flowingLightEntranceScale(0), closeTo(1.16, 0.0001));
+      expect(flowingLightEntranceScale(0.5), greaterThan(1));
+      expect(flowingLightEntranceScale(1), 1);
+    },
+  );
+
+  test('flowing light glow is brief and ambient float returns to origin', () {
+    expect(flowingLightGlowIntensity(0), 0);
+    expect(flowingLightGlowIntensity(0.41), closeTo(1, 0.0001));
+    expect(flowingLightGlowIntensity(1), closeTo(0, 0.0001));
+    expect(flowingLightFloatFactor(0), 0);
+    expect(flowingLightFloatFactor(0.5), closeTo(-0.1, 0.0001));
+    expect(flowingLightFloatFactor(1), closeTo(0, 0.0001));
+  });
 }
