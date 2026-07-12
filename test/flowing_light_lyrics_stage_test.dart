@@ -120,4 +120,10 @@ void main() {
     expect(flowingLightFloatFactor(0.5), closeTo(-0.1, 0.0001));
     expect(flowingLightFloatFactor(1), closeTo(0, 0.0001));
   });
+
+  test('last flowing light token keeps a periodic breathing glow', () {
+    expect(flowingLightBreathingGlowIntensity(0), closeTo(0.36, 0.0001));
+    expect(flowingLightBreathingGlowIntensity(0.5), closeTo(0.64, 0.0001));
+    expect(flowingLightBreathingGlowIntensity(1), closeTo(0.36, 0.0001));
+  });
 }

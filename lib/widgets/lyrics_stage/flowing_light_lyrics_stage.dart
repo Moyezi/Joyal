@@ -452,12 +452,14 @@ class _FlowingLightActiveLine extends ConsumerWidget {
           fontSize: fontSize,
           ambientMotionEnabled: ambientMotionEnabled,
           children: [
-            for (final token in tokens)
+            for (var index = 0; index < tokens.length; index++)
               _FlowingLightTokenView(
-                token: token,
+                token: tokens[index],
                 position: animatedPosition,
                 style: style,
                 color: activeColor,
+                keepBreathing: index == tokens.length - 1,
+                breathingEnabled: ambientMotionEnabled,
               ),
           ],
         );
@@ -637,6 +639,12 @@ double flowingLightGlowIntensity(double progress) {
   return math.sin(math.pi * normalized);
 }
 
+double flowingLightBreathingGlowIntensity(double phase) {
+  final normalized = phase - phase.floorToDouble();
+  final wave = 0.5 - 0.5 * math.cos(2 * math.pi * normalized);
+  return 0.36 + 0.28 * wave;
+}
+
 double flowingLightFloatFactor(double phase) {
   final normalized = phase.clamp(0.0, 1.0).toDouble();
   return -0.05 * (1 - math.cos(2 * math.pi * normalized));
@@ -644,17 +652,22 @@ double flowingLightFloatFactor(double phase) {
 
 class _FlowingLightTokenView extends StatelessWidget {
   static const _popDuration = Duration(milliseconds: 520);
+  static const _breathingDuration = Duration(milliseconds: 2200);
 
   final FlowingLightToken token;
   final Duration position;
   final TextStyle style;
   final Color color;
+  final bool keepBreathing;
+  final bool breathingEnabled;
 
   const _FlowingLightTokenView({
     required this.token,
     required this.position,
     required this.style,
     required this.color,
+    required this.keepBreathing,
+    required this.breathingEnabled,
   });
 
   @override
@@ -673,7 +686,19 @@ class _FlowingLightTokenView extends StatelessWidget {
       );
     }
     final scale = flowingLightEntranceScale(reveal);
-    final glowIntensity = flowingLightGlowIntensity(reveal);
+    final entranceGlowIntensity = flowingLightGlowIntensity(reveal);
+    final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
+    final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
+    final breathingGlowIntensity = keepBreathing
+        ? breathingRamp *
+              (breathingEnabled
+                  ? flowingLightBreathingGlowIntensity(breathingPhase)
+                  : 0.36)
+        : 0.0;
+    final glowIntensity = math.max(
+      entranceGlowIntensity,
+      breathingGlowIntensity,
+    );
     final lift = 7 * (1 - Curves.easeOutCubic.transform(reveal));
     final highlightColor = Color.lerp(color, Colors.white, 0.46)!;
     final highlightedText = Text(
@@ -713,6 +738,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                         highlightColor: highlightColor,
                         progress: reveal,
                         intensity: glowIntensity,
+                        ringIntensity: entranceGlowIntensity,
                       ),
                     ),
                   ),
@@ -734,12 +760,14 @@ class _TokenGlowPainter extends CustomPainter {
   final Color highlightColor;
   final double progress;
   final double intensity;
+  final double ringIntensity;
 
   const _TokenGlowPainter({
     required this.color,
     required this.highlightColor,
     required this.progress,
     required this.intensity,
+    required this.ringIntensity,
   });
 
   @override
@@ -765,14 +793,17 @@ class _TokenGlowPainter extends CustomPainter {
     final ringPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.4 * (1 - progress) + 0.7
-      ..color = color.withValues(alpha: 0.48 * intensity);
-    canvas.drawCircle(center, radius, ringPaint);
+      ..color = color.withValues(alpha: 0.48 * ringIntensity);
+    if (ringIntensity > 0) {
+      canvas.drawCircle(center, radius, ringPaint);
+    }
   }
 
   @override
   bool shouldRepaint(covariant _TokenGlowPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.intensity != intensity ||
+        oldDelegate.ringIntensity != ringIntensity ||
         oldDelegate.color != color ||
         oldDelegate.highlightColor != highlightColor;
   }
