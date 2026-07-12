@@ -1,6 +1,6 @@
 ---
 name: joyal-library-playback-lyrics
-description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, or MiniPlayer lyrics."
+description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, lyrics stage renderers, or MiniPlayer lyrics."
 ---
 
 # Joyal Library Playback Lyrics
@@ -81,8 +81,9 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 ## Independent Lyrics Stages
 
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
-- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. With word timing, it displays only the active line and reveals Chinese one grapheme at a time and Latin text one word at a time. Each entering token pops in with one outward ring; future tokens use invisible layout reservations so revealed tokens do not shift, and there is no dim pending-text mask. Lyrics without word timing, or with `wordByWordEnabled` disabled, fall back to one complete static active line.
-- `流光` must not render previous or upcoming lyric lines. Its active token composition is the only stage subtree that watches playback position; settings-sheet coverage and hidden lyrics pages freeze that subscription and its local ring painting.
+- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It displays only the active line, splitting Chinese into graphemes and Latin runs into whole words. Use a deterministic scattered layout: common lines form 3–4 vertical rows with about 2–3 tokens per row, irregular spacing and offsets, and normally distributed token rotation clamped to ±25°. Untimed lyrics and disabled word-by-word display keep the same scattered layout but reveal statically.
+- With word timing, future tokens reserve invisible positions so revealed text never shifts. Each token appears at about 116% scale, settles to 100% over 520 ms, and carries a brief local highlight halo and outward ring; never render a dim pending-text mask.
+- The whole settled composition loops upward by at most 10% of font size and back over 3.6 seconds. Keep its controller and painting inside the active composition `RepaintBoundary`; settings coverage, hidden lyrics pages, disabled position updates, and reduced-motion settings must stop/reset it. Only the active token composition watches playback position.
 - `浮名` and `群唱` remain planned. Their disabled `待完成` entries stay visible in the lyrics personalization drawer, but selecting them must not persist an unavailable renderer.
 - These themes are not skins over `_LyricsList`. Give each theme its own renderer and animation grammar, while sharing a small stage shell, lyric timing runtime, theme/palette inputs, empty states, gestures, and lifecycle handling.
 - Keep the current scrolling lyrics renderer available as the stable default. Persist available stage modes through `lyrics_personalization_provider.dart` in secure storage and expose them through the existing in-place personalization flow.

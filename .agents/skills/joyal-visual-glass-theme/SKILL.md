@@ -1,6 +1,6 @@
 ---
 name: joyal-visual-glass-theme
-description: "Visual, theme, and glass-effect memory for Joyal Music. Use when changing ThemeContext colors, AppTheme usage, page backgrounds, album palette extraction, FrostedGlass, liquid glass, MiniPlayer tint, DynamicAlbumBackground, or visual-performance-sensitive UI."
+description: "Visual, theme, and glass-effect memory for Joyal Music. Use when changing ThemeContext colors, AppTheme usage, page backgrounds, album palette extraction, FrostedGlass, liquid glass, MiniPlayer tint, DynamicAlbumBackground, lyrics stage effects, or visual-performance-sensitive UI."
 ---
 
 # Joyal Visual Glass Theme
@@ -93,7 +93,10 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 ## Lyrics Stage Themes
 
 - Independent full-screen lyrics stages are separate foreground renderers, not duplicate full-screen backgrounds. `流光` is implemented; `浮名` and `群唱` remain planned and are shown as unavailable settings entries.
-- `流光` lives in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. Its motion is local to the active lyric composition inside a `RepaintBoundary`: timed Chinese graphemes or Latin words pop into their reserved layout positions, and the entering token owns a short outward ring painter. Do not render previous/upcoming lines or a dim pending-token mask in this stage.
+- `流光` lives in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. Show only the active line. Split Chinese into graphemes and keep Latin runs as words; use the same scattered composition even when word timing is absent or word-by-word display is disabled.
+- Build the scattered layout deterministically from token text so rebuilds never move glyphs. Common 6–12-token lines use 3–4 top-to-bottom rows with about 2–3 tokens per row, varied gaps/offsets/scales, and normally distributed rotation centered at 0° and clamped to ±25°. Keep responsive scale-down for long text and small viewports; do not restore a regular `Wrap`.
+- With word timing, reserve every token's layout position invisibly. Each entering token starts at about 116% scale, settles to 100% over 520 ms, and owns a brief soft highlight halo plus outward ring. Do not add a dim pending-token mask.
+- Float the settled composition upward by at most 10% of the configured font size and back over a smooth 3.6-second loop. Keep this local to a `RepaintBoundary`; start it only when `positionUpdatesEnabled` is true, stop/reset it while covered or hidden, and honor `MediaQuery.disableAnimationsOf(context)`.
 - Reuse the one `DynamicAlbumBackground` already owned by the enclosing now-playing route. A shared stage shell may derive cached palette colors and static decorative layers, but each renderer owns only its distinctive typography, composition, and purposeful local motion.
 - Each stage renderer needs an explicit visible/covered lifecycle and must stop tickers, playback-position subscriptions, and local effect painting while hidden, during a covered settings drawer, or after returning to now playing.
 - Premeasure complex glyph or bubble layouts and cache the result. Playback position should drive only the smallest active reveal or camera transform; it must not rebuild the entire stage composition.
