@@ -56,10 +56,15 @@ void main() {
     final first = await service.fetch(_song);
     final second = await service.fetch(_song);
 
-    expect(requests, [
+    expect(requests, hasLength(3));
+    expect(requests[0], contains('/rest/getLyricsBySongId.view'));
+    expect(requests[0], contains('enhanced=true'));
+    expect(requests[1], contains('/rest/getLyrics.view'));
+    expect(
+      requests[2],
       'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/'
-          'refs/heads/main/qq-lyrics/464890166.ttml',
-    ]);
+      'refs/heads/main/qq-lyrics/464890166.ttml',
+    );
     expect(first.synced, isTrue);
     expect(first.lines, hasLength(1));
     expect(first.lines.single.text, '你好 世界');
@@ -70,7 +75,7 @@ void main() {
 
     await service.clearCachedLyrics(_song);
     await service.fetch(_song);
-    expect(requests, hasLength(2));
+    expect(requests, hasLength(6));
   });
 
   test(

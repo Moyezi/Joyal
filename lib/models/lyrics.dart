@@ -57,11 +57,36 @@ class LyricLine {
   };
 }
 
+enum LyricsContentSource {
+  none('none', '暂无歌词'),
+  embeddedWordByWord('embeddedWordByWord', '内嵌逐字歌词'),
+  ttml('ttml', 'AMLL TTML 逐字歌词'),
+  embeddedSynced('embeddedSynced', '内嵌逐句歌词'),
+  embeddedUnsynced('embeddedUnsynced', '内嵌纯文本歌词');
+
+  const LyricsContentSource(this.storageValue, this.label);
+
+  final String storageValue;
+  final String label;
+
+  static LyricsContentSource fromStorageValue(String? value) {
+    return LyricsContentSource.values.firstWhere(
+      (source) => source.storageValue == value,
+      orElse: () => LyricsContentSource.none,
+    );
+  }
+}
+
 class LyricsData {
   final List<LyricLine> lines;
   final bool synced;
+  final LyricsContentSource source;
 
-  const LyricsData({required this.lines, required this.synced});
+  const LyricsData({
+    required this.lines,
+    required this.synced,
+    this.source = LyricsContentSource.none,
+  });
 
   factory LyricsData.fromJson(Map<String, dynamic> json) => LyricsData(
     lines: (json['lines'] as List<dynamic>? ?? [])
@@ -70,11 +95,13 @@ class LyricsData {
         )
         .toList(),
     synced: json['synced'] == true,
+    source: LyricsContentSource.fromStorageValue(json['source'] as String?),
   );
 
   Map<String, dynamic> toJson() => {
     'lines': lines.map((line) => line.toJson()).toList(),
     'synced': synced,
+    'source': source.storageValue,
   };
 
   bool get isEmpty => lines.every((line) => line.text.trim().isEmpty);

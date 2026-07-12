@@ -747,6 +747,10 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     final lyricsSource = currentSong == null
         ? LyricsSource.amll
         : ref.watch(lyricsSourceForSongProvider(currentSong));
+    final currentLyrics = currentSong == null
+        ? null
+        : ref.watch(lyricsProvider(currentSong));
+    final resolvedLyricsSource = currentLyrics?.asData?.value.source;
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
     final inactiveBlur = ref
@@ -877,6 +881,14 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                       const _LyricsOptionLabel(title: '歌词来源'),
                       const SizedBox(height: 4),
                       Text(
+                        '当前歌曲：${resolvedLyricsSource?.label ?? '正在识别…'}',
+                        style: context.textBodySmall.copyWith(
+                          color: context.primaryColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
                         lyricsSource.description,
                         style: context.textBodySmall.copyWith(
                           color: context.secondaryColor,
@@ -906,7 +918,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                     ],
                     _LyricsToggleTile(
                       title: '逐字高亮',
-                      subtitle: 'AMLL 含逐字时间轴时生效',
+                      subtitle: '内嵌逐字或 TTML 含字级时间轴时生效',
                       value: preferences.wordByWordEnabled,
                       onChanged: (enabled) {
                         HapticFeedback.selectionClick();
@@ -1276,8 +1288,8 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
 
   String _lyricsSourceLabel(LyricsSource source) {
     return switch (source) {
-      LyricsSource.amll => 'AMLL 逐字',
-      LyricsSource.embedded => '内嵌歌词',
+      LyricsSource.amll => '自动优选',
+      LyricsSource.embedded => '仅内嵌',
     };
   }
 

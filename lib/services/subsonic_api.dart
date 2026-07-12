@@ -101,8 +101,11 @@ class SubsonicApi {
   }
 
   /// Get OpenSubsonic structured lyrics for a song.
-  String getLyricsBySongIdUrl(String songId) {
-    return buildUrl('getLyricsBySongId.view', {'id': songId});
+  String getLyricsBySongIdUrl(String songId, {bool enhanced = false}) {
+    return buildUrl('getLyricsBySongId.view', {
+      'id': songId,
+      if (enhanced) 'enhanced': 'true',
+    });
   }
 
   /// Legacy Subsonic lyrics endpoint used as a compatibility fallback.
