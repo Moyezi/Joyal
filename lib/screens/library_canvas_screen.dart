@@ -121,6 +121,10 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
     final candidates = visible.isEmpty
         ? List<int>.generate(_cells.length, (index) => index)
         : visible;
+    return _nearestIndex(candidates);
+  }
+
+  int? _nearestIndex(Iterable<int> candidates) {
     if (candidates.isEmpty) return null;
     var closest = candidates.first;
     var closestDistance =
@@ -227,11 +231,14 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
                                   return ValueListenableBuilder<Offset>(
                                     valueListenable: _canvasOffsetNotifier,
                                     builder: (context, canvasOffset, _) {
+                                      final visibleIndices = _visibleIndices(
+                                        size,
+                                      );
                                       return _CanvasCards(
                                         songs: songs,
-                                        indices: _visibleIndices(size),
-                                        focusedIndex: _nearestVisibleIndex(
-                                          size,
+                                        indices: visibleIndices,
+                                        focusedIndex: _nearestIndex(
+                                          visibleIndices,
                                         ),
                                         canvasOffset: canvasOffset,
                                         viewportSize: size,
@@ -359,7 +366,7 @@ class _CanvasCards extends StatelessWidget {
   }
 }
 
-class _SongCanvasCard extends ConsumerWidget {
+class _SongCanvasCard extends ConsumerStatefulWidget {
   final Song song;
   final bool isFocused;
   final double blurSigma;
@@ -377,16 +384,34 @@ class _SongCanvasCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SongCanvasCard> createState() => _SongCanvasCardState();
+}
+
+class _SongCanvasCardState extends ConsumerState<_SongCanvasCard> {
+  Object? _coverApiIdentity;
+  String? _coverArtId;
+  String _coverUrl = '';
+
+  @override
+  Widget build(BuildContext context) {
     final api = ref.watch(subsonicApiProvider);
-    final coverUrl = api == null || song.coverArt.isEmpty
-        ? ''
-        : api.getCoverArtUrl(song.coverArt);
+    // Subsonic URLs contain a fresh random salt and MD5 token. Rebuilding one
+    // for every visible card on every pan frame is both needless CPU work and
+    // makes the image widgets observe a different URL continuously. Keep the
+    // authenticated URL stable until either the API session or cover changes.
+    if (!identical(_coverApiIdentity, api) ||
+        _coverArtId != widget.song.coverArt) {
+      _coverApiIdentity = api;
+      _coverArtId = widget.song.coverArt;
+      _coverUrl = api == null || widget.song.coverArt.isEmpty
+          ? ''
+          : api.getCoverArtUrl(widget.song.coverArt);
+    }
     final image = ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: CachedDiskImage(
-        imageUrl: coverUrl,
-        cacheKey: song.coverArt,
+        imageUrl: _coverUrl,
+        cacheKey: widget.song.coverArt,
         decodeWidth: 224,
         placeholderBuilder: (_) => const ColoredBox(
           color: Color(0xFF282B2E),
@@ -400,15 +425,15 @@ class _SongCanvasCard extends ConsumerWidget {
     return RepaintBoundary(
       child: Semantics(
         button: true,
-        label: '${song.title}，${song.artist}',
+        label: '${widget.song.title}，${widget.song.artist}',
         child: GestureDetector(
-          onTap: onTap,
+          onTap: widget.onTap,
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: const Color(0xF5202326),
               borderRadius: BorderRadius.circular(22),
-              boxShadow: !isFocused
+              boxShadow: !widget.isFocused
                   ? null
                   : const [
                       BoxShadow(
@@ -424,17 +449,17 @@ class _SongCanvasCard extends ConsumerWidget {
                 AspectRatio(
                   aspectRatio: 1,
                   child: ImageFiltered(
-                    enabled: blurSigma >= 0.2,
+                    enabled: widget.blurSigma >= 0.2,
                     imageFilter: ImageFilter.blur(
-                      sigmaX: blurSigma,
-                      sigmaY: blurSigma,
+                      sigmaX: widget.blurSigma,
+                      sigmaY: widget.blurSigma,
                     ),
                     child: image,
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  song.title,
+                  widget.song.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -449,28 +474,30 @@ class _SongCanvasCard extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        song.artist.isEmpty ? '未知艺术家' : song.artist,
+                        widget.song.artist.isEmpty
+                            ? '未知艺术家'
+                            : widget.song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: Colors.white54, fontSize: 12),
                       ),
                     ),
                     IgnorePointer(
-                      ignoring: !isFocused,
+                      ignoring: !widget.isFocused,
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 160),
-                        opacity: isFocused ? 1 : 0,
+                        opacity: widget.isFocused ? 1 : 0,
                         child: _CardAction(
                           icon: Icons.play_arrow_rounded,
                           tooltip: '播放',
-                          onTap: onPlay,
+                          onTap: widget.onPlay,
                         ),
                       ),
                     ),
                     _CardAction(
                       icon: Icons.playlist_play_rounded,
                       tooltip: '下一首播放',
-                      onTap: onPlayNext,
+                      onTap: widget.onPlayNext,
                     ),
                   ],
                 ),

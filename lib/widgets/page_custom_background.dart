@@ -7,6 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/page_background_provider.dart';
 
 class PageCustomBackground extends ConsumerWidget {
+  // Strongly blurred full-screen images contain little useful high-frequency
+  // detail. Blur them in a smaller local raster and scale the finished layer
+  // back up so the filter touches substantially fewer pixels.
+  static const double _reducedRasterScale = 0.36;
+  static const double _reducedRasterBlurThreshold = 6;
+
   final PageBackgroundTarget? target;
 
   const PageCustomBackground({super.key, this.target});
@@ -21,43 +27,65 @@ class PageCustomBackground extends ConsumerWidget {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final blurSigma = pageBackground.blurSigma;
-    final mediaSize = MediaQuery.sizeOf(context);
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final cacheWidth = (mediaSize.longestSide * pixelRatio * 1.08)
-        .ceil()
-        .clamp(1, 4096)
-        .toInt();
-    final image = Image.file(
-      File(path),
-      fit: BoxFit.cover,
-      alignment: Alignment.center,
-      width: double.infinity,
-      height: double.infinity,
-      cacheWidth: cacheWidth,
-    );
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (blurSigma > 0.05)
-          Transform.scale(
-            scale: 1.04,
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: blurSigma,
-                sigmaY: blurSigma,
-              ),
-              child: image,
+    return RepaintBoundary(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final fullSize = constraints.biggest;
+                final shouldBlur = blurSigma > 0.05;
+                final useReducedRaster =
+                    blurSigma >= _reducedRasterBlurThreshold;
+                final rasterScale = useReducedRaster
+                    ? _reducedRasterScale
+                    : 1.0;
+                final rasterSize = Size(
+                  fullSize.width * rasterScale,
+                  fullSize.height * rasterScale,
+                );
+                final cacheWidth = (rasterSize.longestSide * pixelRatio * 1.08)
+                    .ceil()
+                    .clamp(1, 4096)
+                    .toInt();
+                final image = Image.file(
+                  File(path),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  width: rasterSize.width,
+                  height: rasterSize.height,
+                  cacheWidth: cacheWidth,
+                );
+
+                return Center(
+                  child: Transform.scale(
+                    scale: shouldBlur ? 1.04 / rasterScale : 1,
+                    child: SizedBox.fromSize(
+                      size: rasterSize,
+                      child: ImageFiltered(
+                        enabled: shouldBlur,
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: blurSigma * rasterScale,
+                          sigmaY: blurSigma * rasterScale,
+                        ),
+                        child: image,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          )
-        else
-          image,
-        ColoredBox(
-          color: isDark
-              ? Colors.black.withValues(alpha: 0.54)
-              : Colors.black.withValues(alpha: 0.10),
+            ColoredBox(
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.54)
+                  : Colors.black.withValues(alpha: 0.10),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
