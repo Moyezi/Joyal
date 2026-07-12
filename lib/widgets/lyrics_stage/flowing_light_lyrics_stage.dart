@@ -649,17 +649,28 @@ double flowingLightEntranceScale(double progress) {
   return 1 + 0.16 * (1 - Curves.easeOutCubic.transform(clamped));
 }
 
-double flowingLightGlowIntensity(double progress) {
-  final normalized = progress.clamp(0.0, 1.0).toDouble();
-  if (normalized <= 0 || normalized >= 1) return 0;
-  const attackEnd = 0.18;
-  const fadeStart = 0.82;
-  if (normalized < attackEnd) {
-    return Curves.easeOutCubic.transform(normalized / attackEnd);
+const flowingLightGlowFadeOutDuration = Duration(milliseconds: 520);
+
+double flowingLightAdaptiveGlowIntensity({
+  required Duration elapsed,
+  required Duration holdUntilNext,
+  Duration fadeOutDuration = flowingLightGlowFadeOutDuration,
+}) {
+  if (elapsed <= Duration.zero) return 0;
+  final holdMicros = math.max(1, holdUntilNext.inMicroseconds);
+  final attackMicros = math.min(
+    const Duration(milliseconds: 140).inMicroseconds,
+    math.max(1, holdMicros ~/ 3),
+  );
+  if (elapsed.inMicroseconds < attackMicros) {
+    return Curves.easeOutCubic.transform(elapsed.inMicroseconds / attackMicros);
   }
-  if (normalized <= fadeStart) return 1;
-  return 1 -
-      Curves.easeInCubic.transform((normalized - fadeStart) / (1 - fadeStart));
+  if (elapsed.inMicroseconds <= holdMicros) return 1;
+  final fadeMicros = math.max(1, fadeOutDuration.inMicroseconds);
+  final fadeProgress = ((elapsed.inMicroseconds - holdMicros) / fadeMicros)
+      .clamp(0.0, 1.0)
+      .toDouble();
+  return 1 - Curves.easeInOutCubic.transform(fadeProgress);
 }
 
 double _flowingLightRingIntensity(double revealProgress) {
@@ -720,10 +731,10 @@ class _FlowingLightTokenView extends StatelessWidget {
       1,
       (highlightEnd - token.start).inMicroseconds,
     );
-    final highlightProgress = (elapsedMicros / highlightDurationMicros)
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final adaptiveGlowIntensity = flowingLightGlowIntensity(highlightProgress);
+    final adaptiveGlowIntensity = flowingLightAdaptiveGlowIntensity(
+      elapsed: Duration(microseconds: elapsedMicros),
+      holdUntilNext: Duration(microseconds: highlightDurationMicros),
+    );
     final entranceRingIntensity = _flowingLightRingIntensity(reveal);
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;

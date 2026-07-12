@@ -89,7 +89,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
 - `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It displays only the active line, splitting Chinese into graphemes and Latin runs into whole words. Use a deterministic scattered layout: common lines form 3–4 vertical rows with about 2–3 tokens per row, irregular spacing and offsets, and normally distributed token rotation clamped to ±25°. Untimed lyrics and disabled word-by-word display keep the same scattered layout but reveal statically.
-- With word timing, future tokens reserve invisible positions so revealed text never shifts. Each token appears at about 116% scale, settles to 100% over 520 ms, and carries a brief local highlight halo and outward ring; never render a dim pending-text mask. After the final token enters, keep its soft highlight breathing until the next lyric line activates, but do not repeat its outward ring. Drive this breath from the active playback-position updates instead of adding another persistent controller; reduced-motion/covered states keep only a static highlight.
+- With word timing, future tokens reserve invisible positions so revealed text never shifts. Each token appears at about 116% scale and settles to 100% over 520 ms. Keep the outward entrance ring short, but make the soft highlight interval adaptive: hold full brightness from this token's start until the next Chinese grapheme or Latin word starts, including timing gaps, then overlap the next token with a smooth 520 ms fade-out instead of clearing the previous halo immediately. For the final token, use the line end and keep its soft highlight breathing until the next lyric line activates; never repeat its outward ring or render a dim pending-text mask. Drive this from the active playback-position updates instead of adding another persistent controller; reduced-motion/covered states keep only a static highlight.
 - Center independent stage compositions against the full phone screen as well. The fixed header remains an overlay and must not shift the stage center downward.
 - The whole settled composition loops upward by at most 10% of font size and back over 3.6 seconds. Keep its controller and painting inside the active composition `RepaintBoundary`; settings coverage, hidden lyrics pages, disabled position updates, and reduced-motion settings must stop/reset it. Only the active token composition watches playback position.
 - `浮名` and `群唱` remain planned. Their disabled `待完成` entries stay visible in the lyrics personalization drawer, but selecting them must not persist an unavailable renderer.
@@ -104,9 +104,10 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 - Pinch with two fingers on the lyrics page opens the in-place personalization drawer.
 - Preferences are stored by `lyrics_personalization_provider.dart` in secure storage.
-- Preferences include color, alignment, font size, and font family.
+- Preferences include color, alignment, renderer-specific font sizes, and font family. Persist default-scroll size and `flowingLightFontSize` independently; changing one renderer's size must not alter the other.
+- Apply text alignment only to the default scrolling renderer. Expose exactly left, center, and right alignment; migrate the legacy stored `justify` value to right. Do not apply or show alignment controls in `流光`.
 - Preferences also include the persisted `wordByWordEnabled` switch. It affects the default renderer's timed highlight and whether `流光` uses token-by-token motion or its complete-line fallback; downloading and caching still proceed while it is off.
-- Non-current lyric fogging is controlled by `GlassEffectTarget.lyricsPage`.
+- Non-current lyric fogging is controlled by `GlassEffectTarget.lyricsPage` and applies only to the default scrolling renderer. Hide the non-current-line blur/opacity section while `流光` is selected.
 - The current lyric remains clear.
 - The drawer glass target is `lyricsDrawer`.
 - Custom `.ttf` selection uses `file_picker`, then copies the font to app support storage and registers it through `FontLoader`.

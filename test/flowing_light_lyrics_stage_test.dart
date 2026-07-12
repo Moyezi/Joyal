@@ -142,12 +142,31 @@ void main() {
     },
   );
 
-  test('flowing light glow spans the full interval before the next token', () {
-    expect(flowingLightGlowIntensity(0), 0);
-    expect(flowingLightGlowIntensity(0.18), closeTo(1, 0.0001));
-    expect(flowingLightGlowIntensity(0.5), closeTo(1, 0.0001));
-    expect(flowingLightGlowIntensity(0.82), closeTo(1, 0.0001));
-    expect(flowingLightGlowIntensity(1), closeTo(0, 0.0001));
+  test('flowing light glow fades after the next token appears', () {
+    const hold = Duration(seconds: 1);
+    expect(
+      flowingLightAdaptiveGlowIntensity(
+        elapsed: Duration.zero,
+        holdUntilNext: hold,
+      ),
+      0,
+    );
+    expect(
+      flowingLightAdaptiveGlowIntensity(elapsed: hold, holdUntilNext: hold),
+      1,
+    );
+    final duringFade = flowingLightAdaptiveGlowIntensity(
+      elapsed: hold + const Duration(milliseconds: 260),
+      holdUntilNext: hold,
+    );
+    expect(duringFade, inExclusiveRange(0.4, 0.6));
+    expect(
+      flowingLightAdaptiveGlowIntensity(
+        elapsed: hold + flowingLightGlowFadeOutDuration,
+        holdUntilNext: hold,
+      ),
+      0,
+    );
   });
 
   test('flowing light ambient float returns to origin', () {
