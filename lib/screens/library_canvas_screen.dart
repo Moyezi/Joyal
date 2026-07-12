@@ -28,8 +28,9 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   static const double _viewportInset = 0;
 
   late final AnimationController _snapController;
+  late final ValueNotifier<Offset> _canvasOffsetNotifier;
+  late final ValueNotifier<bool> _interactionNotifier;
   Animation<Offset>? _snapAnimation;
-  Offset _canvasOffset = Offset.zero;
   Size _lastViewport = Size.zero;
   List<_AxialCell> _cells = const [];
   Map<int, int> _indexByCell = const {};
@@ -40,21 +41,34 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   @override
   void initState() {
     super.initState();
+    _canvasOffsetNotifier = ValueNotifier(Offset.zero);
+    _interactionNotifier = ValueNotifier(false);
     _snapController =
         AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 520),
-        )..addListener(() {
-          final animation = _snapAnimation;
-          if (animation != null && mounted) {
-            setState(() => _canvasOffset = animation.value);
-          }
-        });
+            vsync: this,
+            duration: const Duration(milliseconds: 520),
+          )
+          ..addListener(() {
+            final animation = _snapAnimation;
+            if (animation != null && mounted) {
+              _canvasOffsetNotifier.value = animation.value;
+            }
+          })
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed ||
+                status == AnimationStatus.dismissed) {
+              _interactionNotifier.value = false;
+            }
+          });
   }
+
+  Offset get _canvasOffset => _canvasOffsetNotifier.value;
 
   @override
   void dispose() {
     _snapController.dispose();
+    _canvasOffsetNotifier.dispose();
+    _interactionNotifier.dispose();
     super.dispose();
   }
 
@@ -75,7 +89,7 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
         ? -1
         : songs.indexWhere((song) => song.id == currentSong.id);
     final index = currentIndex < 0 ? 0 : currentIndex;
-    _canvasOffset = -_worldPosition(index);
+    _canvasOffsetNotifier.value = -_worldPosition(index);
     _hasInitialFocus = true;
   }
 
@@ -91,6 +105,7 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   void _animateToIndex(int index) {
     if (index < 0 || index >= _cells.length) return;
     _snapController.stop();
+    _interactionNotifier.value = true;
     _snapAnimation =
         Tween<Offset>(
           begin: _canvasOffset,
@@ -173,7 +188,6 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
               final size = constraints.biggest;
               _lastViewport = size;
               _initializeFocus(songs, currentSong);
-              final focusedIndex = _nearestVisibleIndex(size);
               return Stack(
                 children: [
                   Positioned.fill(
@@ -181,11 +195,13 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
                       behavior: HitTestBehavior.opaque,
                       onPanStart: (_) {
                         _snapController.stop();
+                        _interactionNotifier.value = true;
                         _lastDragFocusIndex = _nearestVisibleIndex(size);
                         HapticFeedback.lightImpact();
                       },
                       onPanUpdate: (details) {
-                        setState(() => _canvasOffset += details.delta);
+                        _canvasOffsetNotifier.value =
+                            _canvasOffset + details.delta;
                         final nearest = _nearestVisibleIndex(size);
                         if (nearest != null && nearest != _lastDragFocusIndex) {
                           _lastDragFocusIndex = nearest;
@@ -197,23 +213,40 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
                         _lastDragFocusIndex = null;
                         if (nearest != null) _animateToIndex(nearest);
                       },
-                      onPanCancel: () => _lastDragFocusIndex = null,
+                      onPanCancel: () {
+                        _lastDragFocusIndex = null;
+                        _interactionNotifier.value = false;
+                      },
                       child: ColoredBox(
                         color: const Color(0xFF121416),
                         child: songs.isEmpty
                             ? const _EmptyCanvas()
-                            : _CanvasCards(
-                                songs: songs,
-                                indices: _visibleIndices(size),
-                                focusedIndex: focusedIndex,
-                                canvasOffset: _canvasOffset,
-                                viewportSize: size,
-                                worldPosition: _worldPosition,
-                                onFocus: _animateToIndex,
-                                onPlay: (index) => _playSong(songs, index),
-                                onPlayNext: (index) => ref
-                                    .read(playerProvider.notifier)
-                                    .playNext(songs[index]),
+                            : ValueListenableBuilder<bool>(
+                                valueListenable: _interactionNotifier,
+                                builder: (context, isInteracting, _) {
+                                  return ValueListenableBuilder<Offset>(
+                                    valueListenable: _canvasOffsetNotifier,
+                                    builder: (context, canvasOffset, _) {
+                                      return _CanvasCards(
+                                        songs: songs,
+                                        indices: _visibleIndices(size),
+                                        focusedIndex: _nearestVisibleIndex(
+                                          size,
+                                        ),
+                                        canvasOffset: canvasOffset,
+                                        viewportSize: size,
+                                        worldPosition: _worldPosition,
+                                        blurEnabled: !isInteracting,
+                                        onFocus: _animateToIndex,
+                                        onPlay: (index) =>
+                                            _playSong(songs, index),
+                                        onPlayNext: (index) => ref
+                                            .read(playerProvider.notifier)
+                                            .playNext(songs[index]),
+                                      );
+                                    },
+                                  );
+                                },
                               ),
                       ),
                     ),
@@ -249,6 +282,7 @@ class _CanvasCards extends StatelessWidget {
   final Offset canvasOffset;
   final Size viewportSize;
   final Offset Function(int index) worldPosition;
+  final bool blurEnabled;
   final ValueChanged<int> onFocus;
   final ValueChanged<int> onPlay;
   final ValueChanged<int> onPlayNext;
@@ -260,6 +294,7 @@ class _CanvasCards extends StatelessWidget {
     required this.canvasOffset,
     required this.viewportSize,
     required this.worldPosition,
+    required this.blurEnabled,
     required this.onFocus,
     required this.onPlay,
     required this.onPlayNext,
@@ -270,12 +305,14 @@ class _CanvasCards extends StatelessWidget {
     final center = Offset(viewportSize.width / 2, viewportSize.height / 2);
     final maxDistance =
         math.min(viewportSize.width, viewportSize.height) * 0.68;
-    final ordered = [...indices]
-      ..sort((a, b) {
-        final da = (worldPosition(a) + canvasOffset).distanceSquared;
-        final db = (worldPosition(b) + canvasOffset).distanceSquared;
-        return db.compareTo(da);
-      });
+    // Keep child order stable while panning so keyed cover elements are not
+    // repeatedly moved through the Stack. Only lift the nearest card when the
+    // focus actually crosses into another cell.
+    final ordered = [
+      for (final index in indices)
+        if (index != focusedIndex) index,
+      if (focusedIndex != null && indices.contains(focusedIndex)) focusedIndex!,
+    ];
 
     return Stack(
       clipBehavior: Clip.none,
@@ -291,23 +328,31 @@ class _CanvasCards extends StatelessWidget {
     final distance = relative.distance;
     final focus = (1 - distance / maxDistance).clamp(0.0, 1.0);
     final isFocused = index == focusedIndex;
+    const cardWidth = 224.0;
     final width = 86 + 138 * focus;
+    final scale = width / cardWidth;
     final opacity = (0.16 + focus * 0.84).clamp(0.0, 1.0);
     return Positioned(
       key: ValueKey('library-canvas-${songs[index].id}'),
-      left: center.dx + relative.dx - width / 2,
-      top: center.dy + relative.dy - width * 0.66,
-      width: width,
-      child: Opacity(
-        opacity: opacity,
-        child: _SongCanvasCard(
-          song: songs[index],
-          isFocused: isFocused,
-          prominence: focus,
-          blurSigma: (1 - focus) * 2.8,
-          onTap: () => onFocus(index),
-          onPlay: () => onPlay(index),
-          onPlayNext: () => onPlayNext(index),
+      left: center.dx - cardWidth / 2,
+      top: center.dy - cardWidth * 0.66,
+      width: cardWidth,
+      child: Transform.translate(
+        offset: Offset(relative.dx, relative.dy + (cardWidth - width) * 0.66),
+        child: Transform.scale(
+          alignment: Alignment.topCenter,
+          scale: scale,
+          child: Opacity(
+            opacity: opacity,
+            child: _SongCanvasCard(
+              song: songs[index],
+              isFocused: isFocused,
+              blurSigma: blurEnabled ? (1 - focus) * 2.8 : 0,
+              onTap: () => onFocus(index),
+              onPlay: () => onPlay(index),
+              onPlayNext: () => onPlayNext(index),
+            ),
+          ),
         ),
       ),
     );
@@ -317,7 +362,6 @@ class _CanvasCards extends StatelessWidget {
 class _SongCanvasCard extends ConsumerWidget {
   final Song song;
   final bool isFocused;
-  final double prominence;
   final double blurSigma;
   final VoidCallback onTap;
   final VoidCallback onPlay;
@@ -326,7 +370,6 @@ class _SongCanvasCard extends ConsumerWidget {
   const _SongCanvasCard({
     required this.song,
     required this.isFocused,
-    required this.prominence,
     required this.blurSigma,
     required this.onTap,
     required this.onPlay,
@@ -339,10 +382,8 @@ class _SongCanvasCard extends ConsumerWidget {
     final coverUrl = api == null || song.coverArt.isEmpty
         ? ''
         : api.getCoverArtUrl(song.coverArt);
-    final centerReveal = ((prominence - 0.72) / 0.28).clamp(0.0, 1.0);
-    final padding = 6 + 4 * prominence;
     final image = ClipRRect(
-      borderRadius: BorderRadius.circular(12 + 6 * prominence),
+      borderRadius: BorderRadius.circular(18),
       child: CachedDiskImage(
         imageUrl: coverUrl,
         cacheKey: song.coverArt,
@@ -362,24 +403,18 @@ class _SongCanvasCard extends ConsumerWidget {
         label: '${song.title}，${song.artist}',
         child: GestureDetector(
           onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.all(padding),
+          child: Container(
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(
-                0xFF202326,
-              ).withValues(alpha: 0.96 * centerReveal),
-              borderRadius: BorderRadius.circular(16 + 6 * prominence),
-              boxShadow: centerReveal <= 0
+              color: const Color(0xF5202326),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: !isFocused
                   ? null
-                  : [
+                  : const [
                       BoxShadow(
-                        color: const Color(
-                          0x66000000,
-                        ).withValues(alpha: 0.4 * centerReveal),
-                        blurRadius: 34 * centerReveal,
-                        offset: Offset(0, 16 * centerReveal),
+                        color: Color(0x29000000),
+                        blurRadius: 34,
+                        offset: Offset(0, 16),
                       ),
                     ],
             ),
@@ -397,17 +432,15 @@ class _SongCanvasCard extends ConsumerWidget {
                     child: image,
                   ),
                 ),
-                SizedBox(height: 7 + 5 * prominence),
+                const SizedBox(height: 12),
                 Text(
                   song.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 11 + 6 * prominence,
-                    fontWeight: prominence > 0.72
-                        ? FontWeight.w700
-                        : FontWeight.w600,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -419,16 +452,14 @@ class _SongCanvasCard extends ConsumerWidget {
                         song.artist.isEmpty ? '未知艺术家' : song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 9 + 3 * prominence,
-                        ),
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
                       ),
                     ),
                     IgnorePointer(
                       ignoring: !isFocused,
-                      child: Opacity(
-                        opacity: centerReveal,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 160),
+                        opacity: isFocused ? 1 : 0,
                         child: _CardAction(
                           icon: Icons.play_arrow_rounded,
                           tooltip: '播放',

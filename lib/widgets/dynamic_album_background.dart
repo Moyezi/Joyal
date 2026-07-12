@@ -172,6 +172,12 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
 }
 
 class _CoverGlassBackground extends StatelessWidget {
+  // A blurred cover contains very little high-frequency detail. Rasterizing it
+  // at full-screen resolution makes the GPU blur millions of pixels that are
+  // immediately discarded by the blur. Keep the filter in a smaller local
+  // coordinate space, then let the compositor scale the finished layer.
+  static const double _rasterScale = 0.32;
+
   final String coverArtId;
   final String coverUrl;
   final double blurSigma;
@@ -201,32 +207,50 @@ class _CoverGlassBackground extends StatelessWidget {
         )
         .toDouble();
 
-    final cover = CachedDiskImage(
-      imageUrl: coverUrl,
-      cacheKey: coverArtId,
-      fit: BoxFit.cover,
-      decodeWidth: MediaQuery.sizeOf(context).longestSide,
-      placeholderBuilder: (_) => const SizedBox.expand(),
-      errorBuilder: (context, error) => const SizedBox.expand(),
-      fadeInDuration: const Duration(milliseconds: 250),
-      fadeOutDuration: const Duration(milliseconds: 120),
-    );
-    final filteredCover = effectiveBlur <= 0.05
-        ? cover
-        : ImageFiltered(
-            imageFilter: ImageFilter.blur(
-              sigmaX: effectiveBlur,
-              sigmaY: effectiveBlur,
-            ),
-            child: cover,
-          );
-
     return RepaintBoundary(
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
           children: [
-            filteredCover,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final fullSize = constraints.biggest;
+                final useReducedRaster = effectiveBlur > 0.05;
+                final rasterScale = useReducedRaster ? _rasterScale : 1.0;
+                final rasterSize = Size(
+                  fullSize.width * rasterScale,
+                  fullSize.height * rasterScale,
+                );
+                final cover = CachedDiskImage(
+                  imageUrl: coverUrl,
+                  cacheKey: coverArtId,
+                  fit: BoxFit.cover,
+                  decodeWidth: rasterSize.longestSide,
+                  placeholderBuilder: (_) => const SizedBox.expand(),
+                  errorBuilder: (context, error) => const SizedBox.expand(),
+                  fadeInDuration: const Duration(milliseconds: 250),
+                  fadeOutDuration: const Duration(milliseconds: 120),
+                );
+                final filteredCover = useReducedRaster
+                    ? ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: effectiveBlur * rasterScale,
+                          sigmaY: effectiveBlur * rasterScale,
+                        ),
+                        child: cover,
+                      )
+                    : cover;
+                return Center(
+                  child: Transform.scale(
+                    scale: 1 / rasterScale,
+                    child: SizedBox.fromSize(
+                      size: rasterSize,
+                      child: filteredCover,
+                    ),
+                  ),
+                );
+              },
+            ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(

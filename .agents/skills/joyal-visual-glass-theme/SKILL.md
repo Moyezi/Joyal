@@ -63,6 +63,10 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - Do not create a `BackdropFilter` when blur is ineffective or the mask is nearly opaque.
 - If only blurring the widget's own image, use `ImageFiltered`.
 - Avoid full-screen dynamic `BackdropFilter`.
+- For a large static background that intentionally destroys image detail, render and decode the source at reduced logical size, apply `ImageFiltered` there, then compositor-scale the finished layer back up. Multiply the blur sigma by the same raster scale so the final visual radius stays equivalent. Keep the result clipped and inside a `RepaintBoundary`.
+- `DynamicAlbumBackground` cover glass is the reference implementation: `_CoverGlassBackground` uses a `0.32` raster scale, a correspondingly reduced `decodeWidth` and blur sigma, then scales by `1 / rasterScale`. Preserve the full-resolution bypass when blur is ineffective.
+- Do not apply reduced-raster blur to text, sharp chrome, lightly blurred surfaces, or content whose fine detail must remain visible. It is intended for large, heavily blurred self-images such as cover-derived page backgrounds.
+- Optimize blur cost through raster area, repaint isolation, lifecycle, and compositing before considering animation throttling. Do not lower an interaction or foreground animation's frame rate merely to hide expensive blur work.
 - The flowing-halo painter is throttled through `_ThrottledRepaint`; do not restore a widget-level `AnimatedBuilder` that rebuilds its full background at display refresh rate.
 - Prefer `provider.select` or local `Consumer` for high-frequency position UI.
 
@@ -71,11 +75,12 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - Treat the hexagon as the logical outline formed by the scattered song positions. Do not clip the viewport to a hexagon or draw a fixed hexagonal screen border.
 - Place songs in complete axial hex rings. If the final ring is incomplete, distribute its cells evenly around the ring so the whole collection remains approximately hexagonal.
 - Keep cards spatially separated. Drag freely, snap the nearest song to center on release, and animate tapped songs to center.
-- Derive size, opacity, blur, corner radius, padding, typography, surface, and shadow continuously from distance to center. Do not switch the large center-card size from a boolean focus flag.
+- Use one fixed `224` logical-pixel card layout and derive its apparent size and opacity continuously from center distance through `Transform.scale` and `Opacity`. Do not resize card layout, padding, typography, or `Positioned` bounds on every pan update.
 - Render only cells near the viewport. Keep cover loading on `CachedDiskImage` and isolate each card with `RepaintBoundary`.
-- Key every positioned card by stable song ID because distance sorting changes child order while dragging. Without stable keys, cached cover state can move between songs and flash.
+- Drive pan and snap offsets through a local `ValueNotifier<Offset>`/small listenable subtree so the scaffold, header, providers, and unrelated UI do not rebuild for pointer events.
+- Keep visible child order stable while panning and only lift the nearest card when focus crosses to another cell. Key every positioned card by stable song ID so cached cover state never moves between songs or flashes.
 - Keep a fixed cover `decodeWidth` across focus scaling. Do not derive decode size from the animated card width.
-- Keep the cover under one stable `ImageFiltered` node across the clear/blur transition; toggle `enabled` instead of inserting or removing the filter wrapper. This prevents the old and new center covers from black-flashing.
+- Keep the cover under one stable `ImageFiltered` node across the clear/blur transition; change sigma or `enabled` instead of inserting or removing the filter wrapper. Disable per-card blur during both direct dragging and the snap animation, then restore distance-derived blur after settling. This prevents raster-filter work from competing with interaction while preserving the stationary look.
 
 ## Borders And Chrome
 
@@ -97,6 +102,10 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - `BackgroundVisualStyle.albumCoverGlass` uses the current cover through
   `CachedDiskImage` + `ImageFiltered`; it applies to both now-playing and
   lyrics because they share `DynamicAlbumBackground`.
+- Its full-screen blur is a static reduced-raster composition rather than a
+  full-resolution filtered texture. Keep `_CoverGlassBackground` isolated from
+  the high-frequency flowing-lyrics foreground so lyric ticks do not reraster
+  the cover.
 - Its blur and adaptive light/dark overlay are persisted by
   `coverGlassBackgroundProvider`. Slider updates are live; persist on drag
   end. Do not replace this with a full-screen `BackdropFilter`.
