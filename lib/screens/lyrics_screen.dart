@@ -330,7 +330,7 @@ class _FlowingLightStageHostState
         widget.dynamicColor,
       ),
       fontFamily: preferences.effectiveFontFamily,
-      fontSize: preferences.fontSize,
+      fontSize: preferences.flowingLightFontSize,
       wordByWordEnabled: preferences.wordByWordEnabled,
       positionUpdatesEnabled:
           widget.positionUpdatesEnabled && !_settingsSheetOpen,
@@ -571,7 +571,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     return switch (alignment) {
       LyricsAlignmentMode.center => TextAlign.center,
       LyricsAlignmentMode.left => TextAlign.left,
-      LyricsAlignmentMode.justify => TextAlign.justify,
+      LyricsAlignmentMode.right => TextAlign.right,
     };
   }
 
@@ -579,7 +579,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     return switch (alignment) {
       LyricsAlignmentMode.center => Alignment.center,
       LyricsAlignmentMode.left => Alignment.centerLeft,
-      LyricsAlignmentMode.justify => Alignment.centerLeft,
+      LyricsAlignmentMode.right => Alignment.centerRight,
     };
   }
 
@@ -1143,44 +1143,78 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _LyricsOptionLabel(title: '对齐'),
-                    const SizedBox(height: 8),
-                    _LyricsChoiceGrid(
-                      columns: 3,
-                      children: [
-                        for (final alignment in LyricsAlignmentMode.values)
-                          _LyricsChoiceButton(
-                            label: _lyricsAlignmentLabel(alignment),
-                            icon: _iconForAlignment(alignment),
-                            selected: preferences.alignment == alignment,
-                            compact: true,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              unawaited(
-                                ref
-                                    .read(
-                                      lyricsPersonalizationProvider.notifier,
-                                    )
-                                    .setAlignment(alignment),
-                              );
-                            },
-                          ),
-                      ],
+                    if (preferences.stageMode ==
+                        LyricsStageMode.defaultScroll) ...[
+                      const _LyricsOptionLabel(title: '对齐'),
+                      const SizedBox(height: 8),
+                      _LyricsChoiceGrid(
+                        columns: 3,
+                        children: [
+                          for (final alignment in LyricsAlignmentMode.values)
+                            _LyricsChoiceButton(
+                              label: _lyricsAlignmentLabel(alignment),
+                              icon: _iconForAlignment(alignment),
+                              selected: preferences.alignment == alignment,
+                              compact: true,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                unawaited(
+                                  ref
+                                      .read(
+                                        lyricsPersonalizationProvider.notifier,
+                                      )
+                                      .setAlignment(alignment),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _LyricsOptionLabel(
+                      title:
+                          preferences.stageMode == LyricsStageMode.flowingLight
+                          ? '流光字号'
+                          : '默认滚动字号',
                     ),
-                    const SizedBox(height: 16),
-                    const _LyricsOptionLabel(title: '字号'),
                     const SizedBox(height: 4),
                     _LyricsSliderRow(
                       icon: Icons.format_size_rounded,
-                      value: preferences.fontSize,
-                      min: LyricsPersonalizationState.minFontSize,
-                      max: LyricsPersonalizationState.maxFontSize,
-                      divisions: 24,
-                      label: preferences.fontSize.toStringAsFixed(0),
-                      valueText: preferences.fontSize.toStringAsFixed(0),
-                      onChanged: (value) => ref
-                          .read(lyricsPersonalizationProvider.notifier)
-                          .setFontSize(value),
+                      value:
+                          preferences.stageMode == LyricsStageMode.flowingLight
+                          ? preferences.flowingLightFontSize
+                          : preferences.fontSize,
+                      min: preferences.stageMode == LyricsStageMode.flowingLight
+                          ? LyricsPersonalizationState.minFlowingLightFontSize
+                          : LyricsPersonalizationState.minFontSize,
+                      max: preferences.stageMode == LyricsStageMode.flowingLight
+                          ? LyricsPersonalizationState.maxFlowingLightFontSize
+                          : LyricsPersonalizationState.maxFontSize,
+                      divisions:
+                          preferences.stageMode == LyricsStageMode.flowingLight
+                          ? 28
+                          : 24,
+                      label:
+                          (preferences.stageMode == LyricsStageMode.flowingLight
+                                  ? preferences.flowingLightFontSize
+                                  : preferences.fontSize)
+                              .toStringAsFixed(0),
+                      valueText:
+                          (preferences.stageMode == LyricsStageMode.flowingLight
+                                  ? preferences.flowingLightFontSize
+                                  : preferences.fontSize)
+                              .toStringAsFixed(0),
+                      onChanged: (value) {
+                        final notifier = ref.read(
+                          lyricsPersonalizationProvider.notifier,
+                        );
+                        if (preferences.stageMode ==
+                            LyricsStageMode.flowingLight) {
+                          unawaited(notifier.setFlowingLightFontSize(value));
+                        } else {
+                          unawaited(notifier.setFontSize(value));
+                        }
+                      },
                       onChangeEnd: (_) {},
                     ),
                     const SizedBox(height: 8),
@@ -1258,48 +1292,54 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              _LyricsSettingsSection(
-                title: '非当前行',
-                child: Column(
-                  children: [
-                    _LyricsSliderRow(
-                      icon: Icons.blur_on_rounded,
-                      value: inactiveBlur,
-                      max: 12,
-                      divisions: 12,
-                      label: inactiveBlur.toStringAsFixed(0),
-                      valueText: inactiveBlur <= 0.05
-                          ? '关闭'
-                          : inactiveBlur.toStringAsFixed(0),
-                      onChanged: (value) => ref
-                          .read(glassEffectProvider.notifier)
-                          .setBlur(inactiveLyricsTarget, value, persist: false),
-                      onChangeEnd: (value) => ref
-                          .read(glassEffectProvider.notifier)
-                          .setBlur(inactiveLyricsTarget, value),
-                    ),
-                    _LyricsSliderRow(
-                      icon: Icons.opacity_rounded,
-                      value: inactiveOpacity,
-                      max: 1,
-                      divisions: 20,
-                      label: '${(inactiveOpacity * 100).round()}%',
-                      valueText: '${(inactiveOpacity * 100).round()}%',
-                      onChanged: (value) => ref
-                          .read(glassEffectProvider.notifier)
-                          .setOpacity(
-                            inactiveLyricsTarget,
-                            value,
-                            persist: false,
-                          ),
-                      onChangeEnd: (value) => ref
-                          .read(glassEffectProvider.notifier)
-                          .setOpacity(inactiveLyricsTarget, value),
-                    ),
-                  ],
+              if (preferences.stageMode == LyricsStageMode.defaultScroll) ...[
+                const SizedBox(height: 24),
+                _LyricsSettingsSection(
+                  title: '非当前行',
+                  child: Column(
+                    children: [
+                      _LyricsSliderRow(
+                        icon: Icons.blur_on_rounded,
+                        value: inactiveBlur,
+                        max: 12,
+                        divisions: 12,
+                        label: inactiveBlur.toStringAsFixed(0),
+                        valueText: inactiveBlur <= 0.05
+                            ? '关闭'
+                            : inactiveBlur.toStringAsFixed(0),
+                        onChanged: (value) => ref
+                            .read(glassEffectProvider.notifier)
+                            .setBlur(
+                              inactiveLyricsTarget,
+                              value,
+                              persist: false,
+                            ),
+                        onChangeEnd: (value) => ref
+                            .read(glassEffectProvider.notifier)
+                            .setBlur(inactiveLyricsTarget, value),
+                      ),
+                      _LyricsSliderRow(
+                        icon: Icons.opacity_rounded,
+                        value: inactiveOpacity,
+                        max: 1,
+                        divisions: 20,
+                        label: '${(inactiveOpacity * 100).round()}%',
+                        valueText: '${(inactiveOpacity * 100).round()}%',
+                        onChanged: (value) => ref
+                            .read(glassEffectProvider.notifier)
+                            .setOpacity(
+                              inactiveLyricsTarget,
+                              value,
+                              persist: false,
+                            ),
+                        onChangeEnd: (value) => ref
+                            .read(glassEffectProvider.notifier)
+                            .setOpacity(inactiveLyricsTarget, value),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 24),
               _LyricsSettingsSection(
                 title: '设置面板',
@@ -1502,7 +1542,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     return switch (alignment) {
       LyricsAlignmentMode.center => '居中',
       LyricsAlignmentMode.left => '左对齐',
-      LyricsAlignmentMode.justify => '两端',
+      LyricsAlignmentMode.right => '右对齐',
     };
   }
 
@@ -1519,7 +1559,7 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
     return switch (alignment) {
       LyricsAlignmentMode.center => Icons.format_align_center_rounded,
       LyricsAlignmentMode.left => Icons.format_align_left_rounded,
-      LyricsAlignmentMode.justify => Icons.format_align_justify_rounded,
+      LyricsAlignmentMode.right => Icons.format_align_right_rounded,
     };
   }
 

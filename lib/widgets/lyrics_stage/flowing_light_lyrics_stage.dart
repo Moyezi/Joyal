@@ -379,6 +379,16 @@ List<FlowingLightToken> flowingLightTokensForLine(LyricLine line) {
   return tokens;
 }
 
+Duration flowingLightHighlightEndForToken(
+  List<FlowingLightToken> tokens,
+  int index, {
+  Duration? lineEnd,
+}) {
+  assert(index >= 0 && index < tokens.length);
+  if (index + 1 < tokens.length) return tokens[index + 1].start;
+  return lineEnd ?? tokens[index].end;
+}
+
 bool _isWhitespace(String glyph) => glyph.trim().isEmpty;
 
 bool _isLatinWordGlyph(String glyph) {
@@ -455,6 +465,11 @@ class _FlowingLightActiveLine extends ConsumerWidget {
             for (var index = 0; index < tokens.length; index++)
               _FlowingLightTokenView(
                 token: tokens[index],
+                highlightEnd: flowingLightHighlightEndForToken(
+                  tokens,
+                  index,
+                  lineEnd: line.end,
+                ),
                 position: animatedPosition,
                 style: style,
                 color: activeColor,
@@ -635,7 +650,20 @@ double flowingLightEntranceScale(double progress) {
 }
 
 double flowingLightGlowIntensity(double progress) {
-  final normalized = (progress / 0.82).clamp(0.0, 1.0).toDouble();
+  final normalized = progress.clamp(0.0, 1.0).toDouble();
+  if (normalized <= 0 || normalized >= 1) return 0;
+  const attackEnd = 0.18;
+  const fadeStart = 0.82;
+  if (normalized < attackEnd) {
+    return Curves.easeOutCubic.transform(normalized / attackEnd);
+  }
+  if (normalized <= fadeStart) return 1;
+  return 1 -
+      Curves.easeInCubic.transform((normalized - fadeStart) / (1 - fadeStart));
+}
+
+double _flowingLightRingIntensity(double revealProgress) {
+  final normalized = (revealProgress / 0.82).clamp(0.0, 1.0).toDouble();
   return math.sin(math.pi * normalized);
 }
 
@@ -655,6 +683,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   static const _breathingDuration = Duration(milliseconds: 2200);
 
   final FlowingLightToken token;
+  final Duration highlightEnd;
   final Duration position;
   final TextStyle style;
   final Color color;
@@ -663,6 +692,7 @@ class _FlowingLightTokenView extends StatelessWidget {
 
   const _FlowingLightTokenView({
     required this.token,
+    required this.highlightEnd,
     required this.position,
     required this.style,
     required this.color,
@@ -686,7 +716,15 @@ class _FlowingLightTokenView extends StatelessWidget {
       );
     }
     final scale = flowingLightEntranceScale(reveal);
-    final entranceGlowIntensity = flowingLightGlowIntensity(reveal);
+    final highlightDurationMicros = math.max(
+      1,
+      (highlightEnd - token.start).inMicroseconds,
+    );
+    final highlightProgress = (elapsedMicros / highlightDurationMicros)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final adaptiveGlowIntensity = flowingLightGlowIntensity(highlightProgress);
+    final entranceRingIntensity = _flowingLightRingIntensity(reveal);
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
     final breathingGlowIntensity = keepBreathing
@@ -696,7 +734,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                   : 0.36)
         : 0.0;
     final glowIntensity = math.max(
-      entranceGlowIntensity,
+      adaptiveGlowIntensity,
       breathingGlowIntensity,
     );
     final lift = 7 * (1 - Curves.easeOutCubic.transform(reveal));
@@ -738,7 +776,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                         highlightColor: highlightColor,
                         progress: reveal,
                         intensity: glowIntensity,
-                        ringIntensity: entranceGlowIntensity,
+                        ringIntensity: entranceRingIntensity,
                       ),
                     ),
                   ),

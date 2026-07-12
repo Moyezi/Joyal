@@ -55,6 +55,36 @@ void main() {
     expect(tokens[2].end, const Duration(seconds: 5));
   });
 
+  test('flowing light highlight lasts until the next token appears', () {
+    const line = LyricLine(
+      text: '放开 oh',
+      end: Duration(seconds: 7),
+      words: [
+        LyricWord(
+          text: '放开',
+          start: Duration(seconds: 2),
+          end: Duration(seconds: 3),
+        ),
+        LyricWord(
+          text: 'oh',
+          start: Duration(seconds: 4),
+          end: Duration(seconds: 5),
+        ),
+      ],
+    );
+
+    final tokens = flowingLightTokensForLine(line);
+
+    expect(
+      flowingLightHighlightEndForToken(tokens, 1, lineEnd: line.end),
+      const Duration(seconds: 4),
+    );
+    expect(
+      flowingLightHighlightEndForToken(tokens, 2, lineEnd: line.end),
+      const Duration(seconds: 7),
+    );
+  });
+
   test('flowing light returns no tokens without word timing', () {
     const line = LyricLine(
       text: '只有逐句歌词',
@@ -112,10 +142,15 @@ void main() {
     },
   );
 
-  test('flowing light glow is brief and ambient float returns to origin', () {
+  test('flowing light glow spans the full interval before the next token', () {
     expect(flowingLightGlowIntensity(0), 0);
-    expect(flowingLightGlowIntensity(0.41), closeTo(1, 0.0001));
+    expect(flowingLightGlowIntensity(0.18), closeTo(1, 0.0001));
+    expect(flowingLightGlowIntensity(0.5), closeTo(1, 0.0001));
+    expect(flowingLightGlowIntensity(0.82), closeTo(1, 0.0001));
     expect(flowingLightGlowIntensity(1), closeTo(0, 0.0001));
+  });
+
+  test('flowing light ambient float returns to origin', () {
     expect(flowingLightFloatFactor(0), 0);
     expect(flowingLightFloatFactor(0.5), closeTo(-0.1, 0.0001));
     expect(flowingLightFloatFactor(1), closeTo(0, 0.0001));
