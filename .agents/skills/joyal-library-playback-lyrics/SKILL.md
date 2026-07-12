@@ -54,9 +54,17 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Lyrics cache keys are scoped by `baseUrl + username + song.id`.
 - Empty lyrics are cached only short-term.
 - On lyrics failure, remove the in-memory Future cache.
-- `raw-lyrics-index.jsonl` is bundled as a Flutter asset. `LyricsService` loads it once, conservatively matches title plus artist (and prefers matching album), then tries AMLL TTML before Navidrome lyrics.
+- `raw-lyrics-index.jsonl` is bundled as a Flutter asset. `LyricsService` loads it once and conservatively matches title plus artist, preferring a matching album.
 - AMLL source priority is `qq-lyrics`, `ncm-lyrics`, `spotify-lyrics`, then `am-lyrics`; download URLs use `https://raw.githubusercontent.com/amll-dev/amll-ttml-db/refs/heads/main/<source>/<id>.ttml`.
 - Parse TTML `<p>` and timed foreground `<span>` elements into `LyricLine.words`, cache the parsed timing with the lyric JSON, and fall back to Navidrome structured/legacy embedded lyrics whenever index matching, download, or parsing fails.
+- Fetch embedded lyrics through enhanced OpenSubsonic `getLyricsBySongId.view?id=<songId>&enhanced=true`, with legacy `getLyrics.view` as the compatibility fallback.
+- Automatic source priority is embedded word-by-word, AMLL TTML, embedded synchronized line-by-line, then embedded plain text. The per-song `embedded` source setting skips AMLL but still accepts embedded word-by-word and line-by-line lyrics.
+- Enhanced embedded word timing can arrive as OpenSubsonic `cueLine`/`cue` data or LDDC enhanced LRC using `[line time]` plus `<word time>` markers. Convert both forms into complete `LyricLine` rows with `LyricWord` timing; never expose one character as a separate lyric row.
+- For `cueLine`, keep the first vocal agent for each line index, use the combined `line` value as fallback text, and interpret `byteStart`/`byteEnd` as inclusive UTF-8 byte ranges so multibyte lyrics and gaps are reconstructed exactly.
+- Only use structured entries whose `kind` is absent/empty or `main`. If several line-level candidates remain, prefer synchronized content and then the more complete text. Reject suspicious fragmented line sets dominated by single-character rows.
+- Embedded LRC parsing supports hour-bearing timestamps, comma or period fractions, multiple word markers, and `[offset:+/-milliseconds]`; clamp negative adjusted times to zero.
+- `LyricsData.source` persists the resolved content type: none, embedded word-by-word, AMLL TTML, embedded synchronized, or embedded plain text. The personalization drawer shows this resolved source separately from the user's source-mode setting.
+- Lyrics cache names use the `lyrics_v2_` prefix because parsed source metadata and enhanced embedded timing are part of the cached schema.
 - The lyrics personalization drawer can re-fetch or clear the current song's cache. Clearing keeps the visible lyric until the next request; re-fetch bypasses fresh cache.
 
 ## Lyrics Screen
