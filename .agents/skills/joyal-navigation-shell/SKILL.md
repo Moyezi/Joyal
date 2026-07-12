@@ -1,6 +1,6 @@
 ---
 name: joyal-navigation-shell
-description: "Navigation and shell memory for Joyal Music. Use when changing lib/app.dart, main tabs, GlassTopBar placement, HomeSidebar gestures, MiniPlayer collapse/expand behavior, AppBottomNav, PlayQueueSheet entry points, or settings navigation."
+description: "Navigation and shell memory for Joyal Music. Use when changing lib/app.dart, main tabs, GlassTopBar placement, HomeSidebar gestures or custom-image entry, the infinite library canvas route and Hero transition, MiniPlayer collapse/expand behavior, AppBottomNav, PlayQueueSheet entry points, or settings navigation."
 ---
 
 # Joyal Navigation Shell
@@ -39,7 +39,9 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Do not insert/remove temporary parent nodes when dragging starts.
 - Avoid full-screen dynamic `BackdropFilter` during open/close.
 - Sidebar shows only real state: when connected, show the connection icon only in the title area; show prompt cards only when disconnected or restoring.
-- Custom sidebar image is display-only here. Choosing, clearing, and 16:9 cropping belong in the personalization page.
+- Use the custom sidebar image as the entry to `LibraryCanvasScreen`; keep choosing, clearing, and 16:9 cropping in the personalization page.
+- Share `libraryCanvasHeroTag` between the sidebar image and the canvas header thumbnail. Keep the sidebar open while the route is active so the reverse Hero returns to a visible source.
+- Do not show the main-shell MiniPlayer or Dock inside `LibraryCanvasScreen`.
 
 ## Settings Entry
 
@@ -50,6 +52,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 
 - Shell/navigation: `lib/app.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
 - Sidebar: `home_sidebar.dart`.
+- Infinite library canvas: `library_canvas_screen.dart`.
 - Floating playback UI: `mini_player.dart`, `mini_player_chrome.dart`.
 - Queues and sheets: `play_queue_sheet.dart`.
 - Settings route: `settings_hub_screen.dart`, `personalization_screen.dart`.

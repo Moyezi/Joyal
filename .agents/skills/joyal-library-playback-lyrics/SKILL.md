@@ -1,6 +1,6 @@
 ---
 name: joyal-library-playback-lyrics
-description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, lyrics stage renderers, or MiniPlayer lyrics."
+description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, the infinite library canvas, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, lyrics stage renderers, or MiniPlayer lyrics."
 ---
 
 # Joyal Library Playback Lyrics
@@ -24,6 +24,12 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Sort Chinese song names and artists by the pinyin first letter of the initial Han character.
 - The library songs tab may progressively reveal items in the UI.
 - Playback, locating the current song, and queue construction must always use the full sorted list, not the visible subset.
+
+## Infinite Library Canvas Playback
+
+- Build `LibraryCanvasScreen` from the full `libraryProvider.songs` collection while rendering only the visible spatial neighborhood.
+- Center-card play must start the full library queue at that song; toggling the already-current song may use play/pause. "下一首播放" must call `PlayerNotifier.playNext()`.
+- Keep playback actions available on the cards, but do not embed a MiniPlayer capsule in the canvas route.
 
 ## Favorites
 
@@ -123,3 +129,4 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Stats: `listening_stats_provider.dart`.
 - Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.
 - MiniPlayer: `mini_player.dart`, `mini_player_chrome.dart`.
+- Infinite library canvas: `library_canvas_screen.dart`.

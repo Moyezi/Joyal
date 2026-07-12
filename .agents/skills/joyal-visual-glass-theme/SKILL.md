@@ -1,6 +1,6 @@
 ---
 name: joyal-visual-glass-theme
-description: "Visual, theme, and glass-effect memory for Joyal Music. Use when changing ThemeContext colors, AppTheme usage, page backgrounds, album palette extraction, FrostedGlass, liquid glass, MiniPlayer tint, DynamicAlbumBackground, lyrics stage effects, or visual-performance-sensitive UI."
+description: "Visual, theme, and glass-effect memory for Joyal Music. Use when changing ThemeContext colors, AppTheme usage, page backgrounds, album palette extraction, FrostedGlass, liquid glass, MiniPlayer tint, DynamicAlbumBackground, the infinite library canvas and its cover-depth transitions, lyrics stage effects, or visual-performance-sensitive UI."
 ---
 
 # Joyal Visual Glass Theme
@@ -66,6 +66,17 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - The flowing-halo painter is throttled through `_ThrottledRepaint`; do not restore a widget-level `AnimatedBuilder` that rebuilds its full background at display refresh rate.
 - Prefer `provider.select` or local `Consumer` for high-frequency position UI.
 
+## Infinite Library Canvas
+
+- Treat the hexagon as the logical outline formed by the scattered song positions. Do not clip the viewport to a hexagon or draw a fixed hexagonal screen border.
+- Place songs in complete axial hex rings. If the final ring is incomplete, distribute its cells evenly around the ring so the whole collection remains approximately hexagonal.
+- Keep cards spatially separated. Drag freely, snap the nearest song to center on release, and animate tapped songs to center.
+- Derive size, opacity, blur, corner radius, padding, typography, surface, and shadow continuously from distance to center. Do not switch the large center-card size from a boolean focus flag.
+- Render only cells near the viewport. Keep cover loading on `CachedDiskImage` and isolate each card with `RepaintBoundary`.
+- Key every positioned card by stable song ID because distance sorting changes child order while dragging. Without stable keys, cached cover state can move between songs and flash.
+- Keep a fixed cover `decodeWidth` across focus scaling. Do not derive decode size from the animated card width.
+- Keep the cover under one stable `ImageFiltered` node across the clear/blur transition; toggle `enabled` instead of inserting or removing the filter wrapper. This prevents the old and new center covers from black-flashing.
+
 ## Borders And Chrome
 
 - Floating rounded glass components such as search boxes, Dock, MiniPlayer, `SongTile`, and `QueueSongCard` should not draw bright or gray strokes that create edge lines.
@@ -109,5 +120,6 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 - Theme and visual providers: `glass_effect_provider.dart`, `visual_effect_provider.dart`, `page_background_provider.dart`, `mini_player_color_provider.dart`.
 - Glass widgets: `frosted_glass.dart`, `liquid_glass_overlay.dart`.
 - Backgrounds and palettes: `page_custom_background.dart`, `dynamic_album_background.dart`, `album_visual_palette.dart`.
+- Infinite library canvas: `library_canvas_screen.dart`.
 - MiniPlayer chrome: `mini_player_chrome.dart`.
 - Personalization: `page_background_settings.dart`, `glass_effect_tile.dart`, `liquid_glass_toggle_tile.dart`, `mini_player_color_tile.dart`, `flowing_halo_background_tile.dart`, `personalization_choice_tile.dart`.

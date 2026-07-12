@@ -290,7 +290,6 @@ class _CanvasCards extends StatelessWidget {
         opacity: opacity,
         child: _SongCanvasCard(
           song: songs[index],
-          width: width,
           isFocused: isFocused,
           prominence: focus,
           blurSigma: (1 - focus) * 2.8,
@@ -305,7 +304,6 @@ class _CanvasCards extends StatelessWidget {
 
 class _SongCanvasCard extends ConsumerWidget {
   final Song song;
-  final double width;
   final bool isFocused;
   final double prominence;
   final double blurSigma;
@@ -315,7 +313,6 @@ class _SongCanvasCard extends ConsumerWidget {
 
   const _SongCanvasCard({
     required this.song,
-    required this.width,
     required this.isFocused,
     required this.prominence,
     required this.blurSigma,
@@ -337,7 +334,7 @@ class _SongCanvasCard extends ConsumerWidget {
       child: CachedDiskImage(
         imageUrl: coverUrl,
         cacheKey: song.coverArt,
-        decodeWidth: width,
+        decodeWidth: 224,
         placeholderBuilder: (_) => const ColoredBox(
           color: Color(0xFF282B2E),
           child: Center(
@@ -379,15 +376,14 @@ class _SongCanvasCard extends ConsumerWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 1,
-                  child: blurSigma < 0.2
-                      ? image
-                      : ImageFiltered(
-                          imageFilter: ImageFilter.blur(
-                            sigmaX: blurSigma,
-                            sigmaY: blurSigma,
-                          ),
-                          child: image,
-                        ),
+                  child: ImageFiltered(
+                    enabled: blurSigma >= 0.2,
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: blurSigma,
+                      sigmaY: blurSigma,
+                    ),
+                    child: image,
+                  ),
                 ),
                 SizedBox(height: 7 + 5 * prominence),
                 Text(
