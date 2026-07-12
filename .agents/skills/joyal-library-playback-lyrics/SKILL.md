@@ -81,7 +81,8 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 ## Independent Lyrics Stages
 
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
-- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. With word timing, it displays only the active line and reveals Chinese one grapheme at a time and Latin text one word at a time. Each entering token pops in with one outward ring; future tokens remain invisible and there is no dim pending-text mask. Lyrics without word timing fall back to a complete static active line.
+- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. With word timing, it displays only the active line and reveals Chinese one grapheme at a time and Latin text one word at a time. Each entering token pops in with one outward ring; future tokens use invisible layout reservations so revealed tokens do not shift, and there is no dim pending-text mask. Lyrics without word timing, or with `wordByWordEnabled` disabled, fall back to one complete static active line.
+- `流光` must not render previous or upcoming lyric lines. Its active token composition is the only stage subtree that watches playback position; settings-sheet coverage and hidden lyrics pages freeze that subscription and its local ring painting.
 - `浮名` and `群唱` remain planned. Their disabled `待完成` entries stay visible in the lyrics personalization drawer, but selecting them must not persist an unavailable renderer.
 - These themes are not skins over `_LyricsList`. Give each theme its own renderer and animation grammar, while sharing a small stage shell, lyric timing runtime, theme/palette inputs, empty states, gestures, and lifecycle handling.
 - Keep the current scrolling lyrics renderer available as the stable default. Persist available stage modes through `lyrics_personalization_provider.dart` in secure storage and expose them through the existing in-place personalization flow.
@@ -95,7 +96,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Pinch with two fingers on the lyrics page opens the in-place personalization drawer.
 - Preferences are stored by `lyrics_personalization_provider.dart` in secure storage.
 - Preferences include color, alignment, font size, and font family.
-- Preferences also include the persisted `wordByWordEnabled` switch. It only affects presentation when the active TTML line has word timing; downloading and caching still proceed while it is off.
+- Preferences also include the persisted `wordByWordEnabled` switch. It affects the default renderer's timed highlight and whether `流光` uses token-by-token motion or its complete-line fallback; downloading and caching still proceed while it is off.
 - Non-current lyric fogging is controlled by `GlassEffectTarget.lyricsPage`.
 - The current lyric remains clear.
 - The drawer glass target is `lyricsDrawer`.
