@@ -146,7 +146,7 @@ class _LyricsStageShellState extends State<_LyricsStageShell> {
         fit: StackFit.expand,
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(18, topInset + 86, 18, 24),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: widget.child,
           ),
           Padding(
@@ -204,7 +204,7 @@ class _FlowingLightComposition extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: const Alignment(0, 0.08),
+      alignment: Alignment.center,
       child: RepaintBoundary(
         child: _FlowingLightActiveLine(
           line: activeLine,

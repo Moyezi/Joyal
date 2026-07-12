@@ -627,9 +627,8 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     );
     const inactiveScale = 0.82;
     final topInset = MediaQuery.paddingOf(context).top;
-    final headerReserve = MediaQuery.textScalerOf(context).scale(52) + 64;
-    final lyricsTop = topInset + headerReserve;
     final titleTop = topInset + 18;
+    final viewportHeight = MediaQuery.sizeOf(context).height;
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: _handlePointerDown,
@@ -640,16 +639,15 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
         fit: StackFit.expand,
         children: [
           Positioned.fill(
-            top: lyricsTop,
             child: NotificationListener<ScrollNotification>(
               onNotification: _handleScroll,
               child: ListView.builder(
                 controller: _scrollController,
                 padding: EdgeInsets.fromLTRB(
                   22,
-                  0,
+                  viewportHeight * 0.42,
                   22,
-                  MediaQuery.sizeOf(context).height * 0.42,
+                  viewportHeight * 0.42,
                 ),
                 itemCount: data.lines.length,
                 itemBuilder: (context, lineIndex) {
