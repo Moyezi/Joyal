@@ -1,6 +1,6 @@
 ---
 name: joyal-classification
-description: "Intelligent music-classification memory for Joyal Music. Use when changing MusicClassificationProvider, DeepSeek classification requests, local classification storage, fixed vocabulary validation, manual tag correction, discovery classification status, or classification-related UI entries."
+description: "小Jo同学 tag-classification and climax-cache memory for Joyal Music. Use when changing MusicClassificationProvider, DeepSeek classification or climax requests, local classification/highlight storage, fixed vocabulary validation, manual tag correction, the 小Jo同学 management UI, or its discovery/settings entries."
 ---
 
 # Joyal Classification
@@ -30,9 +30,15 @@ description: "Intelligent music-classification memory for Joyal Music. Use when 
 
 ## Storage
 
-- The first version does not introduce SQLite.
 - `MusicClassificationRepository` stores classification config and results through `AppCacheService` as `music_classification_store` JSON.
 - If storage later moves to SQLite, keep the UI/provider contract unchanged.
+
+## Climax Cache Management
+
+- Keep climax analysis lazy: entering a synchronized `流光` lyrics stage may analyze; opening `小Jo同学` or now playing must only read local cache.
+- `recognizedSongHighlightsProvider` scans current-library song IDs in the active server scope, keeps non-empty timelines, and sorts them by `analyzedAt` descending so older caches remain discoverable without an index migration.
+- `cachedSongHighlightProvider` is the read-only source for now-playing progress markers.
+- Clearing one or all climax records deletes only `SongHighlightRepository` timelines. Never delete classification tags or lyrics cache with that action.
 
 ## Manual Correction
 
@@ -44,8 +50,12 @@ description: "Intelligent music-classification memory for Joyal Music. Use when 
 ## UI Entry Points
 
 - `MusicClassificationScreen` is the real entry.
-- Settings path: 设置 -> 智能分类.
-- The discovery page top classification-status icon also opens it.
+- The user-facing feature name is `小Jo同学`; keep internal classification
+  type/provider names stable unless a code-level rename is separately needed.
+- Settings path: 设置 -> 小Jo同学.
+- Only the discovery page title-bar icon opens it. Do not restore the former
+  classification-status card below `为你发现`.
+- The screen has separate tag, climax, and service tabs. Keep tag classification and manual correction available.
 - Before first classification, if no API key exists, show configuration guidance.
 - Do not add "创建歌单" or "相似歌曲" buttons until provider/service capability exists.
 - Do not ship placeholder entrances for incomplete classification features.
@@ -63,5 +73,5 @@ description: "Intelligent music-classification memory for Joyal Music. Use when 
 - Storage: `music_classification_repository.dart`.
 - Provider: `music_classification_provider.dart`.
 - Screen: `music_classification_screen.dart`.
-- Discovery entry: `hotlist_screen.dart`, `classification_status_card.dart`.
+- Discovery entry: `hotlist_screen.dart`.
 - Lyrics climax integration: `song_highlight_provider.dart`, `deepseek_highlight_service.dart`, `song_highlight_repository.dart`, `models/song_highlight.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.

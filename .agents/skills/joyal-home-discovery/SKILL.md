@@ -71,6 +71,8 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - Do not show AI recommendations without supporting local data.
 - Discovery refresh should first refresh local "为你发现" recommendation seeds, then try `fetchStarred()` for favorites.
 - If disconnected, refresh only local recommendations and state that favorite refresh requires a server connection.
+- Do not place a classification or `小Jo同学` status card below this section;
+  discovery keeps only the title-bar entry.
 
 ## Discovery Card Visuals
 
@@ -88,4 +90,4 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - Discovery page: `hotlist_screen.dart`.
 - Cover Flow: `lib/widgets/discovery/discover_song_carousel.dart`.
 - For You: `for_you_discovery_section.dart`, `discovery_playlist_card.dart`, `discovery_card_models.dart`.
-- Status and headers: `classification_status_card.dart`, `discovery_section_header.dart`.
+- Section headers: `discovery_section_header.dart`.

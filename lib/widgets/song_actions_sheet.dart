@@ -528,7 +528,7 @@ class _ClassificationSection extends StatelessWidget {
     final item = classification;
     if (item == null) {
       return _DetailSection(
-        title: '智能分类',
+        title: '小Jo标签',
         children: [
           Text(
             isLoading ? '分类信息加载中' : '这首歌还没有分类结果',
@@ -539,7 +539,7 @@ class _ClassificationSection extends StatelessWidget {
     }
 
     return _DetailSection(
-      title: '智能分类',
+      title: '小Jo标签',
       children: [
         _TagWrap(
           label: '风格',

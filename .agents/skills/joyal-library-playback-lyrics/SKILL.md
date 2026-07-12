@@ -87,7 +87,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 ## Independent Lyrics Stages
 
-- `流光` 的外扩圆环由 DeepSeek 歌曲高潮时间轴控制。进入有同步歌词的流光舞台时才按需分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用智能分类的 secure-storage API Key、endpoint 和模型设置。
+- `流光` 的外扩圆环由 DeepSeek 歌曲高潮时间轴控制。进入有同步歌词的流光舞台时才按需分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用“小Jo同学”的 secure-storage API Key、endpoint 和模型设置。
 - 高潮结果通过 `SongHighlightRepository` 按服务器 scope 与歌曲缓存；`lyricsAnalysisHash` 包含歌曲元数据、时长、歌词文本及行时间，模型或 hash 改变时重新分析。缓存可以在 API Key 被移除或离线后继续读取。
 - DeepSeek 时间段必须经 `normalizeHighlightSegments()` 排序、歌曲时长裁剪、重叠合并并最多保留 3 段。未配置 Key、无同步歌词、分析中或分析失败时不显示圆环；文字揭示、自适应柔光和末词呼吸保持可用。不要用启发式高频圆环作为失败回退。
 

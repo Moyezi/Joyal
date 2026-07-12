@@ -8,9 +8,11 @@ import 'package:flutter/services.dart';
 import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
+import '../models/song_highlight.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/song_highlight_provider.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/album_cover.dart';
@@ -1523,6 +1525,17 @@ class _NowPlayingProgressSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentSong = ref.watch(
+      playerProvider.select((state) => state.currentSong),
+    );
+    final highlightSegments = currentSong == null
+        ? const <SongHighlightSegment>[]
+        : ref
+                  .watch(cachedSongHighlightProvider(currentSong))
+                  .asData
+                  ?.value
+                  ?.segments ??
+              const <SongHighlightSegment>[];
     final progress = positionUpdatesEnabled
         ? ref.watch(
             playerProvider.select(
@@ -1557,6 +1570,14 @@ class _NowPlayingProgressSection extends ConsumerWidget {
                 isPlaying: progress.isPlaying,
                 playedColor: playedColor,
                 unplayedColor: unplayedColor,
+                highlightSegments: highlightSegments,
+                highlightColor: Color.lerp(
+                  playedColor,
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white
+                      : const Color(0xFF315D7A),
+                  0.46,
+                )!,
                 onSeek: (position) async {
                   try {
                     await ref.read(playerProvider.notifier).seek(position);

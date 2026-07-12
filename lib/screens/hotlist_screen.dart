@@ -5,16 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
-import '../models/music_classification.dart';
 import '../models/song.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
-import '../providers/music_classification_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
-import '../widgets/discovery/classification_status_card.dart';
 import '../widgets/discovery/discover_song_carousel.dart';
 import '../widgets/discovery/discovery_section_header.dart';
 import '../widgets/discovery/for_you_discovery_section.dart';
@@ -132,7 +129,6 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
   Widget build(BuildContext context) {
     super.build(context);
     final state = ref.watch(libraryProvider);
-    final classification = ref.watch(musicClassificationProvider);
     final starredSongs = state.starredSongs;
     final discoverSongs = _discoverSongs(state.songs);
     final hasSong = ref.watch(playerProvider.select((value) => value.hasSong));
@@ -249,22 +245,6 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
                           starredSongs: starredSongs,
                           refreshToken: _forYouRefreshToken,
                         ),
-                        ClassificationStatusCard(
-                          statusText: _classificationStatusText(
-                            classification,
-                            state.songs.length,
-                          ),
-                          detailText: _classificationDetailText(
-                            classification,
-                            state.songs.length,
-                          ),
-                          progress: classification.progress,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const MusicClassificationScreen(),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -291,7 +271,7 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
                   icon: const Icon(Icons.search_rounded),
                 ),
                 IconButton(
-                  tooltip: '智能分类状态',
+                  tooltip: '小Jo同学',
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const MusicClassificationScreen(),
@@ -337,37 +317,5 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
     _discoverSongsSource = songs;
     _discoverSongsCache = shuffled.take(10).toList(growable: false);
     return _discoverSongsCache;
-  }
-
-  String _classificationStatusText(
-    MusicClassificationState state,
-    int songCount,
-  ) {
-    if (!state.hasApiKey) return '智能分类尚未开始';
-    return switch (state.status) {
-      ClassificationTaskStatus.running => '正在整理你的曲库',
-      ClassificationTaskStatus.paused => '分类任务已暂停',
-      ClassificationTaskStatus.completed => '曲库分类已完成',
-      ClassificationTaskStatus.failed => '分类任务需要处理',
-      ClassificationTaskStatus.idle =>
-        state.classifiedCount == 0 ? '智能分类尚未开始' : '智能分类已准备好',
-    };
-  }
-
-  String _classificationDetailText(
-    MusicClassificationState state,
-    int songCount,
-  ) {
-    if (!state.hasApiKey) {
-      return '配置 DeepSeek API 后，为曲库生成流派、情绪和场景分类。';
-    }
-    if (state.status == ClassificationTaskStatus.running ||
-        state.status == ClassificationTaskStatus.paused) {
-      return '已完成 ${state.completedCount} / ${state.totalCount} 首';
-    }
-    if (state.classifiedCount == 0) {
-      return '还有 $songCount 首歌曲等待分类。';
-    }
-    return '已为 ${state.classifiedCount} 首歌曲生成本地分类标签。';
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:joyal_music/models/song_highlight.dart';
 import 'package:joyal_music/widgets/waveform_progress.dart';
 
 void main() {
@@ -229,6 +230,32 @@ void main() {
 
       expect(before, inactive);
       expect(after, active);
+    });
+
+    test('detects bars inside cached climax segments', () {
+      const segments = [
+        SongHighlightSegment(
+          start: Duration(seconds: 60),
+          end: Duration(seconds: 90),
+        ),
+      ];
+
+      expect(
+        WaveformGeometry.isHighlightFraction(
+          barFraction: 0.5,
+          duration: const Duration(seconds: 150),
+          segments: segments,
+        ),
+        isTrue,
+      );
+      expect(
+        WaveformGeometry.isHighlightFraction(
+          barFraction: 0.2,
+          duration: const Duration(seconds: 150),
+          segments: segments,
+        ),
+        isFalse,
+      );
     });
   });
 }

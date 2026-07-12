@@ -36,8 +36,8 @@ class SettingsHubScreen extends StatelessWidget {
       ),
       _SettingsHubCardData(
         icon: Icons.auto_awesome_rounded,
-        title: '智能分类',
-        subtitle: '整理流派、情绪和场景',
+        title: '小Jo同学',
+        subtitle: '管理标签与高潮识别',
         accentColor: const Color(0xFFE09A57),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const MusicClassificationScreen()),

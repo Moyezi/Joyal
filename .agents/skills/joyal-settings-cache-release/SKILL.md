@@ -10,10 +10,11 @@ description: "Settings, cache, download, and build memory for Joyal Music. Use w
 - Settings entry is the lower-left button in the home right-swipe sidebar.
 - It opens `SettingsHubScreen`.
 - `SettingsHubScreen` is a two-column grid with six cards: server connection,
-  personalization, intelligent classification, downloads, cache, and about.
-- Its cards follow the "为你发现" visual language: restrained gradient,
-  subtle border/shadow, lower-right ambient light, and a small pressed-state
-  scale/motif response. Do not restore the old one-column list layout.
+  personalization, `小Jo同学`, downloads, cache, and about.
+- Its `小Jo同学` card opens tag and climax management. Cards use the "为你发现"
+  visual language: restrained gradient, subtle border/shadow, lower-right
+  ambient light, and a small pressed-state scale/motif response. Do not restore
+  the old one-column list layout.
 - Personalization is entered from the `个性化设置` card. Do not add back the
   former `外观` card or duplicate theme-mode cycling there.
 - Library refresh belongs to the connected state of `SettingsScreen` (server

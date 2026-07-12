@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../config/theme.dart';
 import '../config/theme_context.dart';
+import '../models/song_highlight.dart';
 
 /// An interactive progress bar with ripple breathing columns.
 ///
@@ -22,6 +23,8 @@ class WaveformProgress extends StatefulWidget {
   final double barFillRatio;
   final Color playedColor;
   final Color unplayedColor;
+  final List<SongHighlightSegment> highlightSegments;
+  final Color highlightColor;
 
   const WaveformProgress({
     super.key,
@@ -34,6 +37,8 @@ class WaveformProgress extends StatefulWidget {
     this.barFillRatio = 0.48,
     this.playedColor = AppTheme.waveformPlayed,
     this.unplayedColor = AppTheme.waveformUnplayed,
+    this.highlightSegments = const [],
+    this.highlightColor = const Color(0xFF9BBBD4),
   });
 
   /// Dark-mode static defaults for use without a per-song palette.
@@ -232,6 +237,9 @@ class _WaveformProgressState extends State<WaveformProgress>
                           ),
                           activeColor: widget.playedColor,
                           inactiveColor: widget.unplayedColor,
+                          duration: widget.duration,
+                          highlightSegments: widget.highlightSegments,
+                          highlightColor: widget.highlightColor,
                           dragFraction: effectiveDragFraction,
                           dragIntensity: dragIntensity,
                         ),
@@ -359,6 +367,18 @@ class WaveformGeometry {
     final baseColor = hasPlayed ? activeColor : inactiveColor;
     return Color.lerp(baseColor, activeColor, colorBlend.clamp(0.0, 1.0))!;
   }
+
+  static bool isHighlightFraction({
+    required double barFraction,
+    required Duration duration,
+    required List<SongHighlightSegment> segments,
+  }) {
+    if (duration <= Duration.zero || segments.isEmpty) return false;
+    final position = duration * barFraction.clamp(0.0, 1.0);
+    return segments.any(
+      (segment) => position >= segment.start && position <= segment.end,
+    );
+  }
 }
 
 class _WaveformPainter extends CustomPainter {
@@ -370,6 +390,9 @@ class _WaveformPainter extends CustomPainter {
   final double activeHalfWidth;
   final Color activeColor;
   final Color inactiveColor;
+  final Duration duration;
+  final List<SongHighlightSegment> highlightSegments;
+  final Color highlightColor;
   final double? dragFraction;
   final double dragIntensity;
 
@@ -382,6 +405,9 @@ class _WaveformPainter extends CustomPainter {
     required this.activeHalfWidth,
     required this.activeColor,
     required this.inactiveColor,
+    required this.duration,
+    required this.highlightSegments,
+    required this.highlightColor,
     required this.dragFraction,
     required this.dragIntensity,
   });
@@ -433,14 +459,23 @@ class _WaveformPainter extends CustomPainter {
 
       height = height.clamp(3.0, size.height);
 
+      final isHighlight = WaveformGeometry.isHighlightFraction(
+        barFraction: barFraction,
+        duration: duration,
+        segments: highlightSegments,
+      );
+
       // 3. Coloring: smooth blend from inactiveColor → activeColor
-      final color = WaveformGeometry.barColor(
+      var color = WaveformGeometry.barColor(
         barFraction: barFraction,
         centerFraction: centerFraction,
         activeColor: activeColor,
         inactiveColor: inactiveColor,
         colorBlend: colorBlend,
       );
+      if (isHighlight) {
+        color = Color.lerp(color, highlightColor, 0.78)!;
+      }
 
       final paint = Paint()..color = color;
       final x = i * barWidth + (barWidth - drawWidth) / 2;
@@ -467,5 +502,8 @@ class _WaveformPainter extends CustomPainter {
       oldDelegate.dragIntensity != dragIntensity ||
       oldDelegate.activeColor != activeColor ||
       oldDelegate.inactiveColor != inactiveColor ||
+      oldDelegate.duration != duration ||
+      oldDelegate.highlightSegments != highlightSegments ||
+      oldDelegate.highlightColor != highlightColor ||
       oldDelegate.barCount != barCount;
 }

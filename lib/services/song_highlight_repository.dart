@@ -27,4 +27,14 @@ class SongHighlightRepository {
   ) {
     return _cache.writeJson(_cacheName(serverScope, songId), timeline.toJson());
   }
+
+  Future<void> delete(String serverScope, String songId) {
+    return _cache.deleteJson(_cacheName(serverScope, songId));
+  }
+
+  Future<void> deleteAll(String serverScope, Iterable<String> songIds) {
+    return Future.wait(
+      songIds.map((songId) => delete(serverScope, songId)),
+    ).then((_) {});
+  }
 }

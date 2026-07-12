@@ -38,6 +38,9 @@ description: "Now-playing and selection-mode memory for Joyal Music. Use when ch
 - It is not PCM amplitude.
 - Color comes from the current visual song palette and is corrected for light/dark mode.
 - During dragging, the colored boundary follows the finger.
+- Locally cached song-climax segments are shown only with an accent color. They
+  must not change bar height; opening now playing must never trigger a new
+  climax-analysis request.
 - Keep position updates local; do not rebuild the whole now-playing page for progress ticks.
 
 ## Cover Switching

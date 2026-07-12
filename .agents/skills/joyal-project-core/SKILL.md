@@ -40,13 +40,13 @@ The visual direction is minimal, immersive, cool black/white/gray, large-radius,
 
 - API and playback: `lib/services/subsonic_api.dart`, `audio_player_service.dart`, `lib/providers/player_provider.dart`, `listening_stats_provider.dart`.
 - Library, search, and discovery: `library_provider.dart`, `home_screen.dart`, `library_screen.dart`, `hotlist_screen.dart`, `search_screen.dart`. The discovery page file is still named `HotlistScreen`.
-- Discovery widgets: `lib/widgets/discovery/discover_song_carousel.dart`, `for_you_discovery_section.dart`, `discovery_playlist_card.dart`, `discovery_card_models.dart`, `classification_status_card.dart`, `discovery_section_header.dart`.
+- Discovery widgets: `lib/widgets/discovery/discover_song_carousel.dart`, `for_you_discovery_section.dart`, `discovery_playlist_card.dart`, `discovery_card_models.dart`, `discovery_section_header.dart`.
 - Navigation, settings, and dock: `lib/app.dart`, `home_sidebar.dart`, `mini_player.dart`, `bottom_nav.dart`, `play_queue_sheet.dart`, `settings_hub_screen.dart`, `personalization_screen.dart`.
 - Visual effects and backgrounds: `page_background_provider.dart`, `glass_effect_provider.dart`, `visual_effect_provider.dart`, `mini_player_color_provider.dart`, `frosted_glass.dart`, `liquid_glass_overlay.dart`, `glass_top_bar.dart`, `page_custom_background.dart`, `dynamic_album_background.dart`, `album_visual_palette.dart`, `mini_player_chrome.dart`.
 - Personalization widgets: `lib/widgets/personalization/page_background_settings.dart`, `glass_effect_tile.dart`, `liquid_glass_toggle_tile.dart`, `mini_player_color_tile.dart`, `personalization_choice_tile.dart`.
 - Now playing and lyrics: `now_playing_screen.dart`, `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `song_highlight_provider.dart`, `deepseek_highlight_service.dart`, `song_highlight_repository.dart`, `song_highlight.dart`, `lib/widgets/lyrics_stage/`, `waveform_progress.dart`, `now_playing_transition.dart`.
 - Downloads and cache: `app_cache_service.dart`, `cache_repository.dart`, `cache_provider.dart`, `cache_management_screen.dart`, `cached_disk_image.dart`.
-- Classification: `music_classification.dart`, `deepseek_classification_service.dart`, `music_classification_repository.dart`, `music_classification_provider.dart`, `music_classification_screen.dart`.
+- `小Jo同学` tag and climax management: `music_classification.dart`, `deepseek_classification_service.dart`, `music_classification_repository.dart`, `music_classification_provider.dart`, `music_classification_screen.dart`, `song_highlight_provider.dart`, `song_highlight_repository.dart`.
 - Android media bridge and background playback: `android/app/src/main/kotlin/com/example/joyal_music/`, especially `JoyalMediaSessionManager.kt`, `JoyalPlaybackService.kt`, and `PlaybackSnapshot.kt`.
 - iOS background audio capability: `ios/Runner/Info.plist` declares `UIBackgroundModes/audio`.
 
