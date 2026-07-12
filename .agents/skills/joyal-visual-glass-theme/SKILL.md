@@ -90,6 +90,14 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
   `coverGlassBackgroundProvider`. Slider updates are live; persist on drag
   end. Do not replace this with a full-screen `BackdropFilter`.
 
+## Planned Lyrics Stage Themes
+
+- A future task will add independent full-screen lyrics stages named `浮名`, `流光`, and `群唱`, inspired by Folia's renderer-level visualizers. They must be separate foreground renderers, not separate duplicate full-screen backgrounds.
+- Reuse the one `DynamicAlbumBackground` already owned by the enclosing now-playing route. A shared stage shell may derive cached palette colors and static decorative layers, but each renderer owns only its distinctive typography, composition, and purposeful local motion.
+- Each stage renderer needs an explicit active/upcoming lifecycle and must stop tickers and painting while hidden, during a covered settings drawer, or after returning to now playing.
+- Premeasure complex glyph or bubble layouts and cache the result. Playback position should drive only the smallest active reveal or camera transform; it must not rebuild the entire stage composition.
+- Keep static and reduced-cost fallbacks for devices that cannot sustain the full effect. Do not add stacked full-screen blur, refraction, or continuously repainting backgrounds merely to imitate the reference project.
+
 ## Files To Check
 
 - Theme and visual providers: `glass_effect_provider.dart`, `visual_effect_provider.dart`, `page_background_provider.dart`, `mini_player_color_provider.dart`.

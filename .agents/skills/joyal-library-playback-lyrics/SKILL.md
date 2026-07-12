@@ -74,6 +74,19 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - The fixed top area shows only the current song name and artist.
 - When the lyrics page is visible or during the horizontal transition, disable the outer now-playing downward-close gesture.
 - Exiting the lyrics page uses the existing horizontal swipe/switching flow.
+- The default scrolling renderer has a Folia-inspired focus transition in `_FoliaLineFocus`: the active line returns to full scale while passed and upcoming lines recede slightly to opposite horizontal sides. Keep this as the default renderer rather than treating it as one of the future full-screen stage modes.
+- Word-by-word presentation uses `lyricGlyphProgress()` to distribute each `LyricWord` time range across Unicode grapheme clusters. `_TimedLyricText` renders a glyph-level color sweep with a short glow only at the reveal frontier.
+- Only the active timed line may watch high-frequency player position. Inactive lines, the whole list, the background, and future stage shells must not rebuild for every position update.
+
+## Planned Independent Lyrics Stages
+
+- The user's next lyrics goal is to implement complete independent stage themes inspired by Folia, including `浮名`, `流光`, and `群唱`. This is planned work, not implemented yet.
+- These themes are not skins over `_LyricsList`. Give each theme its own renderer and animation grammar, while sharing a small stage shell, lyric timing runtime, theme/palette inputs, empty states, gestures, and lifecycle handling.
+- Keep the current scrolling lyrics renderer available as the stable default. Persist the selected stage mode through `lyrics_personalization_provider.dart` in secure storage and expose it through the existing in-place personalization flow.
+- Stage renderers must accept the same `LyricsData` model and degrade gracefully for synchronized line lyrics or plain lyrics when `LyricLine.words` has no timing.
+- Precompute and cache expensive text layout by song identity, viewport, font, font size, and renderer settings. Prepare the active and upcoming line before a transition instead of measuring the full composition on every playback tick.
+- Avoid one giant renderer with mode branches. Suggested structure is a shared `lyrics_stage/` shell/runtime plus one file or folder per `浮名`, `流光`, and `群唱` renderer.
+- Preserve Joyal's visual identity and implement the concepts cleanly in Flutter; do not copy AGPL Folia source code into this project.
 
 ## Lyrics Personalization
 

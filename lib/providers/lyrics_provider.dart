@@ -65,6 +65,17 @@ double lyricWordProgress(LyricWord word, Duration position) {
       .toDouble();
 }
 
+double lyricGlyphProgress(
+  LyricWord word,
+  Duration position, {
+  required int glyphIndex,
+  required int glyphCount,
+}) {
+  if (glyphCount <= 0 || glyphIndex < 0 || glyphIndex >= glyphCount) return 0;
+  final wordProgress = lyricWordProgress(word, position);
+  return (wordProgress * glyphCount - glyphIndex).clamp(0.0, 1.0).toDouble();
+}
+
 int activeLyricIndex(LyricsData data, Duration position) {
   if (!data.synced) return -1;
   final timeline = _lyricTimelines[data] ??= _LyricTimeline(data);

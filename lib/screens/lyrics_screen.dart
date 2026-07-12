@@ -533,7 +533,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
         ),
       ],
     );
-    const inactiveScale = 0.70;
+    const inactiveScale = 0.82;
     final topInset = MediaQuery.paddingOf(context).top;
     final headerReserve = MediaQuery.textScalerOf(context).scale(52) + 64;
     final lyricsTop = topInset + headerReserve;
@@ -576,11 +576,11 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
                     onTap: canSeek ? () => _seekToLine(line) : null,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: AnimatedScale(
-                        scale: isActive ? 1 : inactiveScale,
+                      child: _FoliaLineFocus(
+                        isActive: isActive,
+                        isPassed: active >= 0 && lineIndex < active,
+                        inactiveScale: inactiveScale,
                         alignment: scaleAlignment,
-                        duration: const Duration(milliseconds: 520),
-                        curve: Curves.easeOutCubic,
                         child: _LyricDepthFilteredLine(
                           blurSigma: blurSigma,
                           child: _TimedLyricText(
@@ -646,6 +646,43 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
   }
 }
 
+class _FoliaLineFocus extends StatelessWidget {
+  final bool isActive;
+  final bool isPassed;
+  final double inactiveScale;
+  final Alignment alignment;
+  final Widget child;
+
+  const _FoliaLineFocus({
+    required this.isActive,
+    required this.isPassed,
+    required this.inactiveScale,
+    required this.alignment,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSlide(
+      offset: isActive ? Offset.zero : Offset(isPassed ? -0.018 : 0.018, 0),
+      duration: const Duration(milliseconds: 480),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: isActive ? 1 : 0.86,
+        duration: const Duration(milliseconds: 360),
+        curve: Curves.easeOut,
+        child: AnimatedScale(
+          scale: isActive ? 1 : inactiveScale,
+          alignment: alignment,
+          duration: const Duration(milliseconds: 520),
+          curve: Curves.easeOutBack,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 class _LyricDepthFilteredLine extends StatelessWidget {
   final double blurSigma;
   final Widget child;
@@ -707,22 +744,18 @@ class _TimedLyricText extends ConsumerWidget {
       curve: Curves.linear,
       builder: (context, microseconds, child) {
         final animatedPosition = Duration(microseconds: microseconds.round());
-        final pendingColor = style.color!.withValues(alpha: 0.30);
+        final activeColor = style.color!;
+        final pendingColor = activeColor.withValues(alpha: 0.24);
         return Text.rich(
           TextSpan(
             children: [
               for (final word in line.words)
-                TextSpan(
-                  text: word.text,
-                  style: style.copyWith(
-                    color: Color.lerp(
-                      pendingColor,
-                      style.color,
-                      Curves.easeOut.transform(
-                        lyricWordProgress(word, animatedPosition),
-                      ),
-                    ),
-                  ),
+                ..._glyphSpans(
+                  word,
+                  animatedPosition,
+                  style,
+                  pendingColor,
+                  activeColor,
                 ),
             ],
           ),
@@ -730,6 +763,42 @@ class _TimedLyricText extends ConsumerWidget {
         );
       },
     );
+  }
+
+  List<InlineSpan> _glyphSpans(
+    LyricWord word,
+    Duration position,
+    TextStyle style,
+    Color pendingColor,
+    Color activeColor,
+  ) {
+    final glyphs = word.text.characters.toList(growable: false);
+    if (glyphs.isEmpty) return const [];
+    return List<InlineSpan>.generate(glyphs.length, (glyphIndex) {
+      final rawProgress = lyricGlyphProgress(
+        word,
+        position,
+        glyphIndex: glyphIndex,
+        glyphCount: glyphs.length,
+      );
+      final progress = Curves.easeOutCubic.transform(rawProgress);
+      final frontier = (1 - (rawProgress * 2 - 1).abs()).clamp(0.0, 1.0);
+      final shadows = <Shadow>[
+        ...?style.shadows,
+        if (frontier > 0.02)
+          Shadow(
+            color: activeColor.withValues(alpha: 0.42 * frontier),
+            blurRadius: 12 * frontier,
+          ),
+      ];
+      return TextSpan(
+        text: glyphs[glyphIndex],
+        style: style.copyWith(
+          color: Color.lerp(pendingColor, activeColor, progress),
+          shadows: shadows,
+        ),
+      );
+    });
   }
 }
 

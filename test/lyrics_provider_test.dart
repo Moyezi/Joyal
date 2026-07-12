@@ -98,4 +98,40 @@ void main() {
     );
     expect(lyricWordProgress(word, const Duration(seconds: 2)), 1);
   });
+
+  test('lyricGlyphProgress sweeps through a timed word glyph by glyph', () {
+    const word = LyricWord(
+      text: '流光',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 2),
+    );
+
+    expect(
+      lyricGlyphProgress(
+        word,
+        const Duration(milliseconds: 1250),
+        glyphIndex: 0,
+        glyphCount: 2,
+      ),
+      closeTo(0.5, 0.001),
+    );
+    expect(
+      lyricGlyphProgress(
+        word,
+        const Duration(milliseconds: 1250),
+        glyphIndex: 1,
+        glyphCount: 2,
+      ),
+      0,
+    );
+    expect(
+      lyricGlyphProgress(
+        word,
+        const Duration(milliseconds: 1750),
+        glyphIndex: 1,
+        glyphCount: 2,
+      ),
+      closeTo(0.5, 0.001),
+    );
+  });
 }
