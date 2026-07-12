@@ -19,14 +19,34 @@ class DownloadManagerScreen extends ConsumerStatefulWidget {
 
 class _DownloadManagerScreenState extends ConsumerState<DownloadManagerScreen> {
   bool _ready = false;
+  bool _scanning = false;
 
   @override
   void initState() {
     super.initState();
     Future<void>(() async {
-      await ref.read(downloadServiceProvider)?.initialize();
+      final service = ref.read(downloadServiceProvider);
+      await service?.initialize();
+      if (service != null) await _scan(service, showResult: false);
       if (mounted) setState(() => _ready = true);
     });
+  }
+
+  Future<void> _scan(DownloadService service, {bool showResult = true}) async {
+    if (_scanning) return;
+    if (mounted) setState(() => _scanning = true);
+    try {
+      final found = await service.scanPublicDownloads(
+        ref.read(libraryProvider).songs,
+      );
+      if (showResult && mounted) {
+        showAppToast(context, found > 0 ? '发现 $found 首本地歌曲' : '本地下载已是最新');
+      }
+    } catch (error) {
+      if (mounted) showAppToast(context, '扫描失败：$error');
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
   }
 
   String _formatBytes(int bytes) {
@@ -79,7 +99,21 @@ class _DownloadManagerScreenState extends ConsumerState<DownloadManagerScreen> {
         final records = snapshot.data ?? const [];
         final totalBytes = records.fold<int>(0, (sum, item) => sum + item.size);
         return Scaffold(
-          appBar: AppBar(title: const Text('下载管理')),
+          appBar: AppBar(
+            title: const Text('下载管理'),
+            actions: [
+              IconButton(
+                tooltip: '重新扫描本地音乐',
+                onPressed: _scanning ? null : () => _scan(service),
+                icon: _scanning
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
           body: records.isEmpty
               ? const _EmptyDownloads()
               : ListView(

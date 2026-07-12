@@ -62,6 +62,11 @@ class MainActivity : FlutterActivity() {
                     } catch (error: Exception) {
                         result.error("QUERY_FAILED", error.message, null)
                     }
+                    "scanJoyalAudio" -> try {
+                        result.success(scanJoyalAudio())
+                    } catch (error: Exception) {
+                        result.error("SCAN_FAILED", error.message, null)
+                    }
                     "deleteAudio" -> try {
                         val uri = Uri.parse(call.argument<String>("uri"))
                         contentResolver.delete(uri, null, null)
@@ -209,6 +214,75 @@ class MainActivity : FlutterActivity() {
             }
         }
         return null
+    }
+
+    /** Returns every audio file that still exists in the public Joyal folder. */
+    private fun scanJoyalAudio(): List<Map<String, Any?>> {
+        val projection = mutableListOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.DATE_ADDED,
+        )
+        val selection: String
+        val selectionArgs: Array<String>
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            projection.add(MediaStore.Audio.Media.RELATIVE_PATH)
+            selection = "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? AND " +
+                "${MediaStore.Audio.Media.IS_PENDING} = 0"
+            selectionArgs = arrayOf("${Environment.DIRECTORY_MUSIC}/Joyal DL/%")
+        } else {
+            @Suppress("DEPRECATION")
+            projection.add(MediaStore.Audio.Media.DATA)
+            @Suppress("DEPRECATION")
+            val dataColumn = MediaStore.Audio.Media.DATA
+            selection = "$dataColumn LIKE ?"
+            selectionArgs = arrayOf("%/${Environment.DIRECTORY_MUSIC}/Joyal DL/%")
+        }
+
+        val files = mutableListOf<Map<String, Any?>>()
+        contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            projection.toTypedArray(),
+            selection,
+            selectionArgs,
+            "${MediaStore.Audio.Media.DATE_ADDED} DESC",
+        )?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+            val titleIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            val addedIndex = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(idIndex)
+                files.add(
+                    mapOf(
+                        "uri" to Uri.withAppendedPath(
+                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                            id.toString(),
+                        ).toString(),
+                        "displayName" to cursor.getString(nameIndex),
+                        "size" to cursor.getLong(sizeIndex),
+                        "title" to cursor.getString(titleIndex),
+                        "artist" to cursor.getString(artistIndex),
+                        "album" to cursor.getString(albumIndex),
+                        "durationMs" to cursor.getLong(durationIndex),
+                        "mimeType" to cursor.getString(mimeIndex),
+                        "dateAdded" to cursor.getLong(addedIndex),
+                    ),
+                )
+            }
+        }
+        return files
     }
 
     private fun publishAudio(args: Map<*, *>): String {

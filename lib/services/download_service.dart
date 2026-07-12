@@ -95,6 +95,7 @@ class DownloadService {
   final Map<String, DateTime> _lastProgressEmissions = {};
   final Map<String, DownloadProgress> _pendingProgress = {};
   final Map<String, Timer> _progressTimers = {};
+  Future<int>? _activeScan;
 
   DownloadService(this._api) {
     unawaited(initialize());
@@ -218,6 +219,125 @@ class DownloadService {
   }
 
   Future<bool> openSettings() => openAppSettings();
+
+  /// Rebuilds the private download catalogue from the public Joyal folder.
+  ///
+  /// Android keeps these files when the app is uninstalled, while the private
+  /// JSON catalogue is removed. Matching against the current library restores
+  /// the original server song ID; unknown files remain playable as local songs.
+  Future<int> scanPublicDownloads(Iterable<Song> librarySongs) {
+    if (!Platform.isAndroid) return Future.value(0);
+    return _activeScan ??= _scanPublicDownloads(
+      librarySongs,
+    ).whenComplete(() => _activeScan = null);
+  }
+
+  Future<int> _scanPublicDownloads(Iterable<Song> librarySongs) async {
+    await initialize();
+    final sdk = await _mediaChannel.invokeMethod<int>('getSdkInt') ?? 29;
+    final permission = sdk >= 33 ? Permission.audio : Permission.storage;
+    if (!await permission.isGranted && !await permission.request().isGranted) {
+      throw const DownloadFailure('需要音乐访问权限，才能识别重新安装前下载的歌曲');
+    }
+
+    final scanned = await _mediaChannel.invokeListMethod<dynamic>(
+      'scanJoyalAudio',
+    );
+    if (scanned == null) return 0;
+
+    final previousUris = _records.values.map((record) => record.uri).toSet();
+    final existingByUri = {
+      for (final record in _records.values) record.uri: record,
+    };
+    final existingByName = {
+      for (final record in _records.values)
+        record.fileName.toLowerCase(): record,
+    };
+    final libraryByName = {
+      for (final song in librarySongs) _fileName(song).toLowerCase(): song,
+    };
+    final rebuilt = <String, DownloadRecord>{};
+
+    for (final raw in scanned) {
+      final item = Map<String, dynamic>.from(raw as Map);
+      final uri = item['uri'] as String? ?? '';
+      final fileName = item['displayName'] as String? ?? '';
+      final size = (item['size'] as num?)?.toInt() ?? 0;
+      if (uri.isEmpty || fileName.isEmpty || size <= 0) continue;
+
+      final previous =
+          existingByUri[uri] ?? existingByName[fileName.toLowerCase()];
+      final song =
+          libraryByName[fileName.toLowerCase()] ??
+          previous?.song ??
+          _localSongFromScan(item, uri: uri, fileName: fileName, size: size);
+      final addedSeconds = (item['dateAdded'] as num?)?.toInt() ?? 0;
+      final record = DownloadRecord(
+        song: song,
+        uri: uri,
+        fileName: fileName,
+        size: size,
+        downloadedAt: addedSeconds > 0
+            ? DateTime.fromMillisecondsSinceEpoch(addedSeconds * 1000)
+            : previous?.downloadedAt ?? DateTime.now(),
+      );
+      rebuilt[song.id] = record;
+    }
+
+    final newlyFound = rebuilt.values
+        .where((record) => !previousUris.contains(record.uri))
+        .length;
+    _records
+      ..clear()
+      ..addAll(rebuilt);
+    await _saveCatalog();
+    return newlyFound;
+  }
+
+  Song _localSongFromScan(
+    Map<String, dynamic> item, {
+    required String uri,
+    required String fileName,
+    required int size,
+  }) {
+    final extensionIndex = fileName.lastIndexOf('.');
+    final suffix = extensionIndex >= 0
+        ? fileName.substring(extensionIndex + 1).toLowerCase()
+        : '';
+    final baseName = extensionIndex > 0
+        ? fileName.substring(0, extensionIndex)
+        : fileName;
+    final separator = baseName.indexOf(' - ');
+    final mediaTitle = _cleanMediaText(item['title']);
+    final mediaArtist = _cleanMediaText(item['artist']);
+    final title = mediaTitle.isNotEmpty
+        ? mediaTitle
+        : separator >= 0
+        ? baseName.substring(separator + 3)
+        : baseName;
+    final artist = mediaArtist.isNotEmpty
+        ? mediaArtist
+        : separator >= 0
+        ? baseName.substring(0, separator)
+        : '未知艺术家';
+    return Song(
+      id: 'local:$uri',
+      parent: '',
+      title: title,
+      album: _cleanMediaText(item['album']),
+      artist: artist,
+      duration: ((item['durationMs'] as num?)?.toInt() ?? 0) ~/ 1000,
+      coverArt: '',
+      size: size,
+      contentType: item['mimeType'] as String? ?? '',
+      suffix: suffix,
+    );
+  }
+
+  String _cleanMediaText(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    return text == '<unknown>' ? '' : text;
+  }
 
   String _fileName(Song song) {
     final safeArtist = _sanitize(song.artist);
