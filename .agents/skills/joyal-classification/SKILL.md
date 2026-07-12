@@ -16,6 +16,8 @@ description: "Intelligent music-classification memory for Joyal Music. Use when 
 - DeepSeek API key lives only in secure storage under `deepseek_api_key`.
 - Do not store the key in SQLite, JSON, logs, crash reports, or Git.
 - Classification requests send only textual song metadata.
+- Lyrics climax analysis reuses the same secure-storage API key and saved endpoint/model settings, but has its own service and derived-data cache; requests contain only title, artist, album, duration, and timed lyric text.
+- Keep climax analysis separate from `DeepSeekClassificationService` and the classification store: `DeepSeekHighlightService` owns the request, `SongHighlightProvider` owns lazy orchestration, and `SongHighlightRepository` stores only the derived timeline. Never persist or log the API key with that timeline.
 - If no API key is configured, guide the user to configuration. Do not describe the feature as already connected.
 
 ## Vocabulary And Validation
@@ -62,3 +64,4 @@ description: "Intelligent music-classification memory for Joyal Music. Use when 
 - Provider: `music_classification_provider.dart`.
 - Screen: `music_classification_screen.dart`.
 - Discovery entry: `hotlist_screen.dart`, `classification_status_card.dart`.
+- Lyrics climax integration: `song_highlight_provider.dart`, `deepseek_highlight_service.dart`, `song_highlight_repository.dart`, `models/song_highlight.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.

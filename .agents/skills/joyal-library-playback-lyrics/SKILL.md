@@ -87,6 +87,10 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 ## Independent Lyrics Stages
 
+- `流光` 的外扩圆环由 DeepSeek 歌曲高潮时间轴控制。进入有同步歌词的流光舞台时才按需分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用智能分类的 secure-storage API Key、endpoint 和模型设置。
+- 高潮结果通过 `SongHighlightRepository` 按服务器 scope 与歌曲缓存；`lyricsAnalysisHash` 包含歌曲元数据、时长、歌词文本及行时间，模型或 hash 改变时重新分析。缓存可以在 API Key 被移除或离线后继续读取。
+- DeepSeek 时间段必须经 `normalizeHighlightSegments()` 排序、歌曲时长裁剪、重叠合并并最多保留 3 段。未配置 Key、无同步歌词、分析中或分析失败时不显示圆环；文字揭示、自适应柔光和末词呼吸保持可用。不要用启发式高频圆环作为失败回退。
+
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
 - `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It displays only the active line, splitting Chinese into graphemes and Latin runs into whole words. Use a deterministic scattered layout: common lines form 3–4 vertical rows with about 2–3 tokens per row, irregular spacing and offsets, and normally distributed token rotation clamped to ±25°. Untimed lyrics and disabled word-by-word display keep the same scattered layout but reveal statically.
 - With word timing, future tokens reserve invisible positions so revealed text never shifts. Each token appears at about 116% scale and settles to 100% over 520 ms. Keep the outward entrance ring short, but make the soft highlight interval adaptive: hold full brightness from this token's start until the next Chinese grapheme or Latin word starts, including timing gaps, then overlap the next token with a smooth 520 ms fade-out instead of clearing the previous halo immediately. For the final token, use the line end and keep its soft highlight breathing until the next lyric line activates; never repeat its outward ring or render a dim pending-text mask. Drive this from the active playback-position updates instead of adding another persistent controller; reduced-motion/covered states keep only a static highlight.
@@ -128,6 +132,6 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - API and library: `lib/services/subsonic_api.dart`, `library_provider.dart`.
 - Player: `audio_player_service.dart`, `lib/providers/player_provider.dart`, `play_queue_sheet.dart`.
 - Stats: `listening_stats_provider.dart`.
-- Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.
+- Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `song_highlight_provider.dart`, `models/song_highlight.dart`, `services/deepseek_highlight_service.dart`, `services/song_highlight_repository.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.
 - MiniPlayer: `mini_player.dart`, `mini_player_chrome.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.

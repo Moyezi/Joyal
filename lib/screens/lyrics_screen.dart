@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../config/theme_context.dart';
 import '../models/lyrics.dart';
+import '../models/song.dart';
 import '../providers/glass_effect_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/lyrics_personalization_provider.dart';
@@ -205,6 +206,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                     }
                     return _LyricsPositionedList(
                       data: lyrics,
+                      song: song,
                       title: song.title,
                       artist: song.artist,
                       dynamicColor: dynamicLyricColor,
@@ -220,6 +222,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
 
 class _LyricsPositionedList extends ConsumerWidget {
   final LyricsData data;
+  final Song song;
   final String title;
   final String artist;
   final Color? dynamicColor;
@@ -228,6 +231,7 @@ class _LyricsPositionedList extends ConsumerWidget {
 
   const _LyricsPositionedList({
     required this.data,
+    required this.song,
     required this.title,
     required this.artist,
     this.dynamicColor,
@@ -246,6 +250,7 @@ class _LyricsPositionedList extends ConsumerWidget {
     if (stageMode == LyricsStageMode.flowingLight) {
       return _FlowingLightStageHost(
         data: data,
+        song: song,
         activeIndex: activeIndex,
         title: title,
         artist: artist,
@@ -271,6 +276,7 @@ class _LyricsPositionedList extends ConsumerWidget {
 
 class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final LyricsData data;
+  final Song song;
   final int activeIndex;
   final String title;
   final String artist;
@@ -280,6 +286,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
 
   const _FlowingLightStageHost({
     required this.data,
+    required this.song,
     required this.activeIndex,
     required this.title,
     required this.artist,
@@ -321,6 +328,7 @@ class _FlowingLightStageHostState
     final preferences = ref.watch(lyricsPersonalizationProvider);
     return FlowingLightLyricsStage(
       data: widget.data,
+      song: widget.song,
       activeIndex: widget.activeIndex,
       title: widget.title,
       artist: widget.artist,

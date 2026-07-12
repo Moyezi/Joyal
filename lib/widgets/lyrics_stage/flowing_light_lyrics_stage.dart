@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/lyrics.dart';
+import '../../models/song.dart';
 import '../../providers/player_provider.dart';
+import '../../providers/song_highlight_provider.dart';
 
-class FlowingLightLyricsStage extends StatelessWidget {
+class FlowingLightLyricsStage extends ConsumerWidget {
   final LyricsData data;
+  final Song song;
   final int activeIndex;
   final String title;
   final String artist;
@@ -21,6 +24,7 @@ class FlowingLightLyricsStage extends StatelessWidget {
   const FlowingLightLyricsStage({
     super.key,
     required this.data,
+    required this.song,
     required this.activeIndex,
     required this.title,
     required this.artist,
@@ -33,9 +37,18 @@ class FlowingLightLyricsStage extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final resolvedIndex = activeIndex.clamp(0, data.lines.length - 1);
     final activeLine = data.lines[resolvedIndex];
+    final highlightTimeline = ref
+        .watch(
+          songHighlightProvider(SongHighlightRequest(song: song, lyrics: data)),
+        )
+        .when(
+          data: (timeline) => timeline,
+          error: (_, _) => null,
+          loading: () => null,
+        );
 
     return _LyricsStageShell(
       title: title,
@@ -65,6 +78,7 @@ class FlowingLightLyricsStage extends StatelessWidget {
           fontSize: fontSize,
           wordByWordEnabled: wordByWordEnabled,
           positionUpdatesEnabled: positionUpdatesEnabled,
+          isHighlightAt: highlightTimeline?.contains,
         ),
       ),
     );
@@ -190,6 +204,7 @@ class _FlowingLightComposition extends StatelessWidget {
   final double fontSize;
   final bool wordByWordEnabled;
   final bool positionUpdatesEnabled;
+  final bool Function(Duration position)? isHighlightAt;
 
   const _FlowingLightComposition({
     super.key,
@@ -199,6 +214,7 @@ class _FlowingLightComposition extends StatelessWidget {
     required this.fontSize,
     required this.wordByWordEnabled,
     required this.positionUpdatesEnabled,
+    required this.isHighlightAt,
   });
 
   @override
@@ -213,6 +229,7 @@ class _FlowingLightComposition extends StatelessWidget {
           fontSize: math.max(fontSize, 36),
           wordByWordEnabled: wordByWordEnabled,
           positionUpdatesEnabled: positionUpdatesEnabled,
+          isHighlightAt: isHighlightAt,
         ),
       ),
     );
@@ -402,6 +419,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
   final double fontSize;
   final bool wordByWordEnabled;
   final bool positionUpdatesEnabled;
+  final bool Function(Duration position)? isHighlightAt;
 
   const _FlowingLightActiveLine({
     required this.line,
@@ -410,6 +428,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
     required this.fontSize,
     required this.wordByWordEnabled,
     required this.positionUpdatesEnabled,
+    required this.isHighlightAt,
   });
 
   @override
@@ -475,6 +494,8 @@ class _FlowingLightActiveLine extends ConsumerWidget {
                 color: activeColor,
                 keepBreathing: index == tokens.length - 1,
                 breathingEnabled: ambientMotionEnabled,
+                showEntranceRing:
+                    isHighlightAt?.call(tokens[index].start) ?? false,
               ),
           ],
         );
@@ -700,6 +721,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   final Color color;
   final bool keepBreathing;
   final bool breathingEnabled;
+  final bool showEntranceRing;
 
   const _FlowingLightTokenView({
     required this.token,
@@ -709,6 +731,7 @@ class _FlowingLightTokenView extends StatelessWidget {
     required this.color,
     required this.keepBreathing,
     required this.breathingEnabled,
+    required this.showEntranceRing,
   });
 
   @override
@@ -735,7 +758,9 @@ class _FlowingLightTokenView extends StatelessWidget {
       elapsed: Duration(microseconds: elapsedMicros),
       holdUntilNext: Duration(microseconds: highlightDurationMicros),
     );
-    final entranceRingIntensity = _flowingLightRingIntensity(reveal);
+    final entranceRingIntensity = showEntranceRing
+        ? _flowingLightRingIntensity(reveal)
+        : 0.0;
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
     final breathingGlowIntensity = keepBreathing
