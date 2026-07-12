@@ -17,6 +17,7 @@ import '../services/lyrics_service.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/frosted_glass.dart';
+import '../widgets/lyrics_stage/flowing_light_lyrics_stage.dart';
 
 class _LyricsPaletteRequest {
   final String coverArtId;
@@ -78,6 +79,20 @@ Color _dynamicFallbackColor(Brightness brightness) {
   return brightness == Brightness.dark
       ? const Color(0xFFE8EEFF)
       : const Color(0xFF6D7FA8);
+}
+
+Color _resolvedActiveLyricColor(
+  BuildContext context,
+  LyricsPersonalizationState preferences,
+  Color? dynamicColor,
+) {
+  return switch (preferences.colorMode) {
+    LyricsColorMode.system => context.primaryColor,
+    LyricsColorMode.black => Colors.black,
+    LyricsColorMode.white => Colors.white,
+    LyricsColorMode.dynamicLight =>
+      dynamicColor ?? _dynamicFallbackColor(Theme.of(context).brightness),
+  };
 }
 
 Color _withMinimumLuminance(Color color, double target) {
@@ -225,6 +240,23 @@ class _LyricsPositionedList extends ConsumerWidget {
     final activeIndex = ref.watch(
       playerProvider.select((state) => activeLyricIndex(data, state.position)),
     );
+    final stageMode = ref.watch(
+      lyricsPersonalizationProvider.select((state) => state.stageMode),
+    );
+    if (stageMode == LyricsStageMode.flowingLight) {
+      return _FlowingLightStageHost(
+        data: data,
+        activeIndex: activeIndex,
+        title: title,
+        artist: artist,
+        dynamicColor: dynamicColor,
+        positionUpdatesEnabled: positionUpdatesEnabled,
+        onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
+        onSeek: (position) {
+          unawaited(ref.read(playerProvider.notifier).seek(position));
+        },
+      );
+    }
     return _LyricsList(
       data: data,
       activeIndex: activeIndex,
@@ -236,6 +268,79 @@ class _LyricsPositionedList extends ConsumerWidget {
       onSeek: (position) {
         unawaited(ref.read(playerProvider.notifier).seek(position));
       },
+    );
+  }
+}
+
+class _FlowingLightStageHost extends ConsumerStatefulWidget {
+  final LyricsData data;
+  final int activeIndex;
+  final String title;
+  final String artist;
+  final Color? dynamicColor;
+  final bool positionUpdatesEnabled;
+  final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
+  final ValueChanged<Duration> onSeek;
+
+  const _FlowingLightStageHost({
+    required this.data,
+    required this.activeIndex,
+    required this.title,
+    required this.artist,
+    required this.dynamicColor,
+    required this.positionUpdatesEnabled,
+    this.onSettingsSheetVisibilityChanged,
+    required this.onSeek,
+  });
+
+  @override
+  ConsumerState<_FlowingLightStageHost> createState() =>
+      _FlowingLightStageHostState();
+}
+
+class _FlowingLightStageHostState
+    extends ConsumerState<_FlowingLightStageHost> {
+  bool _settingsSheetOpen = false;
+
+  Future<void> _openSettings() async {
+    if (_settingsSheetOpen || !mounted) return;
+    _settingsSheetOpen = true;
+    HapticFeedback.mediumImpact();
+    widget.onSettingsSheetVisibilityChanged?.call(true);
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const _LyricsPersonalizationSheet(),
+      );
+    } finally {
+      widget.onSettingsSheetVisibilityChanged?.call(false);
+      _settingsSheetOpen = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preferences = ref.watch(lyricsPersonalizationProvider);
+    return FlowingLightLyricsStage(
+      data: widget.data,
+      activeIndex: widget.activeIndex,
+      title: widget.title,
+      artist: widget.artist,
+      activeColor: _resolvedActiveLyricColor(
+        context,
+        preferences,
+        widget.dynamicColor,
+      ),
+      fontFamily: preferences.effectiveFontFamily,
+      fontSize: preferences.fontSize,
+      wordByWordEnabled: preferences.wordByWordEnabled,
+      positionUpdatesEnabled:
+          widget.positionUpdatesEnabled && !_settingsSheetOpen,
+      onOpenSettings: () => unawaited(_openSettings()),
+      onSeek: widget.onSeek,
     );
   }
 }
@@ -447,14 +552,7 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
     BuildContext context,
     LyricsPersonalizationState preferences,
   ) {
-    return switch (preferences.colorMode) {
-      LyricsColorMode.system => context.primaryColor,
-      LyricsColorMode.black => Colors.black,
-      LyricsColorMode.white => Colors.white,
-      LyricsColorMode.dynamicLight =>
-        widget.dynamicColor ??
-            _dynamicFallbackColor(Theme.of(context).brightness),
-    };
+    return _resolvedActiveLyricColor(context, preferences, widget.dynamicColor);
   }
 
   Color _inactiveLyricColor(
@@ -1003,6 +1101,52 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
               _LyricsSettingsSection(
+                title: '歌词舞台',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '舞台会保留当前歌词来源、逐字时间轴与显示颜色。',
+                      style: context.textBodySmall.copyWith(
+                        color: context.secondaryColor,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _LyricsChoiceGrid(
+                      children: [
+                        for (final mode in LyricsStageMode.values)
+                          _LyricsChoiceButton(
+                            label: mode.isAvailable
+                                ? mode.label
+                                : '${mode.label} · 待完成',
+                            icon: _iconForStageMode(mode),
+                            selected: preferences.stageMode == mode,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              if (!mode.isAvailable) {
+                                showAppToast(
+                                  context,
+                                  '${mode.label}舞台将在后续完成',
+                                  replaceCurrent: true,
+                                );
+                                return;
+                              }
+                              unawaited(
+                                ref
+                                    .read(
+                                      lyricsPersonalizationProvider.notifier,
+                                    )
+                                    .setStageMode(mode),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _LyricsSettingsSection(
                 title: '文字',
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1384,6 +1528,15 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
       LyricsAlignmentMode.center => Icons.format_align_center_rounded,
       LyricsAlignmentMode.left => Icons.format_align_left_rounded,
       LyricsAlignmentMode.justify => Icons.format_align_justify_rounded,
+    };
+  }
+
+  IconData _iconForStageMode(LyricsStageMode mode) {
+    return switch (mode) {
+      LyricsStageMode.defaultScroll => Icons.view_agenda_outlined,
+      LyricsStageMode.flowingLight => Icons.auto_awesome_rounded,
+      LyricsStageMode.floatingName => Icons.blur_circular_rounded,
+      LyricsStageMode.chorus => Icons.groups_2_outlined,
     };
   }
 

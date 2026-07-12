@@ -12,6 +12,7 @@ const _alignmentKey = 'lyrics_alignment';
 const _fontFamilyKey = 'lyrics_font_family';
 const _fontSizeKey = 'lyrics_font_size';
 const _wordByWordEnabledKey = 'lyrics_word_by_word_enabled';
+const _stageModeKey = 'lyrics_stage_mode';
 const _customFontPathKey = 'lyrics_custom_font_path';
 const _customFontNameKey = 'lyrics_custom_font_name';
 const _customFontFamilyKey = 'lyrics_custom_font_family';
@@ -72,6 +73,30 @@ enum LyricsFontFamily {
   }
 }
 
+enum LyricsStageMode {
+  defaultScroll('default_scroll', '默认滚动'),
+  flowingLight('flowing_light', '流光'),
+  floatingName('floating_name', '浮名'),
+  chorus('chorus', '群唱');
+
+  const LyricsStageMode(this.storageValue, this.label);
+
+  final String storageValue;
+  final String label;
+
+  bool get isAvailable =>
+      this == LyricsStageMode.defaultScroll ||
+      this == LyricsStageMode.flowingLight;
+
+  static LyricsStageMode fromStorageValue(String? value) {
+    final mode = LyricsStageMode.values.firstWhere(
+      (mode) => mode.storageValue == value,
+      orElse: () => LyricsStageMode.defaultScroll,
+    );
+    return mode.isAvailable ? mode : LyricsStageMode.defaultScroll;
+  }
+}
+
 class LyricsPersonalizationState {
   static const double minFontSize = 20;
   static const double maxFontSize = 44;
@@ -82,6 +107,7 @@ class LyricsPersonalizationState {
   final LyricsFontFamily fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
+  final LyricsStageMode stageMode;
   final String? customFontPath;
   final String? customFontName;
   final String? customFontFamily;
@@ -93,6 +119,7 @@ class LyricsPersonalizationState {
     this.fontFamily = LyricsFontFamily.system,
     this.fontSize = defaultFontSize,
     this.wordByWordEnabled = true,
+    this.stageMode = LyricsStageMode.defaultScroll,
     this.customFontPath,
     this.customFontName,
     this.customFontFamily,
@@ -116,6 +143,7 @@ class LyricsPersonalizationState {
     LyricsFontFamily? fontFamily,
     double? fontSize,
     bool? wordByWordEnabled,
+    LyricsStageMode? stageMode,
     String? customFontPath,
     String? customFontName,
     String? customFontFamily,
@@ -128,6 +156,7 @@ class LyricsPersonalizationState {
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
       wordByWordEnabled: wordByWordEnabled ?? this.wordByWordEnabled,
+      stageMode: stageMode ?? this.stageMode,
       customFontPath: clearCustomFont
           ? null
           : customFontPath ?? this.customFontPath,
@@ -163,6 +192,9 @@ class LyricsPersonalizationNotifier
     );
     final wordByWordEnabled =
         await _storage.read(key: _wordByWordEnabledKey) != 'false';
+    final stageMode = LyricsStageMode.fromStorageValue(
+      await _storage.read(key: _stageModeKey),
+    );
     var customFontPath = await _storage.read(key: _customFontPathKey);
     var customFontName = await _storage.read(key: _customFontNameKey);
     var customFontFamily = await _storage.read(key: _customFontFamilyKey);
@@ -218,6 +250,7 @@ class LyricsPersonalizationNotifier
       fontFamily: resolvedFontFamily,
       fontSize: fontSize,
       wordByWordEnabled: wordByWordEnabled,
+      stageMode: stageMode,
       customFontPath: customFontPath,
       customFontName: customFontName,
       customFontFamily: customFontFamily,
@@ -307,6 +340,13 @@ class LyricsPersonalizationNotifier
     await _storage.write(key: _wordByWordEnabledKey, value: enabled.toString());
   }
 
+  Future<void> setStageMode(LyricsStageMode mode) async {
+    if (!mode.isAvailable) return;
+    if (state.stageMode == mode && !state.isLoading) return;
+    state = state.copyWith(stageMode: mode, isLoading: false);
+    await _storage.write(key: _stageModeKey, value: mode.storageValue);
+  }
+
   Future<void> reset() async {
     final oldPath = state.customFontPath;
     state = const LyricsPersonalizationState(isLoading: false);
@@ -316,6 +356,7 @@ class LyricsPersonalizationNotifier
       _storage.delete(key: _fontFamilyKey),
       _storage.delete(key: _fontSizeKey),
       _storage.delete(key: _wordByWordEnabledKey),
+      _storage.delete(key: _stageModeKey),
       _storage.delete(key: _customFontPathKey),
       _storage.delete(key: _customFontNameKey),
       _storage.delete(key: _customFontFamilyKey),

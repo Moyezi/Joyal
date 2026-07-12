@@ -78,14 +78,16 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Word-by-word presentation uses `lyricGlyphProgress()` to distribute each `LyricWord` time range across Unicode grapheme clusters. `_TimedLyricText` renders a glyph-level color sweep with a short glow only at the reveal frontier.
 - Only the active timed line may watch high-frequency player position. Inactive lines, the whole list, the background, and future stage shells must not rebuild for every position update.
 
-## Planned Independent Lyrics Stages
+## Independent Lyrics Stages
 
-- The user's next lyrics goal is to implement complete independent stage themes inspired by Folia, including `浮名`, `流光`, and `群唱`. This is planned work, not implemented yet.
+- The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
+- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It composes the previous, active, and upcoming lines independently; only the active line watches playback position for its glyph sweep and local light painter.
+- `浮名` and `群唱` remain planned. Their disabled `待完成` entries stay visible in the lyrics personalization drawer, but selecting them must not persist an unavailable renderer.
 - These themes are not skins over `_LyricsList`. Give each theme its own renderer and animation grammar, while sharing a small stage shell, lyric timing runtime, theme/palette inputs, empty states, gestures, and lifecycle handling.
-- Keep the current scrolling lyrics renderer available as the stable default. Persist the selected stage mode through `lyrics_personalization_provider.dart` in secure storage and expose it through the existing in-place personalization flow.
+- Keep the current scrolling lyrics renderer available as the stable default. Persist available stage modes through `lyrics_personalization_provider.dart` in secure storage and expose them through the existing in-place personalization flow.
 - Stage renderers must accept the same `LyricsData` model and degrade gracefully for synchronized line lyrics or plain lyrics when `LyricLine.words` has no timing.
 - Precompute and cache expensive text layout by song identity, viewport, font, font size, and renderer settings. Prepare the active and upcoming line before a transition instead of measuring the full composition on every playback tick.
-- Avoid one giant renderer with mode branches. Suggested structure is a shared `lyrics_stage/` shell/runtime plus one file or folder per `浮名`, `流光`, and `群唱` renderer.
+- Avoid one giant renderer with mode branches. Keep the shared stage shell/runtime and each finished renderer under `lib/widgets/lyrics_stage/`, with one file or folder per `浮名`, `流光`, and `群唱` renderer.
 - Preserve Joyal's visual identity and implement the concepts cleanly in Flutter; do not copy AGPL Folia source code into this project.
 
 ## Lyrics Personalization
@@ -115,5 +117,5 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - API and library: `lib/services/subsonic_api.dart`, `library_provider.dart`.
 - Player: `audio_player_service.dart`, `lib/providers/player_provider.dart`, `play_queue_sheet.dart`.
 - Stats: `listening_stats_provider.dart`.
-- Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`.
+- Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.
 - MiniPlayer: `mini_player.dart`, `mini_player_chrome.dart`.
