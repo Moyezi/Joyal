@@ -81,7 +81,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 ## Independent Lyrics Stages
 
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
-- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It composes the previous, active, and upcoming lines independently; only the active line watches playback position for its glyph sweep and local light painter.
+- `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. With word timing, it displays only the active line and reveals Chinese one grapheme at a time and Latin text one word at a time. Each entering token pops in with one outward ring; future tokens remain invisible and there is no dim pending-text mask. Lyrics without word timing fall back to a complete static active line.
 - `浮名` and `群唱` remain planned. Their disabled `待完成` entries stay visible in the lyrics personalization drawer, but selecting them must not persist an unavailable renderer.
 - These themes are not skins over `_LyricsList`. Give each theme its own renderer and animation grammar, while sharing a small stage shell, lyric timing runtime, theme/palette inputs, empty states, gestures, and lifecycle handling.
 - Keep the current scrolling lyrics renderer available as the stable default. Persist available stage modes through `lyrics_personalization_provider.dart` in secure storage and expose them through the existing in-place personalization flow.

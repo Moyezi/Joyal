@@ -252,9 +252,6 @@ class _LyricsPositionedList extends ConsumerWidget {
         dynamicColor: dynamicColor,
         positionUpdatesEnabled: positionUpdatesEnabled,
         onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
-        onSeek: (position) {
-          unawaited(ref.read(playerProvider.notifier).seek(position));
-        },
       );
     }
     return _LyricsList(
@@ -280,7 +277,6 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final Color? dynamicColor;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
-  final ValueChanged<Duration> onSeek;
 
   const _FlowingLightStageHost({
     required this.data,
@@ -290,7 +286,6 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
     required this.dynamicColor,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
-    required this.onSeek,
   });
 
   @override
@@ -340,7 +335,6 @@ class _FlowingLightStageHostState
       positionUpdatesEnabled:
           widget.positionUpdatesEnabled && !_settingsSheetOpen,
       onOpenSettings: () => unawaited(_openSettings()),
-      onSeek: widget.onSeek,
     );
   }
 }

@@ -93,7 +93,7 @@ description: "Visual, theme, and glass-effect memory for Joyal Music. Use when c
 ## Lyrics Stage Themes
 
 - Independent full-screen lyrics stages are separate foreground renderers, not duplicate full-screen backgrounds. `流光` is implemented; `浮名` and `群唱` remain planned and are shown as unavailable settings entries.
-- `流光` lives in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. Its moving glow is local to the active lyric composition inside a `RepaintBoundary`; previous and upcoming lines remain static between line changes.
+- `流光` lives in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. Its motion is local to the active lyric composition inside a `RepaintBoundary`: timed Chinese graphemes or Latin words pop into their reserved layout positions, and the entering token owns a short outward ring painter. Do not render previous/upcoming lines or a dim pending-token mask in this stage.
 - Reuse the one `DynamicAlbumBackground` already owned by the enclosing now-playing route. A shared stage shell may derive cached palette colors and static decorative layers, but each renderer owns only its distinctive typography, composition, and purposeful local motion.
 - Each stage renderer needs an explicit active/upcoming lifecycle and must stop tickers and painting while hidden, during a covered settings drawer, or after returning to now playing.
 - Premeasure complex glyph or bubble layouts and cache the result. Playback position should drive only the smallest active reveal or camera transform; it must not rebuild the entire stage composition.

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/lyrics.dart';
-import '../../providers/lyrics_provider.dart';
 import '../../providers/player_provider.dart';
 
 class FlowingLightLyricsStage extends StatelessWidget {
@@ -18,7 +17,6 @@ class FlowingLightLyricsStage extends StatelessWidget {
   final bool wordByWordEnabled;
   final bool positionUpdatesEnabled;
   final VoidCallback onOpenSettings;
-  final ValueChanged<Duration> onSeek;
 
   const FlowingLightLyricsStage({
     super.key,
@@ -32,19 +30,12 @@ class FlowingLightLyricsStage extends StatelessWidget {
     required this.wordByWordEnabled,
     required this.positionUpdatesEnabled,
     required this.onOpenSettings,
-    required this.onSeek,
   });
 
   @override
   Widget build(BuildContext context) {
     final resolvedIndex = activeIndex.clamp(0, data.lines.length - 1);
     final activeLine = data.lines[resolvedIndex];
-    final previousLine = resolvedIndex > 0
-        ? data.lines[resolvedIndex - 1]
-        : null;
-    final nextLine = resolvedIndex + 1 < data.lines.length
-        ? data.lines[resolvedIndex + 1]
-        : null;
 
     return _LyricsStageShell(
       title: title,
@@ -68,15 +59,12 @@ class FlowingLightLyricsStage extends StatelessWidget {
         },
         child: _FlowingLightComposition(
           key: ValueKey(resolvedIndex),
-          previousLine: previousLine,
           activeLine: activeLine,
-          nextLine: nextLine,
           activeColor: activeColor,
           fontFamily: fontFamily,
           fontSize: fontSize,
           wordByWordEnabled: wordByWordEnabled,
           positionUpdatesEnabled: positionUpdatesEnabled,
-          onSeek: onSeek,
         ),
       ),
     );
@@ -196,119 +184,127 @@ class _LyricsStageShellState extends State<_LyricsStageShell> {
 }
 
 class _FlowingLightComposition extends StatelessWidget {
-  final LyricLine? previousLine;
   final LyricLine activeLine;
-  final LyricLine? nextLine;
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
   final bool positionUpdatesEnabled;
-  final ValueChanged<Duration> onSeek;
 
   const _FlowingLightComposition({
     super.key,
-    required this.previousLine,
     required this.activeLine,
-    required this.nextLine,
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
     required this.positionUpdatesEnabled,
-    required this.onSeek,
   });
 
   @override
   Widget build(BuildContext context) {
-    final quietStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-      color: activeColor.withValues(alpha: 0.26),
-      fontFamily: fontFamily,
-      fontWeight: FontWeight.w600,
-      height: 1.25,
-    );
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (previousLine case final line?)
-          Align(
-            alignment: const Alignment(-0.82, -0.72),
-            child: _SeekableStageLine(
-              line: line,
-              onSeek: onSeek,
-              child: Transform.rotate(
-                angle: -0.018,
-                child: Text(
-                  line.text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: quietStyle,
-                ),
-              ),
-            ),
-          ),
-        Align(
-          alignment: const Alignment(0, -0.02),
-          child: RepaintBoundary(
-            child: _FlowingLightActiveLine(
-              line: activeLine,
-              activeColor: activeColor,
-              fontFamily: fontFamily,
-              fontSize: math.max(fontSize, 32),
-              wordByWordEnabled: wordByWordEnabled,
-              positionUpdatesEnabled: positionUpdatesEnabled,
-            ),
-          ),
+    return Align(
+      alignment: const Alignment(0, 0.08),
+      child: RepaintBoundary(
+        child: _FlowingLightActiveLine(
+          line: activeLine,
+          activeColor: activeColor,
+          fontFamily: fontFamily,
+          fontSize: math.max(fontSize, 36),
+          wordByWordEnabled: wordByWordEnabled,
+          positionUpdatesEnabled: positionUpdatesEnabled,
         ),
-        if (nextLine case final line?)
-          Align(
-            alignment: const Alignment(0.78, 0.72),
-            child: _SeekableStageLine(
-              line: line,
-              onSeek: onSeek,
-              child: Transform.rotate(
-                angle: 0.014,
-                child: Text(
-                  line.text,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: quietStyle?.copyWith(
-                    color: activeColor.withValues(alpha: 0.38),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 }
 
-class _SeekableStageLine extends StatelessWidget {
-  final LyricLine line;
-  final ValueChanged<Duration> onSeek;
-  final Widget child;
+@immutable
+class FlowingLightToken {
+  final String text;
+  final Duration start;
+  final Duration end;
+  final bool isLatinWord;
 
-  const _SeekableStageLine({
-    required this.line,
-    required this.onSeek,
-    required this.child,
+  const FlowingLightToken({
+    required this.text,
+    required this.start,
+    required this.end,
+    required this.isLatinWord,
   });
+}
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: line.start == null ? null : () => onSeek(line.start!),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.68,
+List<FlowingLightToken> flowingLightTokensForLine(LyricLine line) {
+  final tokens = <FlowingLightToken>[];
+  for (var wordIndex = 0; wordIndex < line.words.length; wordIndex++) {
+    final word = line.words[wordIndex];
+    final glyphs = word.text.characters.toList(growable: false);
+    if (glyphs.isEmpty) continue;
+    final start = word.start ?? line.start;
+    if (start == null) continue;
+    final nextStart = wordIndex + 1 < line.words.length
+        ? line.words[wordIndex + 1].start
+        : null;
+    final end = word.end ?? nextStart ?? line.end ?? start;
+    final totalMicros = math.max(0, (end - start).inMicroseconds);
+    final pieces = <({String text, bool latin, int weight})>[];
+    var index = 0;
+    while (index < glyphs.length) {
+      if (_isWhitespace(glyphs[index])) {
+        index++;
+        continue;
+      }
+      final tokenStartIndex = index;
+      final latin = _isLatinWordGlyph(glyphs[index]);
+      if (latin) {
+        while (index < glyphs.length && _isLatinWordGlyph(glyphs[index])) {
+          index++;
+        }
+      } else {
+        index++;
+      }
+      final tokenEndIndex = index;
+      pieces.add((
+        text: glyphs.sublist(tokenStartIndex, tokenEndIndex).join(),
+        latin: latin,
+        weight: tokenEndIndex - tokenStartIndex,
+      ));
+    }
+    final totalWeight = pieces.fold<int>(0, (sum, piece) => sum + piece.weight);
+    var elapsedWeight = 0;
+    for (final piece in pieces) {
+      final tokenStart =
+          start +
+          Duration(
+            microseconds: totalWeight == 0
+                ? 0
+                : totalMicros * elapsedWeight ~/ totalWeight,
+          );
+      elapsedWeight += piece.weight;
+      final tokenEnd =
+          start +
+          Duration(
+            microseconds: totalWeight == 0
+                ? 0
+                : totalMicros * elapsedWeight ~/ totalWeight,
+          );
+      tokens.add(
+        FlowingLightToken(
+          text: piece.text,
+          start: tokenStart,
+          end: tokenEnd,
+          isLatinWord: piece.latin,
         ),
-        child: Padding(padding: const EdgeInsets.all(12), child: child),
-      ),
-    );
+      );
+    }
   }
+  return tokens;
+}
+
+bool _isWhitespace(String glyph) => glyph.trim().isEmpty;
+
+bool _isLatinWordGlyph(String glyph) {
+  return RegExp(r"^[A-Za-z0-9À-ÖØ-öø-ÿ'’_-]$").hasMatch(glyph);
 }
 
 class _FlowingLightActiveLine extends ConsumerWidget {
@@ -330,175 +326,147 @@ class _FlowingLightActiveLine extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasWordTiming = line.words.any((word) => word.start != null);
-    final hasLineTiming = line.start != null && line.end != null;
+    final tokens = flowingLightTokensForLine(line);
+    final hasWordTiming = tokens.isNotEmpty;
     final shouldTrack =
-        positionUpdatesEnabled &&
-        (hasLineTiming || (wordByWordEnabled && hasWordTiming));
+        positionUpdatesEnabled && wordByWordEnabled && hasWordTiming;
     final position = shouldTrack
         ? ref.watch(playerProvider.select((state) => state.position))
-        : line.start ?? Duration.zero;
+        : ref.read(playerProvider).position;
     return TweenAnimationBuilder<double>(
       tween: Tween(end: position.inMicroseconds.toDouble()),
       duration: const Duration(milliseconds: 180),
       curve: Curves.linear,
       builder: (context, microseconds, _) {
         final animatedPosition = Duration(microseconds: microseconds.round());
-        final progress = _lineProgress(line, animatedPosition);
         final style = Theme.of(context).textTheme.headlineLarge!.copyWith(
           fontSize: fontSize,
-          height: 1.18,
+          height: 1.12,
           fontFamily: fontFamily,
           fontWeight: FontWeight.w800,
           color: activeColor,
           shadows: [
-            Shadow(color: activeColor.withValues(alpha: 0.28), blurRadius: 22),
             Shadow(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.black.withValues(alpha: 0.18),
               offset: const Offset(0, 2),
-              blurRadius: 10,
+              blurRadius: 8,
             ),
           ],
         );
-        return Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _FlowingLightPainter(
-                    color: activeColor,
-                    progress: progress,
-                  ),
+        if (!wordByWordEnabled || !hasWordTiming) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 30),
+            child: Text(line.text, textAlign: TextAlign.center, style: style),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 38),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 1,
+            runSpacing: 7,
+            children: [
+              for (final token in tokens)
+                _FlowingLightTokenView(
+                  token: token,
+                  position: animatedPosition,
+                  style: style,
+                  color: activeColor,
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 30),
-              child: wordByWordEnabled && hasWordTiming
-                  ? Text.rich(
-                      TextSpan(
-                        children: _timedGlyphs(
-                          line,
-                          animatedPosition,
-                          style,
-                          activeColor,
-                        ),
-                      ),
-                      textAlign: TextAlign.center,
-                    )
-                  : Text(line.text, textAlign: TextAlign.center, style: style),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
   }
 }
 
-List<InlineSpan> _timedGlyphs(
-  LyricLine line,
-  Duration position,
-  TextStyle style,
-  Color activeColor,
-) {
-  final spans = <InlineSpan>[];
-  for (final word in line.words) {
-    final glyphs = word.text.characters.toList(growable: false);
-    for (var glyphIndex = 0; glyphIndex < glyphs.length; glyphIndex++) {
-      final raw = lyricGlyphProgress(
-        word,
-        position,
-        glyphIndex: glyphIndex,
-        glyphCount: glyphs.length,
+class _FlowingLightTokenView extends StatelessWidget {
+  static const _popDuration = Duration(milliseconds: 520);
+
+  final FlowingLightToken token;
+  final Duration position;
+  final TextStyle style;
+  final Color color;
+
+  const _FlowingLightTokenView({
+    required this.token,
+    required this.position,
+    required this.style,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsedMicros = (position - token.start).inMicroseconds;
+    final reveal = (elapsedMicros / _popDuration.inMicroseconds)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final visible = elapsedMicros >= 0;
+    final horizontalPadding = token.isLatinWord ? 4.0 : 0.5;
+    final text = Text(token.text, style: style);
+    if (!visible) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+        child: Opacity(opacity: 0, child: text),
       );
-      final progress = Curves.easeOutCubic.transform(raw);
-      final frontier = (1 - (raw * 2 - 1).abs()).clamp(0.0, 1.0);
-      spans.add(
-        TextSpan(
-          text: glyphs[glyphIndex],
-          style: style.copyWith(
-            color: Color.lerp(
-              activeColor.withValues(alpha: 0.16),
-              activeColor,
-              progress,
-            ),
-            shadows: [
-              ...?style.shadows,
-              if (frontier > 0.02)
-                Shadow(
-                  color: Colors.white.withValues(alpha: 0.5 * frontier),
-                  blurRadius: 16 * frontier,
+    }
+    final scale = 0.18 + 0.82 * Curves.elasticOut.transform(reveal);
+    final lift = 12 * (1 - Curves.easeOutCubic.transform(reveal));
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: Transform.translate(
+        offset: Offset(0, lift),
+        child: Transform.scale(
+          scale: scale,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              if (reveal < 1)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _TokenRingPainter(
+                        color: color,
+                        progress: reveal,
+                      ),
+                    ),
+                  ),
                 ),
+              Opacity(
+                opacity: (reveal * 4).clamp(0.0, 1.0).toDouble(),
+                child: text,
+              ),
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
   }
-  return spans;
 }
 
-double _lineProgress(LyricLine line, Duration position) {
-  final start = line.start;
-  final end = line.end;
-  if (start == null || end == null || end <= start) return 0.5;
-  return ((position - start).inMicroseconds / (end - start).inMicroseconds)
-      .clamp(0.0, 1.0)
-      .toDouble();
-}
-
-class _FlowingLightPainter extends CustomPainter {
+class _TokenRingPainter extends CustomPainter {
   final Color color;
   final double progress;
 
-  const _FlowingLightPainter({required this.color, required this.progress});
+  const _TokenRingPainter({required this.color, required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final center = Offset(
-      size.width * (0.08 + progress * 0.84),
-      size.height / 2,
-    );
-    final glowPaint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          color.withValues(alpha: 0.2),
-          color.withValues(alpha: 0.055),
-          Colors.transparent,
-        ],
-        stops: const [0, 0.42, 1],
-      ).createShader(Rect.fromCircle(center: center, radius: size.width * 0.3));
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: center,
-        width: size.width * 0.62,
-        height: math.min(108, size.height * 0.8),
-      ),
-      glowPaint,
-    );
-
-    final streakPaint = Paint()
-      ..strokeWidth = 1.2
-      ..shader = LinearGradient(
-        colors: [
-          Colors.transparent,
-          color.withValues(alpha: 0.28),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, 1));
-    final y = size.height * (0.42 + progress * 0.16);
-    canvas.drawLine(
-      Offset(size.width * 0.12, y),
-      Offset(size.width * 0.88, y),
-      streakPaint,
-    );
+    final eased = Curves.easeOutCubic.transform(progress);
+    final radius = math.max(size.width, size.height) * (0.42 + eased * 1.05);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4 * (1 - progress) + 0.7
+      ..color = color.withValues(alpha: 0.5 * (1 - progress));
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), radius, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _FlowingLightPainter oldDelegate) {
+  bool shouldRepaint(covariant _TokenRingPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
