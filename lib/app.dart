@@ -18,6 +18,7 @@ import 'providers/sidebar_image_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/hotlist_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/library_canvas_screen.dart';
 import 'screens/now_playing_screen.dart';
 import 'screens/personalization_screen.dart';
 import 'screens/settings_hub_screen.dart';
@@ -324,6 +325,26 @@ class _MainShellState extends ConsumerState<MainShell>
     ).push(MaterialPageRoute(builder: (_) => const PersonalizationScreen()));
   }
 
+  void _openLibraryCanvas() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const LibraryCanvasScreen(),
+        transitionDuration: const Duration(milliseconds: 620),
+        reverseTransitionDuration: const Duration(milliseconds: 480),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.18, 1, curve: Curves.easeOutCubic),
+            ),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
   bool _shouldAllowDrawerPointer(PointerDownEvent event, double drawerWidth) {
     if (drawerWidth <= 0) return false;
     if (_isDraggingDrawer) return false;
@@ -517,6 +538,7 @@ class _MainShellState extends ConsumerState<MainShell>
                     child: HomeSidebar(
                       onSettingsTap: _openSettingsHub,
                       onPersonalizationTap: _openPersonalization,
+                      onLibraryCanvasTap: _openLibraryCanvas,
                     ),
                   ),
                 ),

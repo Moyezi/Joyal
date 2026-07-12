@@ -14,11 +14,13 @@ import '../providers/theme_provider.dart';
 class HomeSidebar extends ConsumerWidget {
   final VoidCallback onSettingsTap;
   final VoidCallback onPersonalizationTap;
+  final VoidCallback onLibraryCanvasTap;
 
   const HomeSidebar({
     super.key,
     required this.onSettingsTap,
     required this.onPersonalizationTap,
+    required this.onLibraryCanvasTap,
   });
 
   @override
@@ -81,7 +83,7 @@ class HomeSidebar extends ConsumerWidget {
                       totalSongCount: librarySongs.length,
                     ),
                     const SizedBox(height: 16),
-                    const _SidebarImagePanel(),
+                    _SidebarImagePanel(onTap: onLibraryCanvasTap),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -306,19 +308,21 @@ class _ListeningStat extends StatelessWidget {
 }
 
 class _SidebarImagePanel extends ConsumerWidget {
-  const _SidebarImagePanel();
+  final VoidCallback onTap;
+
+  const _SidebarImagePanel({required this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sidebarImageProvider);
     final hasImage = state.imagePath != null && state.imagePath!.isNotEmpty;
 
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        child: hasImage
-            ? Image.file(
+    final panel = ClipRRect(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      child: hasImage
+          ? Hero(
+              tag: libraryCanvasHeroTag,
+              child: Image.file(
                 File(state.imagePath!),
                 fit: BoxFit.cover,
                 alignment: Alignment(state.alignmentX, state.alignmentY),
@@ -328,15 +332,35 @@ class _SidebarImagePanel extends ConsumerWidget {
                     icon: Icons.broken_image_outlined,
                   );
                 },
-              )
-            : const _SidebarImagePlaceholder(
-                label: '个性化中选择图片',
-                icon: Icons.image_outlined,
               ),
-      ),
+            )
+          : const _SidebarImagePlaceholder(
+              label: '个性化中选择图片',
+              icon: Icons.image_outlined,
+            ),
+    );
+
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: hasImage
+          ? Semantics(
+              button: true,
+              label: '打开无限画布曲库',
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  onTap: onTap,
+                  child: panel,
+                ),
+              ),
+            )
+          : panel,
     );
   }
 }
+
+const String libraryCanvasHeroTag = 'library-canvas-sidebar-image';
 
 class _SidebarImagePlaceholder extends StatelessWidget {
   final String label;
