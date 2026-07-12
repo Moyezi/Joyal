@@ -317,11 +317,11 @@ class _SidebarImagePanel extends ConsumerWidget {
     final state = ref.watch(sidebarImageProvider);
     final hasImage = state.imagePath != null && state.imagePath!.isNotEmpty;
 
-    final panel = ClipRRect(
-      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      child: hasImage
-          ? Hero(
-              tag: libraryCanvasHeroTag,
+    final panel = hasImage
+        ? Hero(
+            tag: libraryCanvasHeroTag,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               child: Image.file(
                 File(state.imagePath!),
                 fit: BoxFit.cover,
@@ -333,12 +333,15 @@ class _SidebarImagePanel extends ConsumerWidget {
                   );
                 },
               ),
-            )
-          : const _SidebarImagePlaceholder(
+            ),
+          )
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            child: const _SidebarImagePlaceholder(
               label: '个性化中选择图片',
               icon: Icons.image_outlined,
             ),
-    );
+          );
 
     return AspectRatio(
       aspectRatio: 16 / 9,

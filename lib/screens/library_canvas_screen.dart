@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../models/song.dart';
 import '../providers/library_provider.dart';
@@ -34,6 +35,7 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   Map<int, int> _indexByCell = const {};
   int _songCount = -1;
   bool _hasInitialFocus = false;
+  int? _lastDragFocusIndex;
 
   @override
   void initState() {
@@ -179,13 +181,23 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
                       behavior: HitTestBehavior.opaque,
                       onPanStart: (_) {
                         _snapController.stop();
+                        _lastDragFocusIndex = _nearestVisibleIndex(size);
+                        HapticFeedback.lightImpact();
                       },
-                      onPanUpdate: (details) =>
-                          setState(() => _canvasOffset += details.delta),
+                      onPanUpdate: (details) {
+                        setState(() => _canvasOffset += details.delta);
+                        final nearest = _nearestVisibleIndex(size);
+                        if (nearest != null && nearest != _lastDragFocusIndex) {
+                          _lastDragFocusIndex = nearest;
+                          HapticFeedback.selectionClick();
+                        }
+                      },
                       onPanEnd: (_) {
                         final nearest = _nearestVisibleIndex(size);
+                        _lastDragFocusIndex = null;
                         if (nearest != null) _animateToIndex(nearest);
                       },
+                      onPanCancel: () => _lastDragFocusIndex = null,
                       child: ColoredBox(
                         color: const Color(0xFF121416),
                         child: songs.isEmpty
