@@ -19,6 +19,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final VoidCallback onOpenSettings;
 
@@ -33,6 +34,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
+    required this.stageVisible,
     required this.positionUpdatesEnabled,
     required this.onOpenSettings,
   });
@@ -56,6 +58,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
       artist: artist,
       foreground: activeColor,
       onOpenSettings: onOpenSettings,
+      headerVisibleDuration: stageVisible ? const Duration(seconds: 5) : null,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 620),
         reverseDuration: const Duration(milliseconds: 360),

@@ -35,38 +35,6 @@ class _LyricsStageShellState extends State<LyricsStageShell> {
   final Map<int, Offset> _pointers = {};
   double? _startDistance;
   bool _opened = false;
-  bool _headerVisible = true;
-  Timer? _headerTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _scheduleHeaderFade();
-  }
-
-  @override
-  void didUpdateWidget(covariant LyricsStageShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.headerVisibleDuration != widget.headerVisibleDuration) {
-      _headerVisible = true;
-      _scheduleHeaderFade();
-    }
-  }
-
-  void _scheduleHeaderFade() {
-    _headerTimer?.cancel();
-    final duration = widget.headerVisibleDuration;
-    if (duration == null) return;
-    _headerTimer = Timer(duration, () {
-      if (mounted) setState(() => _headerVisible = false);
-    });
-  }
-
-  @override
-  void dispose() {
-    _headerTimer?.cancel();
-    super.dispose();
-  }
 
   double? get _distance {
     if (_pointers.length < 2) return null;
@@ -119,42 +87,113 @@ class _LyricsStageShellState extends State<LyricsStageShell> {
         fit: StackFit.expand,
         children: [
           Padding(padding: widget.contentPadding, child: widget.child),
-          AnimatedOpacity(
-            opacity: _headerVisible ? 1 : 0,
-            duration: const Duration(milliseconds: 720),
-            curve: Curves.easeInOutCubic,
-            child: IgnorePointer(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(22, topInset + 18, 22, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: widget.foreground.withValues(alpha: 0.92),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: widget.foreground.withValues(alpha: 0.66),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          LyricsStageHeader(
+            title: widget.title,
+            artist: widget.artist,
+            foreground: widget.foreground,
+            visibleDuration: widget.headerVisibleDuration,
+            padding: EdgeInsets.fromLTRB(22, topInset + 18, 22, 18),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shared song/artist overlay used by every lyrics presentation mode.
+///
+/// A null [visibleDuration] keeps the header visible. This is also used while
+/// the lyrics surface is still transitioning in; changing to a duration starts
+/// the countdown only after the surface becomes the settled foreground.
+class LyricsStageHeader extends StatefulWidget {
+  final String title;
+  final String artist;
+  final Color foreground;
+  final Duration? visibleDuration;
+  final EdgeInsetsGeometry padding;
+
+  const LyricsStageHeader({
+    super.key,
+    required this.title,
+    required this.artist,
+    required this.foreground,
+    this.visibleDuration,
+    required this.padding,
+  });
+
+  @override
+  State<LyricsStageHeader> createState() => _LyricsStageHeaderState();
+}
+
+class _LyricsStageHeaderState extends State<LyricsStageHeader> {
+  bool _visible = true;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleFade();
+  }
+
+  @override
+  void didUpdateWidget(covariant LyricsStageHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visibleDuration != widget.visibleDuration) {
+      _visible = true;
+      _scheduleFade();
+    }
+  }
+
+  void _scheduleFade() {
+    _timer?.cancel();
+    final duration = widget.visibleDuration;
+    if (duration == null) return;
+    _timer = Timer(duration, () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _visible ? 1 : 0,
+      duration: const Duration(milliseconds: 720),
+      curve: Curves.easeInOutCubic,
+      child: IgnorePointer(
+        child: Padding(
+          padding: widget.padding,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: widget.foreground.withValues(alpha: 0.92),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: widget.foreground.withValues(alpha: 0.66),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

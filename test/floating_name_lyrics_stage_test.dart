@@ -1,5 +1,4 @@
-import 'dart:ui';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/models/lyrics.dart';
 import 'package:joyal_music/models/song_highlight.dart';
@@ -112,6 +111,29 @@ void main() {
       expect(floatingNameTypedGraphemeCount(5.8, 6), 6);
     },
   );
+
+  test('floating name reveal colors glyphs without rectangular clipping', () {
+    const revealed = Color(0xFFFFFFFF);
+    const pending = Color(0x1CFFFFFF);
+    final span = floatingNameRevealSpan(
+      glyphs: const ['上', '一', '行', '\n', '下', '一', '行'],
+      style: const TextStyle(fontSize: 42, height: 1.03),
+      typedCount: 3,
+      revealedColor: revealed,
+      pendingColor: pending,
+    );
+    final children = span.children!.cast<TextSpan>().toList(growable: false);
+
+    expect(children.take(3).map((child) => child.style!.color), [
+      revealed,
+      revealed,
+      revealed,
+    ]);
+    expect(
+      children.skip(3).map((child) => child.style!.color),
+      everyElement(pending),
+    );
+  });
 
   test('floating name article expands sideways in a snake', () {
     const spacing = 300.0;

@@ -496,6 +496,8 @@ class _FloatingBlock {
   final List<Rect> glyphBoxes;
   final double maxWidth;
   final Map<int, TextPainter> _coloredPainters = {};
+  TextPainter? _typedPainter;
+  int? _typedPainterKey;
 
   _FloatingBlock({
     required this.index,
@@ -525,6 +527,57 @@ class _FloatingBlock {
       )..layout(maxWidth: maxWidth);
     });
   }
+
+  TextPainter painterForTypedPrefix({
+    required int typedCount,
+    required Color revealedColor,
+    required Color pendingColor,
+  }) {
+    final resolvedCount = typedCount.clamp(0, glyphs.length);
+    final key = Object.hash(
+      resolvedCount,
+      revealedColor.toARGB32(),
+      pendingColor.toARGB32(),
+    );
+    if (_typedPainterKey == key && _typedPainter != null) {
+      return _typedPainter!;
+    }
+    _typedPainterKey = key;
+    return _typedPainter = TextPainter(
+      text: floatingNameRevealSpan(
+        glyphs: glyphs,
+        style: style,
+        typedCount: resolvedCount,
+        revealedColor: revealedColor,
+        pendingColor: pendingColor,
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: textPainter.maxLines,
+    )..layout(maxWidth: maxWidth);
+  }
+}
+
+@visibleForTesting
+TextSpan floatingNameRevealSpan({
+  required List<String> glyphs,
+  required TextStyle style,
+  required int typedCount,
+  required Color revealedColor,
+  required Color pendingColor,
+}) {
+  final resolvedCount = typedCount.clamp(0, glyphs.length);
+  return TextSpan(
+    style: style,
+    children: [
+      for (var index = 0; index < glyphs.length; index++)
+        TextSpan(
+          text: glyphs[index],
+          style: TextStyle(
+            color: index < resolvedCount ? revealedColor : pendingColor,
+          ),
+        ),
+    ],
+  );
 }
 
 class _FloatingNamePainter extends CustomPainter {
@@ -660,25 +713,20 @@ class _FloatingNamePainter extends CustomPainter {
   }
 
   void _paintActiveBlock(Canvas canvas, _FloatingBlock block, double progress) {
-    _paintBlockText(canvas, block, activeColor.withValues(alpha: 0.11));
-
     final typedCount = floatingNameTypedGraphemeCount(
       progress,
       block.glyphs.length,
     );
-    final revealPath = Path();
-    for (
-      var index = 0;
-      index < typedCount && index < block.glyphBoxes.length;
-      index++
-    ) {
-      final box = block.glyphBoxes[index];
-      if (box != Rect.zero) revealPath.addRect(box.shift(block.origin));
-    }
-    canvas.save();
-    canvas.clipPath(revealPath);
-    _paintBlockText(canvas, block, activeColor.withValues(alpha: 0.98));
-    canvas.restore();
+    // Color each grapheme directly. Clipping a fully bright TextPainter with
+    // selection rectangles can expose the tops of glyphs on the next visual
+    // row when a font's ink bounds overlap tight line metrics.
+    block
+        .painterForTypedPrefix(
+          typedCount: typedCount,
+          revealedColor: activeColor.withValues(alpha: 0.98),
+          pendingColor: activeColor.withValues(alpha: 0.11),
+        )
+        .paint(canvas, block.origin);
 
     if (!motionEnabled || typedCount == 0) return;
     final activeGlyphIndex = typedCount - 1;

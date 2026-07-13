@@ -20,6 +20,7 @@ import '../widgets/album_visual_palette.dart';
 import '../widgets/frosted_glass.dart';
 import '../widgets/lyrics_stage/flowing_light_lyrics_stage.dart';
 import '../widgets/lyrics_stage/floating_name_lyrics_stage.dart';
+import '../widgets/lyrics_stage/lyrics_stage_shell.dart';
 
 class _LyricsPaletteRequest {
   final String coverArtId;
@@ -117,12 +118,14 @@ Color _withMaximumLuminance(Color color, double target) {
 
 class LyricsScreen extends ConsumerStatefulWidget {
   final VoidCallback? onBack;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
 
   const LyricsScreen({
     super.key,
     this.onBack,
+    this.stageVisible = true,
     this.positionUpdatesEnabled = true,
     this.onSettingsSheetVisibilityChanged,
   });
@@ -211,6 +214,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                       title: song.title,
                       artist: song.artist,
                       dynamicColor: dynamicLyricColor,
+                      stageVisible: widget.stageVisible,
                       positionUpdatesEnabled: widget.positionUpdatesEnabled,
                       onSettingsSheetVisibilityChanged:
                           widget.onSettingsSheetVisibilityChanged,
@@ -227,6 +231,7 @@ class _LyricsPositionedList extends ConsumerWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
 
@@ -236,6 +241,7 @@ class _LyricsPositionedList extends ConsumerWidget {
     required this.title,
     required this.artist,
     this.dynamicColor,
+    required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
   });
@@ -258,6 +264,7 @@ class _LyricsPositionedList extends ConsumerWidget {
         title: title,
         artist: artist,
         dynamicColor: dynamicColor,
+        stageVisible: stageVisible,
         positionUpdatesEnabled: positionUpdatesEnabled,
         onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
       );
@@ -268,6 +275,7 @@ class _LyricsPositionedList extends ConsumerWidget {
       title: title,
       artist: artist,
       dynamicColor: dynamicColor,
+      stageVisible: stageVisible,
       positionUpdatesEnabled: positionUpdatesEnabled,
       onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
       onSeek: (position) {
@@ -285,6 +293,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
 
@@ -296,6 +305,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
     required this.title,
     required this.artist,
     required this.dynamicColor,
+    required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
   });
@@ -346,7 +356,7 @@ class _FlowingLightStageHostState
         fontFamily: preferences.effectiveFontFamily,
         fontSize: preferences.floatingNameFontSize,
         wordByWordEnabled: preferences.wordByWordEnabled,
-        stageVisible: widget.positionUpdatesEnabled,
+        stageVisible: widget.stageVisible,
         positionUpdatesEnabled:
             widget.positionUpdatesEnabled && !_settingsSheetOpen,
         onOpenSettings: () => unawaited(_openSettings()),
@@ -366,6 +376,7 @@ class _FlowingLightStageHostState
       fontFamily: preferences.effectiveFontFamily,
       fontSize: preferences.flowingLightFontSize,
       wordByWordEnabled: preferences.wordByWordEnabled,
+      stageVisible: widget.stageVisible,
       positionUpdatesEnabled:
           widget.positionUpdatesEnabled && !_settingsSheetOpen,
       onOpenSettings: () => unawaited(_openSettings()),
@@ -379,6 +390,7 @@ class _LyricsList extends ConsumerStatefulWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
   final ValueChanged<Duration> onSeek;
@@ -389,6 +401,7 @@ class _LyricsList extends ConsumerStatefulWidget {
     required this.title,
     required this.artist,
     required this.dynamicColor,
+    required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
     required this.onSeek,
@@ -729,33 +742,14 @@ class _LyricsListState extends ConsumerState<_LyricsList> {
               ),
             ),
           ),
-          Padding(
+          LyricsStageHeader(
+            title: widget.title,
+            artist: widget.artist,
+            foreground: activeColor,
+            visibleDuration: widget.stageVisible
+                ? const Duration(seconds: 5)
+                : null,
             padding: EdgeInsets.fromLTRB(22, titleTop, 22, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.textTitleLarge.copyWith(
-                    color: activeColor.withValues(alpha: 0.92),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.textBodyMedium.copyWith(
-                    color: activeColor.withValues(alpha: 0.68),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),

@@ -520,6 +520,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         ? RepaintBoundary(
             child: LyricsScreen(
               onBack: _hideLyrics,
+              stageVisible: _lyricsForeground,
               positionUpdatesEnabled: _lyricsForeground && !_lyricsSettingsOpen,
               onSettingsSheetVisibilityChanged: _handleLyricsSettingsVisibility,
             ),
