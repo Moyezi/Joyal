@@ -84,6 +84,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Exiting the lyrics page uses the existing horizontal swipe/switching flow.
 - The default scrolling renderer lives in `lib/widgets/lyrics/default_lyrics_view.dart`. Its Folia-inspired focus transition returns the active line to full scale while passed and upcoming lines recede slightly to opposite horizontal sides. Keep it as the default renderer rather than treating it as a full-screen stage mode.
 - Word-by-word presentation in the default renderer uses `lyricGlyphProgress()` to distribute each `LyricWord` time range across Unicode grapheme clusters and renders a glyph-level color sweep with a short glow only at the reveal frontier.
+- Reuse `lib/widgets/lyrics/lyric_print_effect.dart` for the default renderer and `浮名`: as each timed grapheme highlights, strike it with the blurred print stamp and move the glyph from its baseline up by at most 10% of its font size before settling. Keep the default renderer's existing color sweep and frontier glow. Do not animate whitespace, word-by-word-off content, covered/disabled position updates, or reduced-motion states.
 - Only the active timed line may watch high-frequency player position. Inactive lines, the whole list, the background, and future stage shells must not rebuild for every position update.
 - Keep `lyrics_screen.dart` as page orchestration. Dynamic palette resolution, the default renderer, personalization sheet, and sheet controls belong under `lib/widgets/lyrics/`; independent visual stages belong under `lib/widgets/lyrics_stage/`.
 
@@ -142,7 +143,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - API and library: `lib/services/subsonic_api.dart`, `library_provider.dart`.
 - Player: `audio_player_service.dart`, `lib/providers/player_provider.dart`, `play_queue_sheet.dart`.
 - Stats: `listening_stats_provider.dart`.
-- Lyrics orchestration and settings: `lyrics_screen.dart`, `widgets/lyrics/default_lyrics_view.dart`, `widgets/lyrics/lyrics_palette.dart`, `widgets/lyrics/lyrics_personalization_sheet.dart`, `widgets/lyrics/lyrics_settings_controls.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`.
+- Lyrics orchestration and settings: `lyrics_screen.dart`, `widgets/lyrics/default_lyrics_view.dart`, `widgets/lyrics/lyric_print_effect.dart`, `widgets/lyrics/lyrics_palette.dart`, `widgets/lyrics/lyrics_personalization_sheet.dart`, `widgets/lyrics/lyrics_settings_controls.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`.
 - Lyrics stages and analysis: `song_highlight_provider.dart`, `models/song_highlight.dart`, `services/deepseek_highlight_service.dart`, `services/song_highlight_repository.dart`, `widgets/lyrics_stage/lyrics_stage_shell.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`, `widgets/lyrics_stage/floating_name_lyrics_stage.dart`.
 - MiniPlayer: `mini_player.dart`, `mini_player_chrome.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.

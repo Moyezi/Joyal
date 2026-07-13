@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import '../../providers/lyrics_personalization_provider.dart';
 import '../../providers/lyrics_provider.dart';
 import '../../providers/player_provider.dart';
 import '../lyrics_stage/lyrics_stage_shell.dart';
+import 'lyric_print_effect.dart';
 import 'lyrics_palette.dart';
 import 'lyrics_personalization_sheet.dart';
 
@@ -487,6 +489,7 @@ class _TimedLyricText extends ConsumerWidget {
     final position = ref.watch(
       playerProvider.select((state) => state.position),
     );
+    final motionEnabled = !MediaQuery.disableAnimationsOf(context);
 
     return TweenAnimationBuilder<double>(
       tween: Tween(end: position.inMicroseconds.toDouble()),
@@ -506,6 +509,7 @@ class _TimedLyricText extends ConsumerWidget {
                   style,
                   pendingColor,
                   activeColor,
+                  motionEnabled,
                 ),
             ],
           ),
@@ -521,6 +525,7 @@ class _TimedLyricText extends ConsumerWidget {
     TextStyle style,
     Color pendingColor,
     Color activeColor,
+    bool motionEnabled,
   ) {
     final glyphs = word.text.characters.toList(growable: false);
     if (glyphs.isEmpty) return const [];
@@ -541,13 +546,72 @@ class _TimedLyricText extends ConsumerWidget {
             blurRadius: 12 * frontier,
           ),
       ];
-      return TextSpan(
-        text: glyphs[glyphIndex],
-        style: style.copyWith(
-          color: Color.lerp(pendingColor, activeColor, progress),
-          shadows: shadows,
+      final glyph = glyphs[glyphIndex];
+      final glyphStyle = style.copyWith(
+        color: Color.lerp(pendingColor, activeColor, progress),
+        shadows: shadows,
+      );
+      final effectEnabled = motionEnabled && glyph.trim().isNotEmpty;
+      final fontSize = glyphStyle.fontSize ?? 28;
+      final bounceOffset = effectEnabled
+          ? lyricPrintGlyphBounceOffset(rawProgress, fontSize)
+          : 0.0;
+      final stampPulse = effectEnabled
+          ? lyricPrintStampPulse(rawProgress)
+          : 0.0;
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: Transform.translate(
+          offset: Offset(0, bounceOffset),
+          transformHitTests: false,
+          child: CustomPaint(
+            painter: _DefaultLyricPrintStampPainter(
+              color: activeColor,
+              fontSize: fontSize,
+              pulse: stampPulse,
+            ),
+            child: Text(glyph, style: glyphStyle),
+          ),
         ),
       );
     });
+  }
+}
+
+class _DefaultLyricPrintStampPainter extends CustomPainter {
+  final Color color;
+  final double fontSize;
+  final double pulse;
+
+  const _DefaultLyricPrintStampPainter({
+    required this.color,
+    required this.fontSize,
+    required this.pulse,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (pulse <= 0 || size.isEmpty) return;
+    final stampWidth = math.max(size.width * 0.86, fontSize * 0.34);
+    final stampRect = Rect.fromCenter(
+      center: Offset(size.width / 2, -fontSize * (0.10 + 0.18 * pulse)),
+      width: stampWidth,
+      height: fontSize * 0.56,
+    );
+    final stampPaint = Paint()
+      ..color = color.withValues(alpha: 0.62 * pulse)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 + fontSize * 0.08);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(stampRect, Radius.circular(fontSize * 0.06)),
+      stampPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DefaultLyricPrintStampPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.fontSize != fontSize ||
+        oldDelegate.pulse != pulse;
   }
 }

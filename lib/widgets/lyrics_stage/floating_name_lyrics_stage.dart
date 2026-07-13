@@ -11,6 +11,7 @@ import '../../models/song_highlight.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../../services/audio_player_service.dart';
+import '../lyrics/lyric_print_effect.dart';
 import 'lyrics_stage_shell.dart';
 
 /// Folia-inspired "浮名" stage, implemented independently for Joyal.
@@ -295,10 +296,7 @@ int floatingNameTypedGraphemeCount(double progress, int glyphCount) {
 /// The maximum travel is 10% of the laid-out font size.
 @visibleForTesting
 double floatingNameGlyphBounceOffset(double progress, double fontSize) {
-  if (progress <= 0 || fontSize <= 0) return 0;
-  final phase = progress - progress.floor();
-  if (phase <= 0) return 0;
-  return -fontSize * 0.10 * math.sin(math.pi * phase);
+  return lyricPrintGlyphBounceOffset(progress, fontSize);
 }
 
 /// A three-column snake keeps the article moving sideways as well as down.
@@ -799,9 +797,7 @@ class _FloatingNamePainter extends CustomPainter {
 
     final box = block.glyphBoxes[activeGlyphIndex];
     if (box == Rect.zero) return;
-    var strikePhase = (progress - progress.floor()).clamp(0.0, 1.0);
-    if (strikePhase == 0 && progress > 0) strikePhase = 1;
-    final pulse = 1 - Curves.easeOutCubic.transform(strikePhase);
+    final pulse = lyricPrintStampPulse(progress);
     final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
     final stampRect = Rect.fromCenter(
       center: block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
