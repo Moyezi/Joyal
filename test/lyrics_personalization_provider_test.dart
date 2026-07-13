@@ -18,13 +18,13 @@ void main() {
       LyricsStageMode.fromStorageValue('default_scroll'),
       LyricsStageMode.defaultScroll,
     );
+    expect(
+      LyricsStageMode.fromStorageValue('floating_name'),
+      LyricsStageMode.floatingName,
+    );
   });
 
   test('unfinished and unknown lyrics stages fall back to default', () {
-    expect(
-      LyricsStageMode.fromStorageValue('floating_name'),
-      LyricsStageMode.defaultScroll,
-    );
     expect(
       LyricsStageMode.fromStorageValue('chorus'),
       LyricsStageMode.defaultScroll,

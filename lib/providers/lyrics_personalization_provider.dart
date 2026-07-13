@@ -12,6 +12,7 @@ const _alignmentKey = 'lyrics_alignment';
 const _fontFamilyKey = 'lyrics_font_family';
 const _fontSizeKey = 'lyrics_font_size';
 const _flowingLightFontSizeKey = 'lyrics_flowing_light_font_size';
+const _floatingNameFontSizeKey = 'lyrics_floating_name_font_size';
 const _wordByWordEnabledKey = 'lyrics_word_by_word_enabled';
 const _stageModeKey = 'lyrics_stage_mode';
 const _customFontPathKey = 'lyrics_custom_font_path';
@@ -90,7 +91,8 @@ enum LyricsStageMode {
 
   bool get isAvailable =>
       this == LyricsStageMode.defaultScroll ||
-      this == LyricsStageMode.flowingLight;
+      this == LyricsStageMode.flowingLight ||
+      this == LyricsStageMode.floatingName;
 
   static LyricsStageMode fromStorageValue(String? value) {
     final mode = LyricsStageMode.values.firstWhere(
@@ -108,12 +110,16 @@ class LyricsPersonalizationState {
   static const double minFlowingLightFontSize = 28;
   static const double maxFlowingLightFontSize = 56;
   static const double defaultFlowingLightFontSize = 36;
+  static const double minFloatingNameFontSize = 24;
+  static const double maxFloatingNameFontSize = 52;
+  static const double defaultFloatingNameFontSize = 34;
 
   final LyricsColorMode colorMode;
   final LyricsAlignmentMode alignment;
   final LyricsFontFamily fontFamily;
   final double fontSize;
   final double flowingLightFontSize;
+  final double floatingNameFontSize;
   final bool wordByWordEnabled;
   final LyricsStageMode stageMode;
   final String? customFontPath;
@@ -127,6 +133,7 @@ class LyricsPersonalizationState {
     this.fontFamily = LyricsFontFamily.system,
     this.fontSize = defaultFontSize,
     this.flowingLightFontSize = defaultFlowingLightFontSize,
+    this.floatingNameFontSize = defaultFloatingNameFontSize,
     this.wordByWordEnabled = true,
     this.stageMode = LyricsStageMode.defaultScroll,
     this.customFontPath,
@@ -152,6 +159,7 @@ class LyricsPersonalizationState {
     LyricsFontFamily? fontFamily,
     double? fontSize,
     double? flowingLightFontSize,
+    double? floatingNameFontSize,
     bool? wordByWordEnabled,
     LyricsStageMode? stageMode,
     String? customFontPath,
@@ -166,6 +174,7 @@ class LyricsPersonalizationState {
       fontFamily: fontFamily ?? this.fontFamily,
       fontSize: fontSize ?? this.fontSize,
       flowingLightFontSize: flowingLightFontSize ?? this.flowingLightFontSize,
+      floatingNameFontSize: floatingNameFontSize ?? this.floatingNameFontSize,
       wordByWordEnabled: wordByWordEnabled ?? this.wordByWordEnabled,
       stageMode: stageMode ?? this.stageMode,
       customFontPath: clearCustomFont
@@ -204,6 +213,9 @@ class LyricsPersonalizationNotifier
     final savedFlowingLightFontSize = double.tryParse(
       await _storage.read(key: _flowingLightFontSizeKey) ?? '',
     );
+    final savedFloatingNameFontSize = double.tryParse(
+      await _storage.read(key: _floatingNameFontSizeKey) ?? '',
+    );
     final wordByWordEnabled =
         await _storage.read(key: _wordByWordEnabledKey) != 'false';
     final stageMode = LyricsStageMode.fromStorageValue(
@@ -225,6 +237,14 @@ class LyricsPersonalizationNotifier
             .clamp(
               LyricsPersonalizationState.minFlowingLightFontSize,
               LyricsPersonalizationState.maxFlowingLightFontSize,
+            )
+            .toDouble();
+    final floatingNameFontSize =
+        (savedFloatingNameFontSize ??
+                LyricsPersonalizationState.defaultFloatingNameFontSize)
+            .clamp(
+              LyricsPersonalizationState.minFloatingNameFontSize,
+              LyricsPersonalizationState.maxFloatingNameFontSize,
             )
             .toDouble();
     var resolvedFontFamily = fontFamily;
@@ -272,6 +292,7 @@ class LyricsPersonalizationNotifier
       fontFamily: resolvedFontFamily,
       fontSize: fontSize,
       flowingLightFontSize: flowingLightFontSize,
+      floatingNameFontSize: floatingNameFontSize,
       wordByWordEnabled: wordByWordEnabled,
       stageMode: stageMode,
       customFontPath: customFontPath,
@@ -371,6 +392,20 @@ class LyricsPersonalizationNotifier
     );
   }
 
+  Future<void> setFloatingNameFontSize(double value) async {
+    final next = value
+        .clamp(
+          LyricsPersonalizationState.minFloatingNameFontSize,
+          LyricsPersonalizationState.maxFloatingNameFontSize,
+        )
+        .toDouble();
+    state = state.copyWith(floatingNameFontSize: next, isLoading: false);
+    await _storage.write(
+      key: _floatingNameFontSizeKey,
+      value: next.toStringAsFixed(1),
+    );
+  }
+
   Future<void> setWordByWordEnabled(bool enabled) async {
     if (state.wordByWordEnabled == enabled && !state.isLoading) return;
     state = state.copyWith(wordByWordEnabled: enabled, isLoading: false);
@@ -393,6 +428,7 @@ class LyricsPersonalizationNotifier
       _storage.delete(key: _fontFamilyKey),
       _storage.delete(key: _fontSizeKey),
       _storage.delete(key: _flowingLightFontSizeKey),
+      _storage.delete(key: _floatingNameFontSizeKey),
       _storage.delete(key: _wordByWordEnabledKey),
       _storage.delete(key: _stageModeKey),
       _storage.delete(key: _customFontPathKey),

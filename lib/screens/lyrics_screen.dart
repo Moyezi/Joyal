@@ -19,6 +19,7 @@ import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/frosted_glass.dart';
 import '../widgets/lyrics_stage/flowing_light_lyrics_stage.dart';
+import '../widgets/lyrics_stage/floating_name_lyrics_stage.dart';
 
 class _LyricsPaletteRequest {
   final String coverArtId;
@@ -247,11 +248,13 @@ class _LyricsPositionedList extends ConsumerWidget {
     final stageMode = ref.watch(
       lyricsPersonalizationProvider.select((state) => state.stageMode),
     );
-    if (stageMode == LyricsStageMode.flowingLight) {
+    if (stageMode == LyricsStageMode.flowingLight ||
+        stageMode == LyricsStageMode.floatingName) {
       return _FlowingLightStageHost(
         data: data,
         song: song,
         activeIndex: activeIndex,
+        stageMode: stageMode,
         title: title,
         artist: artist,
         dynamicColor: dynamicColor,
@@ -278,6 +281,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final LyricsData data;
   final Song song;
   final int activeIndex;
+  final LyricsStageMode stageMode;
   final String title;
   final String artist;
   final Color? dynamicColor;
@@ -288,6 +292,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
     required this.data,
     required this.song,
     required this.activeIndex,
+    required this.stageMode,
     required this.title,
     required this.artist,
     required this.dynamicColor,
@@ -326,6 +331,25 @@ class _FlowingLightStageHostState
   @override
   Widget build(BuildContext context) {
     final preferences = ref.watch(lyricsPersonalizationProvider);
+    if (widget.stageMode == LyricsStageMode.floatingName) {
+      return FloatingNameLyricsStage(
+        data: widget.data,
+        activeIndex: widget.activeIndex,
+        title: widget.title,
+        artist: widget.artist,
+        activeColor: _resolvedActiveLyricColor(
+          context,
+          preferences,
+          widget.dynamicColor,
+        ),
+        fontFamily: preferences.effectiveFontFamily,
+        fontSize: preferences.floatingNameFontSize,
+        wordByWordEnabled: preferences.wordByWordEnabled,
+        positionUpdatesEnabled:
+            widget.positionUpdatesEnabled && !_settingsSheetOpen,
+        onOpenSettings: () => unawaited(_openSettings()),
+      );
+    }
     return FlowingLightLyricsStage(
       data: widget.data,
       song: widget.song,
@@ -1180,38 +1204,55 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                       const SizedBox(height: 16),
                     ],
                     _LyricsOptionLabel(
-                      title:
-                          preferences.stageMode == LyricsStageMode.flowingLight
-                          ? '流光字号'
-                          : '默认滚动字号',
+                      title: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight => '流光字号',
+                        LyricsStageMode.floatingName => '浮名字号',
+                        _ => '默认滚动字号',
+                      },
                     ),
                     const SizedBox(height: 4),
                     _LyricsSliderRow(
                       icon: Icons.format_size_rounded,
-                      value:
-                          preferences.stageMode == LyricsStageMode.flowingLight
-                          ? preferences.flowingLightFontSize
-                          : preferences.fontSize,
-                      min: preferences.stageMode == LyricsStageMode.flowingLight
-                          ? LyricsPersonalizationState.minFlowingLightFontSize
-                          : LyricsPersonalizationState.minFontSize,
-                      max: preferences.stageMode == LyricsStageMode.flowingLight
-                          ? LyricsPersonalizationState.maxFlowingLightFontSize
-                          : LyricsPersonalizationState.maxFontSize,
-                      divisions:
-                          preferences.stageMode == LyricsStageMode.flowingLight
-                          ? 28
-                          : 24,
-                      label:
-                          (preferences.stageMode == LyricsStageMode.flowingLight
-                                  ? preferences.flowingLightFontSize
-                                  : preferences.fontSize)
-                              .toStringAsFixed(0),
-                      valueText:
-                          (preferences.stageMode == LyricsStageMode.flowingLight
-                                  ? preferences.flowingLightFontSize
-                                  : preferences.fontSize)
-                              .toStringAsFixed(0),
+                      value: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight =>
+                          preferences.flowingLightFontSize,
+                        LyricsStageMode.floatingName =>
+                          preferences.floatingNameFontSize,
+                        _ => preferences.fontSize,
+                      },
+                      min: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight =>
+                          LyricsPersonalizationState.minFlowingLightFontSize,
+                        LyricsStageMode.floatingName =>
+                          LyricsPersonalizationState.minFloatingNameFontSize,
+                        _ => LyricsPersonalizationState.minFontSize,
+                      },
+                      max: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight =>
+                          LyricsPersonalizationState.maxFlowingLightFontSize,
+                        LyricsStageMode.floatingName =>
+                          LyricsPersonalizationState.maxFloatingNameFontSize,
+                        _ => LyricsPersonalizationState.maxFontSize,
+                      },
+                      divisions: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight => 28,
+                        LyricsStageMode.floatingName => 28,
+                        _ => 24,
+                      },
+                      label: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight =>
+                          preferences.flowingLightFontSize.toStringAsFixed(0),
+                        LyricsStageMode.floatingName =>
+                          preferences.floatingNameFontSize.toStringAsFixed(0),
+                        _ => preferences.fontSize.toStringAsFixed(0),
+                      },
+                      valueText: switch (preferences.stageMode) {
+                        LyricsStageMode.flowingLight =>
+                          preferences.flowingLightFontSize.toStringAsFixed(0),
+                        LyricsStageMode.floatingName =>
+                          preferences.floatingNameFontSize.toStringAsFixed(0),
+                        _ => preferences.fontSize.toStringAsFixed(0),
+                      },
                       onChanged: (value) {
                         final notifier = ref.read(
                           lyricsPersonalizationProvider.notifier,
@@ -1219,6 +1260,9 @@ class _LyricsPersonalizationSheet extends ConsumerWidget {
                         if (preferences.stageMode ==
                             LyricsStageMode.flowingLight) {
                           unawaited(notifier.setFlowingLightFontSize(value));
+                        } else if (preferences.stageMode ==
+                            LyricsStageMode.floatingName) {
+                          unawaited(notifier.setFloatingNameFontSize(value));
                         } else {
                           unawaited(notifier.setFontSize(value));
                         }
