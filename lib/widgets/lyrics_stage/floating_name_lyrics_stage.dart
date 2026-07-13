@@ -387,6 +387,15 @@ int _glyphIndexAtUtf16Offset(List<int> offsets, int target) {
   return math.max(offsets.length - 1, 0);
 }
 
+@visibleForTesting
+TextPainter layoutFloatingNameText({
+  required InlineSpan text,
+  required double maxWidth,
+}) {
+  return TextPainter(text: text, textDirection: TextDirection.ltr)
+    ..layout(maxWidth: maxWidth);
+}
+
 class _FloatingArticleLayout {
   final List<_FloatingBlock> blocks;
 
@@ -423,11 +432,10 @@ class _FloatingArticleLayout {
         fontWeight: hero ? FontWeight.w800 : FontWeight.w700,
         letterSpacing: hero ? -1.1 : -0.25,
       );
-      final painter = TextPainter(
+      final painter = layoutFloatingNameText(
         text: TextSpan(text: line.text, style: style),
-        textDirection: TextDirection.ltr,
-        maxLines: hero ? 2 : 3,
-      )..layout(maxWidth: maxWidth);
+        maxWidth: maxWidth,
+      );
       final positionInRow = index % 3;
       final cell = floatingNameArticleCellForIndex(
         index,
@@ -469,6 +477,7 @@ class _FloatingArticleLayout {
           glyphs: glyphs,
           utf16Offsets: utf16Offsets,
           glyphBoxes: glyphBoxes,
+          hasMultipleVisualLines: painter.computeLineMetrics().length > 1,
           maxWidth: maxWidth,
         ),
       );
@@ -494,6 +503,7 @@ class _FloatingBlock {
   final List<String> glyphs;
   final List<int> utf16Offsets;
   final List<Rect> glyphBoxes;
+  final bool hasMultipleVisualLines;
   final double maxWidth;
   final Map<int, TextPainter> _coloredPainters = {};
   TextPainter? _typedPainter;
@@ -509,6 +519,7 @@ class _FloatingBlock {
     required this.glyphs,
     required this.utf16Offsets,
     required this.glyphBoxes,
+    required this.hasMultipleVisualLines,
     required this.maxWidth,
   });
 
@@ -517,14 +528,13 @@ class _FloatingBlock {
 
   TextPainter painterFor(Color color) {
     return _coloredPainters.putIfAbsent(color.toARGB32(), () {
-      return TextPainter(
+      return layoutFloatingNameText(
         text: TextSpan(
           text: line.text,
           style: style.copyWith(color: color),
         ),
-        textDirection: TextDirection.ltr,
-        maxLines: textPainter.maxLines,
-      )..layout(maxWidth: maxWidth);
+        maxWidth: maxWidth,
+      );
     });
   }
 
@@ -543,7 +553,7 @@ class _FloatingBlock {
       return _typedPainter!;
     }
     _typedPainterKey = key;
-    return _typedPainter = TextPainter(
+    return _typedPainter = layoutFloatingNameText(
       text: floatingNameRevealSpan(
         glyphs: glyphs,
         style: style,
@@ -551,9 +561,8 @@ class _FloatingBlock {
         revealedColor: revealedColor,
         pendingColor: pendingColor,
       ),
-      textDirection: TextDirection.ltr,
-      maxLines: textPainter.maxLines,
-    )..layout(maxWidth: maxWidth);
+      maxWidth: maxWidth,
+    );
   }
 }
 
@@ -671,9 +680,10 @@ class _FloatingNamePainter extends CustomPainter {
     final frontier = localFrontier == null
         ? block.center
         : block.origin + localFrontier;
-    return Offset(
-      ui.lerpDouble(block.center.dx, frontier.dx, 0.22)!,
-      ui.lerpDouble(block.center.dy, frontier.dy, 0.18)!,
+    return floatingNameCameraFocus(
+      blockCenter: block.center,
+      glyphFrontier: frontier,
+      hasMultipleVisualLines: block.hasMultipleVisualLines,
     );
   }
 
@@ -809,6 +819,22 @@ Offset? floatingNameInterpolatedGlyphCenter(
     left.$2,
     right.$2,
     Curves.easeInOutCubic.transform(fraction),
+  );
+}
+
+/// Keeps wrapped lyric blocks horizontally stable so moving to the next
+/// visual row does not sweep the camera from right to left.
+Offset floatingNameCameraFocus({
+  required Offset blockCenter,
+  required Offset glyphFrontier,
+  required bool hasMultipleVisualLines,
+}) {
+  final horizontalTarget = hasMultipleVisualLines
+      ? blockCenter.dx
+      : glyphFrontier.dx;
+  return Offset(
+    ui.lerpDouble(blockCenter.dx, horizontalTarget, 0.22)!,
+    ui.lerpDouble(blockCenter.dy, glyphFrontier.dy, 0.18)!,
   );
 }
 

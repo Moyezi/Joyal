@@ -103,6 +103,40 @@ void main() {
   });
 
   test(
+    'floating name camera does not move sideways inside a wrapped lyric',
+    () {
+      const center = Offset(100, 80);
+      final firstRowFocus = floatingNameCameraFocus(
+        blockCenter: center,
+        glyphFrontier: const Offset(40, 40),
+        hasMultipleVisualLines: true,
+      );
+      final nextRowFocus = floatingNameCameraFocus(
+        blockCenter: center,
+        glyphFrontier: const Offset(160, 120),
+        hasMultipleVisualLines: true,
+      );
+
+      expect(firstRowFocus.dx, center.dx);
+      expect(nextRowFocus.dx, center.dx);
+      expect(firstRowFocus.dy, isNot(nextRowFocus.dy));
+    },
+  );
+
+  test(
+    'floating name camera keeps horizontal follow for a single-line lyric',
+    () {
+      final focus = floatingNameCameraFocus(
+        blockCenter: const Offset(100, 80),
+        glyphFrontier: const Offset(160, 80),
+        hasMultipleVisualLines: false,
+      );
+
+      expect(focus.dx, greaterThan(100));
+    },
+  );
+
+  test(
     'floating name types whole graphemes while camera progress stays smooth',
     () {
       expect(floatingNameTypedGraphemeCount(0, 6), 0);
@@ -133,6 +167,23 @@ void main() {
       children.skip(3).map((child) => child.style!.color),
       everyElement(pending),
     );
+  });
+
+  test('floating name lays out every visual row of a long lyric', () {
+    final painter = layoutFloatingNameText(
+      text: const TextSpan(
+        text: '第一段很长的歌词第二段很长的歌词第三段很长的歌词第四段仍然需要完整显示',
+        style: TextStyle(fontSize: 24, height: 1.12),
+      ),
+      maxWidth: 120,
+    );
+
+    expect(painter.computeLineMetrics().length, greaterThan(3));
+    expect(painter.didExceedMaxLines, isFalse);
+    final finalGlyphBoxes = painter.getBoxesForSelection(
+      const TextSelection(baseOffset: 34, extentOffset: 35),
+    );
+    expect(finalGlyphBoxes, isNotEmpty);
   });
 
   test('floating name article expands sideways in a snake', () {
