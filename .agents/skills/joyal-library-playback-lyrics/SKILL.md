@@ -88,7 +88,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 ## Independent Lyrics Stages
 
-- `流光` 的外扩圆环由 DeepSeek 歌曲高潮时间轴控制。进入有同步歌词的流光舞台时才按需分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用“小Jo同学”的 secure-storage API Key、endpoint 和模型设置。
+- DeepSeek 歌曲高潮时间轴由 `流光` 和 `浮名` 舞台按需复用。进入有同步歌词的任一已实现独立舞台时可以触发分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用“小Jo同学”的 secure-storage API Key、endpoint 和模型设置。`流光` 用时间轴控制外扩圆环，`浮名` 用时间轴放大与高潮区间重叠的歌词行。
 - 高潮结果通过 `SongHighlightRepository` 按服务器 scope 与歌曲缓存；`lyricsAnalysisHash` 包含歌曲元数据、时长、歌词文本及行时间，模型或 hash 改变时重新分析。缓存可以在 API Key 被移除或离线后继续读取。
 - DeepSeek 时间段必须经 `normalizeHighlightSegments()` 排序、歌曲时长裁剪、重叠合并并最多保留 3 段。未配置 Key、无同步歌词、分析中或分析失败时不显示圆环；文字揭示、自适应柔光和末词呼吸保持可用。不要用启发式高频圆环作为失败回退。
 
@@ -98,6 +98,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Center independent stage compositions against the full phone screen as well. The fixed header remains an overlay and must not shift the stage center downward.
 - The whole settled composition loops upward by at most 10% of font size and back over 3.6 seconds. Keep its controller and painting inside the active composition `RepaintBoundary`; settings coverage, hidden lyrics pages, disabled position updates, and reduced-motion settings must stop/reset it. Only the active token composition watches playback position.
 - `浮名` is implemented independently in `lib/widgets/lyrics_stage/floating_name_lyrics_stage.dart`. It pretypes the whole song into a deterministic vertical article with sparse hero lines, then moves a camera between blocks and lightly follows the active glyph frontier. The active line prints across grapheme boxes using word timing, shows a short rectangular print stamp and glow, and leaves passed lyrics as fading ink traces. Future lines remain very faint. Word-by-word off reveals the whole active line at its start.
+- `浮名` 的字内横向镜头必须按 grapheme 进度和预排版 glyph box 中心连续插值，保留换行/空白对应的原始 grapheme 索引，不能在每个字唱完时跳到下一个字。浮名舞台完全进入前页头保持可见；完全进入后左上歌曲名和歌手继续显示 5 秒，再用约 720 ms 的柔和淡出隐藏。切回非浮名舞台时页头恢复常驻。DeepSeek 高潮时间轴覆盖到的歌词行使用约 116% 的预排版字号，且时间轴签名必须进入布局缓存 key。
 - Cache `浮名` text layout by lyrics identity, viewport, font family, and its independent `floatingNameFontSize`. Cull blocks outside the camera viewport and reuse each block's laid-out `TextPainter`; do not measure visible blocks again on every playback tick. Camera animation must stop when covered, hidden, or reduced motion is enabled.
 - `流光` and `浮名` share `lib/widgets/lyrics_stage/lyrics_stage_shell.dart` for the full-screen composition, overlaid song header, and pinch gesture. Keep renderer-specific animation and painting inside each renderer.
 - `群唱` remains planned. Its disabled `待完成` entry stays visible in the lyrics personalization drawer, and selecting it must not persist an unavailable renderer.

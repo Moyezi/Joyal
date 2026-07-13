@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/models/lyrics.dart';
+import 'package:joyal_music/models/song_highlight.dart';
 import 'package:joyal_music/widgets/lyrics_stage/floating_name_lyrics_stage.dart';
 
 void main() {
@@ -84,6 +87,37 @@ void main() {
     expect(
       first.where((variant) => variant == FloatingNameBlockVariant.hero).length,
       inInclusiveRange(1, 5),
+    );
+  });
+
+  test('floating name camera interpolates continuously between glyphs', () {
+    final boxes = [
+      const Rect.fromLTWH(0, 0, 20, 20),
+      const Rect.fromLTWH(40, 0, 20, 20),
+    ];
+
+    expect(floatingNameInterpolatedGlyphCenter(boxes, 0), const Offset(10, 10));
+    final halfway = floatingNameInterpolatedGlyphCenter(boxes, 0.5)!;
+    expect(halfway.dx, inExclusiveRange(10, 50));
+    expect(halfway.dy, 10);
+    expect(floatingNameInterpolatedGlyphCenter(boxes, 1), const Offset(50, 10));
+  });
+
+  test('floating name detects highlighted lyric intervals', () {
+    const line = LyricLine(
+      text: '高潮段落',
+      start: Duration(seconds: 10),
+      end: Duration(seconds: 14),
+    );
+
+    expect(
+      floatingNameLineIsHighlighted(line, const [
+        SongHighlightSegment(
+          start: Duration(seconds: 11),
+          end: Duration(seconds: 13),
+        ),
+      ]),
+      isTrue,
     );
   });
 }

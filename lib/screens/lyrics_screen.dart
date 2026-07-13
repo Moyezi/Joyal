@@ -334,6 +334,7 @@ class _FlowingLightStageHostState
     if (widget.stageMode == LyricsStageMode.floatingName) {
       return FloatingNameLyricsStage(
         data: widget.data,
+        song: widget.song,
         activeIndex: widget.activeIndex,
         title: widget.title,
         artist: widget.artist,
@@ -345,6 +346,7 @@ class _FlowingLightStageHostState
         fontFamily: preferences.effectiveFontFamily,
         fontSize: preferences.floatingNameFontSize,
         wordByWordEnabled: preferences.wordByWordEnabled,
+        stageVisible: widget.positionUpdatesEnabled,
         positionUpdatesEnabled:
             widget.positionUpdatesEnabled && !_settingsSheetOpen,
         onOpenSettings: () => unawaited(_openSettings()),

@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/lyrics.dart';
+import '../../models/song.dart';
+import '../../models/song_highlight.dart';
 import '../../providers/player_provider.dart';
+import '../../providers/song_highlight_provider.dart';
 import '../../services/audio_player_service.dart';
 import 'lyrics_stage_shell.dart';
 
@@ -16,8 +19,9 @@ import 'lyrics_stage_shell.dart';
 /// camera travels between lyric blocks while the active line is printed along
 /// its word timeline. Passed lines remain as quiet ink traces instead of being
 /// removed immediately.
-class FloatingNameLyricsStage extends StatelessWidget {
+class FloatingNameLyricsStage extends ConsumerWidget {
   final LyricsData data;
+  final Song song;
   final int activeIndex;
   final String title;
   final String artist;
@@ -25,12 +29,14 @@ class FloatingNameLyricsStage extends StatelessWidget {
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
+  final bool stageVisible;
   final bool positionUpdatesEnabled;
   final VoidCallback onOpenSettings;
 
   const FloatingNameLyricsStage({
     super.key,
     required this.data,
+    required this.song,
     required this.activeIndex,
     required this.title,
     required this.artist,
@@ -38,17 +44,28 @@ class FloatingNameLyricsStage extends StatelessWidget {
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
+    required this.stageVisible,
     required this.positionUpdatesEnabled,
     required this.onOpenSettings,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final highlightTimeline = ref
+        .watch(
+          songHighlightProvider(SongHighlightRequest(song: song, lyrics: data)),
+        )
+        .when(
+          data: (timeline) => timeline,
+          error: (_, _) => null,
+          loading: () => null,
+        );
     return LyricsStageShell(
       title: title,
       artist: artist,
       foreground: activeColor,
       onOpenSettings: onOpenSettings,
+      headerVisibleDuration: stageVisible ? const Duration(seconds: 5) : null,
       child: RepaintBoundary(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -60,6 +77,13 @@ class FloatingNameLyricsStage extends StatelessWidget {
               fontSize: fontSize,
               wordByWordEnabled: wordByWordEnabled,
               positionUpdatesEnabled: positionUpdatesEnabled,
+              highlightSignature: highlightTimeline?.segments
+                  .map(
+                    (segment) =>
+                        '${segment.start.inMilliseconds}-${segment.end.inMilliseconds}',
+                  )
+                  .join(','),
+              highlightSegments: highlightTimeline?.segments ?? const [],
               viewport: constraints.biggest,
             );
           },
@@ -77,6 +101,8 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
   final double fontSize;
   final bool wordByWordEnabled;
   final bool positionUpdatesEnabled;
+  final String? highlightSignature;
+  final List<SongHighlightSegment> highlightSegments;
   final Size viewport;
 
   const _FloatingNameArticle({
@@ -87,6 +113,8 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
     required this.fontSize,
     required this.wordByWordEnabled,
     required this.positionUpdatesEnabled,
+    required this.highlightSignature,
+    required this.highlightSegments,
     required this.viewport,
   });
 
@@ -170,6 +198,7 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
       widget.viewport.height.round(),
       widget.fontFamily,
       widget.fontSize,
+      widget.highlightSignature,
     );
     if (_layout == null || _layoutKey != key) {
       _layoutKey = key;
@@ -178,6 +207,7 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
         widget.viewport,
         fontFamily: widget.fontFamily,
         fontSize: widget.fontSize,
+        highlightSegments: widget.highlightSegments,
       );
     }
 
@@ -346,6 +376,7 @@ class _FloatingArticleLayout {
     Size viewport, {
     required String? fontFamily,
     required double fontSize,
+    required List<SongHighlightSegment> highlightSegments,
   }) {
     final blocks = <_FloatingBlock>[];
     var y = 0.0;
@@ -358,8 +389,10 @@ class _FloatingArticleLayout {
         data.lines.length,
       );
       final hero = variant == FloatingNameBlockVariant.hero;
+      final highlight = floatingNameLineIsHighlighted(line, highlightSegments);
       final maxWidth = viewport.width * (hero ? 0.86 : 0.68);
-      final resolvedFontSize = fontSize * (hero ? 1.28 : 0.76);
+      final resolvedFontSize =
+          fontSize * (hero ? 1.28 : 0.76) * (highlight ? 1.16 : 1);
       final style = TextStyle(
         color: Colors.white,
         fontFamily: fontFamily,
@@ -545,11 +578,13 @@ class _FloatingNamePainter extends CustomPainter {
 
   Offset _focusForBlock(_FloatingBlock block, double progress) {
     if (block.glyphBoxes.isEmpty) return block.center;
-    final glyphIndex = progress.floor().clamp(0, block.glyphBoxes.length - 1);
-    final box = block.glyphBoxes[glyphIndex];
-    final frontier = box == Rect.zero
+    final localFrontier = floatingNameInterpolatedGlyphCenter(
+      block.glyphBoxes,
+      progress,
+    );
+    final frontier = localFrontier == null
         ? block.center
-        : block.origin + box.center;
+        : block.origin + localFrontier;
     return Offset(
       ui.lerpDouble(block.center.dx, frontier.dx, 0.22)!,
       ui.lerpDouble(block.center.dy, frontier.dy, 0.18)!,
@@ -671,6 +706,49 @@ class _FloatingNamePainter extends CustomPainter {
         oldDelegate.wordByWordEnabled != wordByWordEnabled ||
         oldDelegate.motionEnabled != motionEnabled;
   }
+}
+
+bool floatingNameLineIsHighlighted(
+  LyricLine line,
+  List<SongHighlightSegment> segments,
+) {
+  if (segments.isEmpty) return false;
+  final start = line.start ?? line.words.firstOrNull?.start;
+  final end = line.end ?? line.words.lastOrNull?.end;
+  if (start == null) return false;
+  final resolvedEnd = end == null || end <= start ? start : end;
+  return segments.any(
+    (segment) => segment.start <= resolvedEnd && segment.end >= start,
+  );
+}
+
+/// Smoothly follows the printed glyph frontier instead of snapping the camera
+/// to the next glyph after every completed character.
+Offset? floatingNameInterpolatedGlyphCenter(
+  List<Rect> glyphBoxes,
+  double progress,
+) {
+  final anchors = <(int, Offset)>[
+    for (var index = 0; index < glyphBoxes.length; index++)
+      if (glyphBoxes[index] != Rect.zero) (index, glyphBoxes[index].center),
+  ];
+  if (anchors.isEmpty) return null;
+  final clamped = progress.clamp(0.0, glyphBoxes.length.toDouble());
+  final left = anchors.lastWhere(
+    (anchor) => anchor.$1 <= clamped,
+    orElse: () => anchors.first,
+  );
+  final right = anchors.firstWhere(
+    (anchor) => anchor.$1 >= clamped,
+    orElse: () => anchors.last,
+  );
+  if (left.$1 == right.$1) return left.$2;
+  final fraction = ((clamped - left.$1) / (right.$1 - left.$1)).clamp(0.0, 1.0);
+  return Offset.lerp(
+    left.$2,
+    right.$2,
+    Curves.easeInOutCubic.transform(fraction),
+  );
 }
 
 int _stableHash(String value) {

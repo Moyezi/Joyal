@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// Shared full-screen shell for independent lyrics stages.
@@ -11,6 +13,7 @@ class LyricsStageShell extends StatefulWidget {
   final Color foreground;
   final VoidCallback onOpenSettings;
   final Widget child;
+  final Duration? headerVisibleDuration;
 
   const LyricsStageShell({
     super.key,
@@ -19,6 +22,7 @@ class LyricsStageShell extends StatefulWidget {
     required this.foreground,
     required this.onOpenSettings,
     required this.child,
+    this.headerVisibleDuration,
   });
 
   @override
@@ -29,6 +33,38 @@ class _LyricsStageShellState extends State<LyricsStageShell> {
   final Map<int, Offset> _pointers = {};
   double? _startDistance;
   bool _opened = false;
+  bool _headerVisible = true;
+  Timer? _headerTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleHeaderFade();
+  }
+
+  @override
+  void didUpdateWidget(covariant LyricsStageShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.headerVisibleDuration != widget.headerVisibleDuration) {
+      _headerVisible = true;
+      _scheduleHeaderFade();
+    }
+  }
+
+  void _scheduleHeaderFade() {
+    _headerTimer?.cancel();
+    final duration = widget.headerVisibleDuration;
+    if (duration == null) return;
+    _headerTimer = Timer(duration, () {
+      if (mounted) setState(() => _headerVisible = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _headerTimer?.cancel();
+    super.dispose();
+  }
 
   double? get _distance {
     if (_pointers.length < 2) return null;
@@ -84,33 +120,38 @@ class _LyricsStageShellState extends State<LyricsStageShell> {
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: widget.child,
           ),
-          IgnorePointer(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(22, topInset + 18, 22, 18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: widget.foreground.withValues(alpha: 0.92),
-                      fontWeight: FontWeight.w700,
+          AnimatedOpacity(
+            opacity: _headerVisible ? 1 : 0,
+            duration: const Duration(milliseconds: 720),
+            curve: Curves.easeInOutCubic,
+            child: IgnorePointer(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(22, topInset + 18, 22, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: widget.foreground.withValues(alpha: 0.92),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: widget.foreground.withValues(alpha: 0.66),
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: widget.foreground.withValues(alpha: 0.66),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
