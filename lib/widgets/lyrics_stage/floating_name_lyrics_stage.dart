@@ -717,6 +717,7 @@ class _FloatingNamePainter extends CustomPainter {
     final localFrontier = floatingNameCameraGlyphFrontier(
       block.glyphBoxes,
       progress,
+      glyphs: block.glyphs,
       hasMultipleVisualLines: block.hasMultipleVisualLines,
     );
     final frontier = localFrontier == null
@@ -880,6 +881,7 @@ Offset? floatingNameInterpolatedGlyphCenter(
 Offset? floatingNameCameraGlyphFrontier(
   List<Rect> glyphBoxes,
   double progress, {
+  required List<String> glyphs,
   required bool hasMultipleVisualLines,
 }) {
   final frontier = floatingNameInterpolatedGlyphCenter(glyphBoxes, progress);
@@ -897,8 +899,13 @@ Offset? floatingNameCameraGlyphFrontier(
     final rowThreshold = math.max(upper.$2.height, lower.$2.height) * 0.45;
     if (rowChange <= rowThreshold) continue;
 
-    final transitionStart = upper.$1 - 0.5;
-    final transitionEnd = lower.$1 + 0.5;
+    final wordWindow = _floatingNameLatinWordTransitionWindow(
+      glyphs,
+      upper.$1,
+      lower.$1,
+    );
+    final transitionStart = wordWindow?.$1 ?? upper.$1 - 0.5;
+    final transitionEnd = wordWindow?.$2 ?? lower.$1 + 0.5;
     if (clamped < transitionStart || clamped > transitionEnd) continue;
     final fraction =
         ((clamped - transitionStart) /
@@ -911,6 +918,48 @@ Offset? floatingNameCameraGlyphFrontier(
     );
   }
   return frontier;
+}
+
+/// Uses two Latin words on either side of a wrap when available. The visible
+/// typewriter still strikes individual letters; only the camera's vertical
+/// travel adopts a word-scale rhythm.
+(double, double)? _floatingNameLatinWordTransitionWindow(
+  List<String> glyphs,
+  int upperGlyphIndex,
+  int lowerGlyphIndex,
+) {
+  if (glyphs.isEmpty) return null;
+  final spans = <(int, int)>[];
+  int? wordStart;
+  for (var index = 0; index <= glyphs.length; index++) {
+    final inWord =
+        index < glyphs.length && _isFloatingNameLatinWordGlyph(glyphs[index]);
+    if (inWord) {
+      wordStart ??= index;
+    } else if (wordStart != null) {
+      spans.add((wordStart, index));
+      wordStart = null;
+    }
+  }
+  if (spans.length < 2) return null;
+
+  var upperWord = -1;
+  var lowerWord = -1;
+  for (var index = 0; index < spans.length; index++) {
+    final span = spans[index];
+    if (span.$1 <= upperGlyphIndex) upperWord = index;
+    if (lowerWord < 0 && span.$2 > lowerGlyphIndex) lowerWord = index;
+  }
+  if (upperWord < 0 || lowerWord < 0 || lowerWord < upperWord) return null;
+
+  final startWord = math.max(upperWord - 1, 0);
+  final endWord = math.min(lowerWord + 1, spans.length - 1);
+  if (endWord <= startWord) return null;
+  return (spans[startWord].$1.toDouble(), spans[endWord].$2.toDouble());
+}
+
+bool _isFloatingNameLatinWordGlyph(String glyph) {
+  return RegExp(r"^[A-Za-z0-9À-ÖØ-öø-ÿ'’]+$").hasMatch(glyph);
 }
 
 /// Keeps wrapped lyric blocks horizontally stable so moving to the next

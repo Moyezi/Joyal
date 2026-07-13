@@ -113,26 +113,31 @@ void main() {
     final beforeWrap = floatingNameCameraGlyphFrontier(
       boxes,
       0.5,
+      glyphs: const ['上', '行', '下', '行'],
       hasMultipleVisualLines: true,
     )!;
     final enteringWrap = floatingNameCameraGlyphFrontier(
       boxes,
       1,
+      glyphs: const ['上', '行', '下', '行'],
       hasMultipleVisualLines: true,
     )!;
     final middleOfWrap = floatingNameCameraGlyphFrontier(
       boxes,
       1.5,
+      glyphs: const ['上', '行', '下', '行'],
       hasMultipleVisualLines: true,
     )!;
     final leavingWrap = floatingNameCameraGlyphFrontier(
       boxes,
       2,
+      glyphs: const ['上', '行', '下', '行'],
       hasMultipleVisualLines: true,
     )!;
     final afterWrap = floatingNameCameraGlyphFrontier(
       boxes,
       2.5,
+      glyphs: const ['上', '行', '下', '行'],
       hasMultipleVisualLines: true,
     )!;
 
@@ -141,6 +146,29 @@ void main() {
     expect(middleOfWrap.dy, inExclusiveRange(enteringWrap.dy, 40));
     expect(leavingWrap.dy, inExclusiveRange(middleOfWrap.dy, 50));
     expect(afterWrap.dy, 50);
+  });
+
+  test('floating name camera spans several English words at a wrap', () {
+    final glyphs = 'one two three four'.characters.toList(growable: false);
+    final boxes = <Rect>[
+      for (var index = 0; index < glyphs.length; index++)
+        glyphs[index].trim().isEmpty
+            ? Rect.zero
+            : Rect.fromLTWH(index * 12, index < 8 ? 0 : 40, 10, 20),
+    ];
+
+    Offset focusAt(double progress) => floatingNameCameraGlyphFrontier(
+      boxes,
+      progress,
+      glyphs: glyphs,
+      hasMultipleVisualLines: true,
+    )!;
+
+    expect(focusAt(0).dy, 10);
+    expect(focusAt(4).dy, inExclusiveRange(10, 30));
+    expect(focusAt(9).dy, inExclusiveRange(focusAt(4).dy, 50));
+    expect(focusAt(14).dy, inExclusiveRange(focusAt(9).dy, 50));
+    expect(focusAt(glyphs.length.toDouble()).dy, 50);
   });
 
   test(
