@@ -102,6 +102,47 @@ void main() {
     expect(floatingNameInterpolatedGlyphCenter(boxes, 1), const Offset(50, 10));
   });
 
+  test('floating name camera eases vertically across a visual-line wrap', () {
+    final boxes = [
+      const Rect.fromLTWH(0, 0, 20, 20),
+      const Rect.fromLTWH(24, 0, 20, 20),
+      const Rect.fromLTWH(0, 40, 20, 20),
+      const Rect.fromLTWH(24, 40, 20, 20),
+    ];
+
+    final beforeWrap = floatingNameCameraGlyphFrontier(
+      boxes,
+      0.5,
+      hasMultipleVisualLines: true,
+    )!;
+    final enteringWrap = floatingNameCameraGlyphFrontier(
+      boxes,
+      1,
+      hasMultipleVisualLines: true,
+    )!;
+    final middleOfWrap = floatingNameCameraGlyphFrontier(
+      boxes,
+      1.5,
+      hasMultipleVisualLines: true,
+    )!;
+    final leavingWrap = floatingNameCameraGlyphFrontier(
+      boxes,
+      2,
+      hasMultipleVisualLines: true,
+    )!;
+    final afterWrap = floatingNameCameraGlyphFrontier(
+      boxes,
+      2.5,
+      hasMultipleVisualLines: true,
+    )!;
+
+    expect(beforeWrap.dy, 10);
+    expect(enteringWrap.dy, inExclusiveRange(10, 30));
+    expect(middleOfWrap.dy, inExclusiveRange(enteringWrap.dy, 40));
+    expect(leavingWrap.dy, inExclusiveRange(middleOfWrap.dy, 50));
+    expect(afterWrap.dy, 50);
+  });
+
   test(
     'floating name camera does not move sideways inside a wrapped lyric',
     () {

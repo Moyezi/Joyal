@@ -714,9 +714,10 @@ class _FloatingNamePainter extends CustomPainter {
 
   Offset _focusForBlock(_FloatingBlock block, double progress) {
     if (block.glyphBoxes.isEmpty) return block.center;
-    final localFrontier = floatingNameInterpolatedGlyphCenter(
+    final localFrontier = floatingNameCameraGlyphFrontier(
       block.glyphBoxes,
       progress,
+      hasMultipleVisualLines: block.hasMultipleVisualLines,
     );
     final frontier = localFrontier == null
         ? block.center
@@ -871,6 +872,45 @@ Offset? floatingNameInterpolatedGlyphCenter(
     right.$2,
     Curves.easeInOutCubic.transform(fraction),
   );
+}
+
+/// Extends a wrapped-row camera move across the glyphs immediately before and
+/// after the wrap. Fast lyrics would otherwise complete the whole vertical
+/// move in a single glyph interval and make the camera appear to step down.
+Offset? floatingNameCameraGlyphFrontier(
+  List<Rect> glyphBoxes,
+  double progress, {
+  required bool hasMultipleVisualLines,
+}) {
+  final frontier = floatingNameInterpolatedGlyphCenter(glyphBoxes, progress);
+  if (frontier == null || !hasMultipleVisualLines) return frontier;
+
+  final anchors = <(int, Rect)>[
+    for (var index = 0; index < glyphBoxes.length; index++)
+      if (glyphBoxes[index] != Rect.zero) (index, glyphBoxes[index]),
+  ];
+  final clamped = progress.clamp(0.0, glyphBoxes.length.toDouble());
+  for (var index = 0; index + 1 < anchors.length; index++) {
+    final upper = anchors[index];
+    final lower = anchors[index + 1];
+    final rowChange = (lower.$2.center.dy - upper.$2.center.dy).abs();
+    final rowThreshold = math.max(upper.$2.height, lower.$2.height) * 0.45;
+    if (rowChange <= rowThreshold) continue;
+
+    final transitionStart = upper.$1 - 0.5;
+    final transitionEnd = lower.$1 + 0.5;
+    if (clamped < transitionStart || clamped > transitionEnd) continue;
+    final fraction =
+        ((clamped - transitionStart) /
+                math.max(transitionEnd - transitionStart, 1.0))
+            .clamp(0.0, 1.0);
+    final eased = Curves.easeInOutCubic.transform(fraction);
+    return Offset(
+      frontier.dx,
+      ui.lerpDouble(upper.$2.center.dy, lower.$2.center.dy, eased)!,
+    );
+  }
+  return frontier;
 }
 
 /// Keeps wrapped lyric blocks horizontally stable so moving to the next

@@ -22,7 +22,8 @@ class JoHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFFB5CEE2) : const Color(0xFF4B708D);
+    final iconDecodeSize = (60 * MediaQuery.devicePixelRatioOf(context))
+        .round();
     return Container(
       margin: const EdgeInsets.fromLTRB(
         AppTheme.spacingLG,
@@ -37,14 +38,17 @@ class JoHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: context.backgroundColor,
-              borderRadius: BorderRadius.circular(22),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Image.asset(
+              isDark ? 'Night_Joicon.png' : 'Day_Joicon.png',
+              width: 60,
+              height: 60,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+              cacheWidth: iconDecodeSize,
+              cacheHeight: iconDecodeSize,
             ),
-            child: CustomPaint(painter: _JoPulsePainter(color: accent)),
           ),
           const SizedBox(width: AppTheme.spacingMD),
           Expanded(
@@ -99,33 +103,6 @@ class _HeaderMetric extends StatelessWidget {
       ),
     );
   }
-}
-
-class _JoPulsePainter extends CustomPainter {
-  final Color color;
-  const _JoPulsePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3.4;
-    const heights = [12.0, 25.0, 40.0, 21.0, 31.0];
-    final gap = size.width / (heights.length + 1);
-    for (var index = 0; index < heights.length; index++) {
-      final x = gap * (index + 1);
-      canvas.drawLine(
-        Offset(x, (size.height - heights[index]) / 2),
-        Offset(x, (size.height + heights[index]) / 2),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _JoPulsePainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 class JoTabBar extends StatelessWidget {

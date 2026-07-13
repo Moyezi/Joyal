@@ -90,6 +90,8 @@ flutter:
   assets:
     # AMLL TTML lyric metadata used to resolve Navidrome tracks locally.
     - raw-lyrics-index.jsonl
+    - Day_Joicon.png
+    - Night_Joicon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
