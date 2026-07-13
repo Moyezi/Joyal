@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +27,7 @@ import 'utils/two_finger_pinch_tracker.dart';
 import 'widgets/bottom_nav.dart';
 import 'widgets/home_sidebar.dart';
 import 'widgets/mini_player.dart';
+import 'widgets/navigation/main_shell_helpers.dart';
 
 /// The root widget of the application.
 class JoyalMusicApp extends ConsumerWidget {
@@ -112,7 +112,7 @@ class _MainShellState extends ConsumerState<MainShell>
   String? _lastLyricsPrefetchSongId;
   String? _lastSidebarImagePrecachePath;
   final Set<String> _lyricsPrefetchInFlight = {};
-  final List<_VelocitySample> _velocitySamples = [];
+  final List<VelocitySample> _velocitySamples = [];
   final List<Rect> _drawerExclusionRects = [];
   final TwoFingerPinchTracker _homePinchTracker = TwoFingerPinchTracker();
   bool _isLibraryCanvasRouteOpen = false;
@@ -255,7 +255,7 @@ class _MainShellState extends ConsumerState<MainShell>
 
   void _recordVelocitySample(double deltaDx, Duration timestamp) {
     _velocitySamples.add(
-      _VelocitySample(timestamp: timestamp, deltaDx: deltaDx),
+      VelocitySample(timestamp: timestamp, deltaDx: deltaDx),
     );
     while (_velocitySamples.length > 5) {
       _velocitySamples.removeAt(0);
@@ -588,17 +588,17 @@ class _MainShellState extends ConsumerState<MainShell>
             child: RawGestureDetector(
               behavior: HitTestBehavior.translucent,
               gestures: {
-                _TwoFingerBlockGestureRecognizer:
+                TwoFingerBlockGestureRecognizer:
                     GestureRecognizerFactoryWithHandlers<
-                      _TwoFingerBlockGestureRecognizer
-                    >(() => _TwoFingerBlockGestureRecognizer(), (recognizer) {
+                      TwoFingerBlockGestureRecognizer
+                    >(() => TwoFingerBlockGestureRecognizer(), (recognizer) {
                       recognizer.shouldAcceptPointer =
                           _shouldAllowHomePinchPointer;
                     }),
-                _DrawerHorizontalDragGestureRecognizer:
+                DrawerHorizontalDragGestureRecognizer:
                     GestureRecognizerFactoryWithHandlers<
-                      _DrawerHorizontalDragGestureRecognizer
-                    >(() => _DrawerHorizontalDragGestureRecognizer(), (
+                      DrawerHorizontalDragGestureRecognizer
+                    >(() => DrawerHorizontalDragGestureRecognizer(), (
                       recognizer,
                     ) {
                       recognizer.shouldAcceptPointer = (event) =>
@@ -612,7 +612,7 @@ class _MainShellState extends ConsumerState<MainShell>
               },
               child: Stack(
                 children: [
-                  _DrawerPane(
+                  DrawerPane(
                     animation: _drawerController,
                     drawerWidth: drawerWidth,
                     child: RepaintBoundary(
@@ -624,7 +624,7 @@ class _MainShellState extends ConsumerState<MainShell>
                     ),
                   ),
                   _buildTransformedShell(drawerWidth: drawerWidth),
-                  _StartupMask(isVisible: isStartingUp),
+                  StartupMask(isVisible: isStartingUp),
                 ],
               ),
             ),
@@ -649,7 +649,7 @@ class _MainShellState extends ConsumerState<MainShell>
             child!,
             if (progress > 0)
               Positioned.fill(
-                child: _DrawerPreviewScrim(
+                child: DrawerPreviewScrim(
                   progress: progress,
                   maxAlpha: _drawerScrimMaxAlpha,
                   onTap: _handleDrawerPreviewTap,
@@ -681,7 +681,7 @@ class _MainShellState extends ConsumerState<MainShell>
         Positioned.fill(child: _buildSlidingTabs()),
         if (sidebarImage.imagePath case final imagePath?
             when imagePath.isNotEmpty)
-          _LibraryCanvasEdgeHero(
+          LibraryCanvasEdgeHero(
             imagePath: imagePath,
             alignment: Alignment(
               sidebarImage.alignmentX,
@@ -786,180 +786,4 @@ class _MainShellState extends ConsumerState<MainShell>
     _homePinchTracker.reset();
     super.dispose();
   }
-}
-
-class _LibraryCanvasEdgeHero extends StatelessWidget {
-  final String imagePath;
-  final Alignment alignment;
-
-  const _LibraryCanvasEdgeHero({
-    required this.imagePath,
-    required this.alignment,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const width = 96.0;
-    return Positioned(
-      left: -width,
-      top: MediaQuery.paddingOf(context).top + 104,
-      width: width,
-      height: 54,
-      child: Hero(
-        tag: libraryCanvasEdgeHeroTag,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.file(
-            File(imagePath),
-            fit: BoxFit.cover,
-            alignment: alignment,
-            errorBuilder: (_, _, _) =>
-                const ColoredBox(color: Color(0xFF282B2E)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StartupMask extends StatelessWidget {
-  final bool isVisible;
-
-  const _StartupMask({required this.isVisible});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return IgnorePointer(
-      ignoring: !isVisible,
-      child: AnimatedOpacity(
-        opacity: isVisible ? 1 : 0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        child: ColoredBox(
-          color: theme.scaffoldBackgroundColor,
-          child: const SizedBox.expand(),
-        ),
-      ),
-    );
-  }
-}
-
-class _VelocitySample {
-  final Duration timestamp;
-  final double deltaDx;
-  const _VelocitySample({required this.timestamp, required this.deltaDx});
-}
-
-class _DrawerPane extends StatelessWidget {
-  final Animation<double> animation;
-  final double drawerWidth;
-  final Widget child;
-
-  const _DrawerPane({
-    required this.animation,
-    required this.drawerWidth,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      child: child,
-      builder: (context, child) {
-        final shouldPaint = animation.value > 0.001 || animation.isAnimating;
-        return Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: drawerWidth,
-          child: IgnorePointer(
-            ignoring: !shouldPaint,
-            child: TickerMode(
-              enabled: shouldPaint,
-              child: Offstage(offstage: !shouldPaint, child: child!),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _DrawerPreviewScrim extends StatelessWidget {
-  final double progress;
-  final double maxAlpha;
-  final VoidCallback onTap;
-
-  const _DrawerPreviewScrim({
-    required this.progress,
-    required this.maxAlpha,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: maxAlpha * progress),
-      ),
-    );
-  }
-}
-
-class _DrawerHorizontalDragGestureRecognizer
-    extends HorizontalDragGestureRecognizer {
-  bool Function(PointerDownEvent event)? shouldAcceptPointer;
-
-  @override
-  bool isPointerAllowed(PointerEvent event) {
-    if (event is! PointerDownEvent) return false;
-    return (shouldAcceptPointer?.call(event) ?? false) &&
-        super.isPointerAllowed(event);
-  }
-}
-
-/// Wins the gesture arena as soon as a second finger is placed on the home
-/// screen. Pointer positions are still observed by the surrounding [Listener]
-/// for pinch detection, while descendant vertical and horizontal scrollables
-/// are prevented from reacting to the same two-finger movement.
-class _TwoFingerBlockGestureRecognizer extends OneSequenceGestureRecognizer {
-  bool Function(PointerDownEvent event)? shouldAcceptPointer;
-  final Set<int> _pointers = <int>{};
-
-  @override
-  bool isPointerAllowed(PointerEvent event) {
-    if (event is! PointerDownEvent) return false;
-    return (shouldAcceptPointer?.call(event) ?? false) &&
-        super.isPointerAllowed(event);
-  }
-
-  @override
-  void addAllowedPointer(PointerDownEvent event) {
-    super.addAllowedPointer(event);
-    _pointers.add(event.pointer);
-    if (_pointers.length >= 2) {
-      resolve(GestureDisposition.accepted);
-    }
-  }
-
-  @override
-  void handleEvent(PointerEvent event) {
-    if (event is PointerUpEvent || event is PointerCancelEvent) {
-      _pointers.remove(event.pointer);
-      stopTrackingPointer(event.pointer);
-    }
-  }
-
-  @override
-  void didStopTrackingLastPointer(int pointer) {
-    _pointers.clear();
-    resolve(GestureDisposition.rejected);
-  }
-
-  @override
-  String get debugDescription => 'home two-finger block';
 }

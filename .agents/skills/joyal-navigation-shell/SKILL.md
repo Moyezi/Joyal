@@ -20,6 +20,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Off-screen pages keep state.
 - Use `TickerMode`, `IgnorePointer`, and `ExcludeSemantics` to prevent background animation, interaction, and semantics.
 - Bottom navigation supports horizontal drag paging, cross-item selection vibration, and pages sliding in from the edge.
+- Keep shell state and route coordination in `lib/app.dart`; edge-Hero, startup mask, drawer presentation, and gesture recognizer helpers live in `lib/widgets/navigation/main_shell_helpers.dart`.
 
 ## MiniPlayer And Dock
 
@@ -28,6 +29,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - The MiniPlayer right-swipe collapse state belongs to `_MainShellState`.
 - Collapse into the lower-right rotating album-cover button.
 - Collapse/expand should keep one fixed-height track and move/shrink into a circular cover. Do not crossfade two separate UIs.
+- MiniPlayer chrome/morphing stays in `mini_player.dart`; lyric lookup, pair transitions, text measurement, and rolling layout stay in `lib/widgets/mini_player/mini_player_lyrics.dart`.
 
 ## Home Sidebar
 
@@ -58,10 +60,10 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 
 ## Files To Check
 
-- Shell/navigation: `lib/app.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
+- Shell/navigation: `lib/app.dart`, `lib/widgets/navigation/main_shell_helpers.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
 - Sidebar: `home_sidebar.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.
 - Shared pinch tracking: `lib/utils/two_finger_pinch_tracker.dart`.
-- Floating playback UI: `mini_player.dart`, `mini_player_chrome.dart`.
+- Floating playback UI: `mini_player.dart`, `lib/widgets/mini_player/mini_player_lyrics.dart`, `mini_player_chrome.dart`.
 - Queues and sheets: `play_queue_sheet.dart`.
 - Settings route: `settings_hub_screen.dart`, `personalization_screen.dart`.

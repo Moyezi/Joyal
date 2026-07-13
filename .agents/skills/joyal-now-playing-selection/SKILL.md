@@ -58,10 +58,12 @@ description: "Now-playing and selection-mode memory for Joyal Music. Use when ch
 - In selection mode, title, artist, dynamic background, and waveform color follow the candidate song.
 - Use `nowPlayingVisualSong(...)` as the unified source for visual-song selection.
 - Keep selection logic in `_NowPlayingScreenState`.
+- Keep entrance/Hero chrome in `lib/widgets/now_playing/now_playing_chrome.dart` and the provider-driven playback controls/progress in `now_playing_player_content.dart`; do not move the selection state machine out merely to reduce line count.
 
 ## Files To Check
 
-- Main page: `now_playing_screen.dart`.
+- Page state and selection: `now_playing_screen.dart`.
+- Chrome and playback content: `lib/widgets/now_playing/now_playing_chrome.dart`, `lib/widgets/now_playing/now_playing_player_content.dart`.
 - Transition: `now_playing_transition.dart`.
 - Progress: `waveform_progress.dart`.
 - Background and palette: `dynamic_album_background.dart`, `album_visual_palette.dart`.

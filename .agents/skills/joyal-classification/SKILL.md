@@ -35,7 +35,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 
 ## Climax Cache Management
 
-- Keep climax analysis lazy: entering a synchronized `流光` lyrics stage may analyze; opening `小Jo同学` or now playing must only read local cache.
+- Keep climax analysis lazy: entering an implemented independent lyrics stage with synchronized lyrics may analyze; opening `小Jo同学` or now playing must only read local cache.
 - `recognizedSongHighlightsProvider` scans current-library song IDs in the active server scope, keeps non-empty timelines, and sorts them by `analyzedAt` descending so older caches remain discoverable without an index migration.
 - `cachedSongHighlightProvider` is the read-only source for now-playing progress markers.
 - Clearing one or all climax records deletes only `SongHighlightRepository` timelines. Never delete classification tags or lyrics cache with that action.
@@ -74,6 +74,8 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - DeepSeek service: `deepseek_classification_service.dart`.
 - Storage: `music_classification_repository.dart`.
 - Provider: `music_classification_provider.dart`.
-- Screen: `music_classification_screen.dart`.
+- Screen state and provider actions: `music_classification_screen.dart`.
+- Screen sections: `lib/widgets/classification/classification_screen_sections.dart`.
+- Song detail/manual correction: `lib/widgets/song_actions/song_detail_dialog.dart`.
 - Discovery entry: `hotlist_screen.dart`.
 - Lyrics climax integration: `song_highlight_provider.dart`, `deepseek_highlight_service.dart`, `song_highlight_repository.dart`, `models/song_highlight.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.

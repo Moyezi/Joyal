@@ -37,6 +37,7 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - The card flow is circular: swiping past either end wraps to the other end. When listening stats promote the playing song to the front, retain focus by song ID rather than by its previous numeric index.
 - On a recent-song card or sheet tap, rotate the real player queue so the selected song is index 0: `[A, B, C, D]` tapping `B` becomes `[B, C, D, A]`. Songs that were to the selected song's left belong at the queue tail, never immediately to its right.
 - When the active player queue contains exactly the same recent-song collection, use that queue order for the carousel and “查看更多” sheet so their visual order matches playback. Keep listening-stat storage itself in its normal recency order.
+- The renderer and its drag/snap state live in `lib/widgets/home/recent_card_flow.dart`; `home_screen.dart` owns list derivation, queue rotation, and navigation callbacks.
 
 ## Derived Lists
 
@@ -86,7 +87,8 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 
 ## Files To Check
 
-- Home: `home_screen.dart`.
+- Home orchestration: `home_screen.dart`.
+- Recently played renderer: `lib/widgets/home/recent_card_flow.dart`.
 - Discovery page: `hotlist_screen.dart`.
 - Cover Flow: `lib/widgets/discovery/discover_song_carousel.dart`.
 - For You: `for_you_discovery_section.dart`, `discovery_playlist_card.dart`, `discovery_card_models.dart`.

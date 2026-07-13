@@ -82,9 +82,10 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Treat the fixed song/artist header as an overlay. Center the default active lyric against the full phone-screen viewport, not the remaining area below the header; keep symmetric vertical list breathing room so removing the header reserve does not crowd edge lines.
 - When the lyrics page is visible or during the horizontal transition, disable the outer now-playing downward-close gesture.
 - Exiting the lyrics page uses the existing horizontal swipe/switching flow.
-- The default scrolling renderer has a Folia-inspired focus transition in `_FoliaLineFocus`: the active line returns to full scale while passed and upcoming lines recede slightly to opposite horizontal sides. Keep this as the default renderer rather than treating it as one of the future full-screen stage modes.
-- Word-by-word presentation uses `lyricGlyphProgress()` to distribute each `LyricWord` time range across Unicode grapheme clusters. `_TimedLyricText` renders a glyph-level color sweep with a short glow only at the reveal frontier.
+- The default scrolling renderer lives in `lib/widgets/lyrics/default_lyrics_view.dart`. Its Folia-inspired focus transition returns the active line to full scale while passed and upcoming lines recede slightly to opposite horizontal sides. Keep it as the default renderer rather than treating it as a full-screen stage mode.
+- Word-by-word presentation in the default renderer uses `lyricGlyphProgress()` to distribute each `LyricWord` time range across Unicode grapheme clusters and renders a glyph-level color sweep with a short glow only at the reveal frontier.
 - Only the active timed line may watch high-frequency player position. Inactive lines, the whole list, the background, and future stage shells must not rebuild for every position update.
+- Keep `lyrics_screen.dart` as page orchestration. Dynamic palette resolution, the default renderer, personalization sheet, and sheet controls belong under `lib/widgets/lyrics/`; independent visual stages belong under `lib/widgets/lyrics_stage/`.
 
 ## Independent Lyrics Stages
 
@@ -134,12 +135,14 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - Line changes reuse one vertical track.
 - Animation duration follows the time delta between adjacent lyric lines.
 - Do not place the lyrics layout inside a `ClipRect` with negative offset that clips the left side.
+- Keep lyric lookup, pair timing, rolling animation, and text measurement in `lib/widgets/mini_player/mini_player_lyrics.dart`; the outer MiniPlayer only supplies the resulting lyrics widget to its morphing chrome.
 
 ## Files To Check
 
 - API and library: `lib/services/subsonic_api.dart`, `library_provider.dart`.
 - Player: `audio_player_service.dart`, `lib/providers/player_provider.dart`, `play_queue_sheet.dart`.
 - Stats: `listening_stats_provider.dart`.
-- Lyrics: `lyrics_screen.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`, `song_highlight_provider.dart`, `models/song_highlight.dart`, `services/deepseek_highlight_service.dart`, `services/song_highlight_repository.dart`, `widgets/lyrics_stage/lyrics_stage_shell.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`, `widgets/lyrics_stage/floating_name_lyrics_stage.dart`.
+- Lyrics orchestration and settings: `lyrics_screen.dart`, `widgets/lyrics/default_lyrics_view.dart`, `widgets/lyrics/lyrics_palette.dart`, `widgets/lyrics/lyrics_personalization_sheet.dart`, `widgets/lyrics/lyrics_settings_controls.dart`, `lyrics_provider.dart`, `lyrics_personalization_provider.dart`.
+- Lyrics stages and analysis: `song_highlight_provider.dart`, `models/song_highlight.dart`, `services/deepseek_highlight_service.dart`, `services/song_highlight_repository.dart`, `widgets/lyrics_stage/lyrics_stage_shell.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`, `widgets/lyrics_stage/floating_name_lyrics_stage.dart`.
 - MiniPlayer: `mini_player.dart`, `mini_player_chrome.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.

@@ -32,6 +32,7 @@ description: "Settings, cache, download, and build memory for Joyal Music. Use w
 - Artist avatars must not use `String.hashCode` as a persistent cache key.
 - `AppCacheService` manages small JSON caches.
 - Do not call `Isolate.run(() => jsonEncode(value))` inside an instance method when that closure captures instance fields.
+- Download value types belong in `models/download.dart`; `download_service.dart` re-exports them for compatibility and owns platform transfer, resume, scan, publication, and catalogue persistence.
 
 ## Cache Limit Settings
 
@@ -80,5 +81,6 @@ flutter build apk --release --target-platform android-arm64 --split-per-abi --no
 - Settings: `settings_hub_screen.dart`, `settings_screen.dart`,
   `personalization_screen.dart`.
 - Cache: `app_cache_service.dart`, `cache_repository.dart`, `cache_provider.dart`, `cache_management_screen.dart`.
+- Downloads: `models/download.dart`, `download_service.dart`, `download_manager_screen.dart`.
 - Images: `cached_disk_image.dart`.
 - Android build: `android/build.gradle.kts`, `pubspec.yaml`, `pubspec.lock`.
