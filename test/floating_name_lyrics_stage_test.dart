@@ -146,6 +146,13 @@ void main() {
     },
   );
 
+  test('floating name lifts each highlighted glyph by ten percent', () {
+    expect(floatingNameGlyphBounceOffset(0, 40), 0);
+    expect(floatingNameGlyphBounceOffset(0.5, 40), closeTo(-4, 0.001));
+    expect(floatingNameGlyphBounceOffset(1, 40), 0);
+    expect(floatingNameGlyphBounceOffset(1.5, 40), closeTo(-4, 0.001));
+  });
+
   test('floating name reveal colors glyphs without rectangular clipping', () {
     const revealed = Color(0xFFFFFFFF);
     const pending = Color(0x1CFFFFFF);

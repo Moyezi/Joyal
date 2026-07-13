@@ -291,6 +291,16 @@ int floatingNameTypedGraphemeCount(double progress, int glyphCount) {
   return progress.ceil().clamp(0, glyphCount);
 }
 
+/// Lifts the glyph currently being printed, then returns it to its baseline.
+/// The maximum travel is 10% of the laid-out font size.
+@visibleForTesting
+double floatingNameGlyphBounceOffset(double progress, double fontSize) {
+  if (progress <= 0 || fontSize <= 0) return 0;
+  final phase = progress - progress.floor();
+  if (phase <= 0) return 0;
+  return -fontSize * 0.10 * math.sin(math.pi * phase);
+}
+
 /// A three-column snake keeps the article moving sideways as well as down.
 /// Adjacent lyric lines travel across a row before the camera turns into the
 /// next row, so the composition is not limited to one vertical strip.
@@ -506,6 +516,7 @@ class _FloatingBlock {
   final bool hasMultipleVisualLines;
   final double maxWidth;
   final Map<int, TextPainter> _coloredPainters = {};
+  final Map<int, TextPainter> _activeGlyphPainters = {};
   TextPainter? _typedPainter;
   int? _typedPainterKey;
 
@@ -542,12 +553,14 @@ class _FloatingBlock {
     required int typedCount,
     required Color revealedColor,
     required Color pendingColor,
+    int? liftedGlyphIndex,
   }) {
     final resolvedCount = typedCount.clamp(0, glyphs.length);
     final key = Object.hash(
       resolvedCount,
       revealedColor.toARGB32(),
       pendingColor.toARGB32(),
+      liftedGlyphIndex,
     );
     if (_typedPainterKey == key && _typedPainter != null) {
       return _typedPainter!;
@@ -560,9 +573,34 @@ class _FloatingBlock {
         typedCount: resolvedCount,
         revealedColor: revealedColor,
         pendingColor: pendingColor,
+        hiddenGlyphIndex: liftedGlyphIndex,
       ),
       maxWidth: maxWidth,
     );
+  }
+
+  TextPainter painterForActiveGlyph({
+    required int glyphIndex,
+    required Color color,
+  }) {
+    final key = Object.hash(glyphIndex, color.toARGB32());
+    return _activeGlyphPainters.putIfAbsent(key, () {
+      return layoutFloatingNameText(
+        text: TextSpan(
+          style: style,
+          children: [
+            for (var index = 0; index < glyphs.length; index++)
+              TextSpan(
+                text: glyphs[index],
+                style: TextStyle(
+                  color: index == glyphIndex ? color : Colors.transparent,
+                ),
+              ),
+          ],
+        ),
+        maxWidth: maxWidth,
+      );
+    });
   }
 }
 
@@ -573,6 +611,7 @@ TextSpan floatingNameRevealSpan({
   required int typedCount,
   required Color revealedColor,
   required Color pendingColor,
+  int? hiddenGlyphIndex,
 }) {
   final resolvedCount = typedCount.clamp(0, glyphs.length);
   return TextSpan(
@@ -582,7 +621,11 @@ TextSpan floatingNameRevealSpan({
         TextSpan(
           text: glyphs[index],
           style: TextStyle(
-            color: index < resolvedCount ? revealedColor : pendingColor,
+            color: index == hiddenGlyphIndex
+                ? Colors.transparent
+                : index < resolvedCount
+                ? revealedColor
+                : pendingColor,
           ),
         ),
     ],
@@ -727,6 +770,11 @@ class _FloatingNamePainter extends CustomPainter {
       progress,
       block.glyphs.length,
     );
+    final activeGlyphIndex = typedCount - 1;
+    final shouldBounce =
+        motionEnabled &&
+        activeGlyphIndex >= 0 &&
+        activeGlyphIndex < block.glyphBoxes.length;
     // Color each grapheme directly. Clipping a fully bright TextPainter with
     // selection rectangles can expose the tops of glyphs on the next visual
     // row when a font's ink bounds overlap tight line metrics.
@@ -735,18 +783,25 @@ class _FloatingNamePainter extends CustomPainter {
           typedCount: typedCount,
           revealedColor: activeColor.withValues(alpha: 0.98),
           pendingColor: activeColor.withValues(alpha: 0.11),
+          liftedGlyphIndex: shouldBounce ? activeGlyphIndex : null,
         )
         .paint(canvas, block.origin);
 
-    if (!motionEnabled || typedCount == 0) return;
-    final activeGlyphIndex = typedCount - 1;
-    if (activeGlyphIndex >= block.glyphBoxes.length) return;
+    if (!shouldBounce) return;
+    final fontSize = block.style.fontSize ?? 28;
+    final bounceOffset = floatingNameGlyphBounceOffset(progress, fontSize);
+    block
+        .painterForActiveGlyph(
+          glyphIndex: activeGlyphIndex,
+          color: activeColor.withValues(alpha: 0.98),
+        )
+        .paint(canvas, block.origin.translate(0, bounceOffset));
+
     final box = block.glyphBoxes[activeGlyphIndex];
     if (box == Rect.zero) return;
     var strikePhase = (progress - progress.floor()).clamp(0.0, 1.0);
     if (strikePhase == 0 && progress > 0) strikePhase = 1;
     final pulse = 1 - Curves.easeOutCubic.transform(strikePhase);
-    final fontSize = block.style.fontSize ?? 28;
     final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
     final stampRect = Rect.fromCenter(
       center: block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
