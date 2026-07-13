@@ -66,6 +66,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
       foreground: activeColor,
       onOpenSettings: onOpenSettings,
       headerVisibleDuration: stageVisible ? const Duration(seconds: 5) : null,
+      contentPadding: EdgeInsets.zero,
       child: RepaintBoundary(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -281,6 +282,30 @@ double floatingNamePrintedGraphemeProgress(
   return completed.clamp(0.0, glyphs.length.toDouble());
 }
 
+/// Number of complete graphemes already struck by the virtual typewriter.
+///
+/// The continuous progress remains available to the camera, but the ink itself
+/// appears one complete Chinese grapheme or Latin letter at a time.
+int floatingNameTypedGraphemeCount(double progress, int glyphCount) {
+  if (progress <= 0 || glyphCount <= 0) return 0;
+  return progress.ceil().clamp(0, glyphCount);
+}
+
+/// A three-column snake keeps the article moving sideways as well as down.
+/// Adjacent lyric lines travel across a row before the camera turns into the
+/// next row, so the composition is not limited to one vertical strip.
+Offset floatingNameArticleCellForIndex(
+  int index, {
+  required double columnSpacing,
+  required double rowOffset,
+}) {
+  const columnCount = 3;
+  final row = index ~/ columnCount;
+  final positionInRow = index % columnCount;
+  final column = row.isEven ? positionInRow : columnCount - 1 - positionInRow;
+  return Offset((column - 1) * columnSpacing, rowOffset);
+}
+
 class _GlyphTiming {
   final Duration start;
   final Duration end;
@@ -364,12 +389,8 @@ int _glyphIndexAtUtf16Offset(List<int> offsets, int target) {
 
 class _FloatingArticleLayout {
   final List<_FloatingBlock> blocks;
-  final Rect paperBounds;
 
-  const _FloatingArticleLayout({
-    required this.blocks,
-    required this.paperBounds,
-  });
+  const _FloatingArticleLayout({required this.blocks});
 
   factory _FloatingArticleLayout.build(
     LyricsData data,
@@ -379,8 +400,9 @@ class _FloatingArticleLayout {
     required List<SongHighlightSegment> highlightSegments,
   }) {
     final blocks = <_FloatingBlock>[];
-    var y = 0.0;
-    final horizontalReach = math.max(viewport.width * 0.44, 130.0);
+    var rowTop = 0.0;
+    var rowBottom = 0.0;
+    final columnSpacing = math.max(viewport.width * 0.94, 290.0);
     for (var index = 0; index < data.lines.length; index++) {
       final line = data.lines[index];
       final variant = floatingNameBlockVariantFor(
@@ -406,12 +428,19 @@ class _FloatingArticleLayout {
         textDirection: TextDirection.ltr,
         maxLines: hero ? 2 : 3,
       )..layout(maxWidth: maxWidth);
-      final pattern = index % 5;
-      final x = hero
-          ? -painter.width / 2
-          : pattern == 0 || pattern == 3
-          ? -horizontalReach
-          : horizontalReach - painter.width;
+      final positionInRow = index % 3;
+      final cell = floatingNameArticleCellForIndex(
+        index,
+        columnSpacing: columnSpacing,
+        rowOffset: rowTop,
+      );
+      final verticalJitter = positionInRow == 1
+          ? math.min(fontSize * 0.42, 24.0)
+          : positionInRow == 2
+          ? math.min(fontSize * 0.18, 12.0)
+          : 0.0;
+      final x = cell.dx - painter.width / 2;
+      final y = cell.dy + verticalJitter;
       final glyphs = line.text.characters.toList(growable: false);
       final utf16Offsets = <int>[0];
       var offset = 0;
@@ -444,17 +473,14 @@ class _FloatingArticleLayout {
         ),
       );
       final jitter = (_stableHash('${line.text}:$index:gap') % 29).toDouble();
-      y += painter.height + (hero ? 104 : 64) + jitter;
+      rowBottom = math.max(rowBottom, y + painter.height);
+      final rowFinished = positionInRow == 2 || index == data.lines.length - 1;
+      if (rowFinished) {
+        rowTop = rowBottom + (hero ? 112 : 78) + jitter;
+        rowBottom = rowTop;
+      }
     }
-    return _FloatingArticleLayout(
-      blocks: blocks,
-      paperBounds: Rect.fromLTRB(
-        -viewport.width * 0.62,
-        -viewport.height * 0.28,
-        viewport.width * 0.62,
-        y + viewport.height * 0.28,
-      ),
-    );
+    return _FloatingArticleLayout(blocks: blocks);
   }
 }
 
@@ -554,6 +580,13 @@ class _FloatingNamePainter extends CustomPainter {
     final toScale = _cameraScale(current, size);
     final scale = ui.lerpDouble(fromScale, toScale, transition)!;
 
+    // The paper tint is screen-space and edge-to-edge. It never has a world-
+    // space rectangle for the travelling camera to expose at the song edges.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = activeColor.withValues(alpha: 0.026),
+    );
+
     canvas.save();
     canvas.translate(size.width / 2, size.height / 2);
     canvas.scale(scale);
@@ -564,7 +597,7 @@ class _FloatingNamePainter extends CustomPainter {
       width: size.width / scale * 1.55,
       height: size.height / scale * 1.45,
     );
-    _paintPaper(canvas, visibleWorld, current);
+    _paintArticleMarker(canvas, current);
     for (final block in layout.blocks) {
       if (!block.bounds.inflate(110).overlaps(visibleWorld)) continue;
       if (block.index == activeIndex) {
@@ -601,26 +634,18 @@ class _FloatingNamePainter extends CustomPainter {
     );
   }
 
-  void _paintPaper(Canvas canvas, Rect visibleWorld, _FloatingBlock current) {
-    final paper = Paint()..color = activeColor.withValues(alpha: 0.026);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(layout.paperBounds, const Radius.circular(42)),
-      paper,
-    );
+  void _paintArticleMarker(Canvas canvas, _FloatingBlock current) {
     final rulePaint = Paint()
       ..color = activeColor.withValues(alpha: 0.075)
       ..strokeWidth = 1;
+    final markerX = current.bounds.left - 22;
     canvas.drawLine(
-      Offset(layout.paperBounds.left + 24, visibleWorld.top),
-      Offset(layout.paperBounds.left + 24, visibleWorld.bottom),
+      Offset(markerX, current.bounds.top - 10),
+      Offset(markerX, current.bounds.bottom + 10),
       rulePaint,
     );
     final markPaint = Paint()..color = activeColor.withValues(alpha: 0.16);
-    canvas.drawCircle(
-      Offset(layout.paperBounds.left + 24, current.center.dy),
-      3.2,
-      markPaint,
-    );
+    canvas.drawCircle(Offset(markerX, current.center.dy), 3.2, markPaint);
   }
 
   void _paintInactiveBlock(Canvas canvas, _FloatingBlock block) {
@@ -637,51 +662,39 @@ class _FloatingNamePainter extends CustomPainter {
   void _paintActiveBlock(Canvas canvas, _FloatingBlock block, double progress) {
     _paintBlockText(canvas, block, activeColor.withValues(alpha: 0.11));
 
-    final completed = progress.floor().clamp(0, block.glyphs.length);
-    final fraction = (progress - progress.floor()).clamp(0.0, 1.0);
+    final typedCount = floatingNameTypedGraphemeCount(
+      progress,
+      block.glyphs.length,
+    );
     final revealPath = Path();
     for (
       var index = 0;
-      index < completed && index < block.glyphBoxes.length;
+      index < typedCount && index < block.glyphBoxes.length;
       index++
     ) {
       final box = block.glyphBoxes[index];
       if (box != Rect.zero) revealPath.addRect(box.shift(block.origin));
-    }
-    if (completed < block.glyphBoxes.length && fraction > 0) {
-      final box = block.glyphBoxes[completed];
-      if (box != Rect.zero) {
-        revealPath.addRect(
-          Rect.fromLTRB(
-            box.left,
-            box.top,
-            box.left + box.width * fraction,
-            box.bottom,
-          ).shift(block.origin),
-        );
-      }
     }
     canvas.save();
     canvas.clipPath(revealPath);
     _paintBlockText(canvas, block, activeColor.withValues(alpha: 0.98));
     canvas.restore();
 
-    if (!motionEnabled || completed >= block.glyphBoxes.length) return;
-    final box = block.glyphBoxes[completed];
+    if (!motionEnabled || typedCount == 0) return;
+    final activeGlyphIndex = typedCount - 1;
+    if (activeGlyphIndex >= block.glyphBoxes.length) return;
+    final box = block.glyphBoxes[activeGlyphIndex];
     if (box == Rect.zero) return;
-    final pulse = math.sin(math.pi * fraction).abs();
+    var strikePhase = (progress - progress.floor()).clamp(0.0, 1.0);
+    if (strikePhase == 0 && progress > 0) strikePhase = 1;
+    final pulse = 1 - Curves.easeOutCubic.transform(strikePhase);
     final fontSize = block.style.fontSize ?? 28;
     final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
-    final stampRect =
-        Rect.fromCenter(
-          center:
-              block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
-          width: stampWidth,
-          height: fontSize * 0.56,
-        ).translate(
-          0,
-          -fontSize * 0.18 * (1 - Curves.easeOutCubic.transform(fraction)),
-        );
+    final stampRect = Rect.fromCenter(
+      center: block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
+      width: stampWidth,
+      height: fontSize * 0.56,
+    ).translate(0, -fontSize * 0.18 * pulse);
     final stampPaint = Paint()
       ..color = activeColor.withValues(alpha: 0.62 * pulse)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 + fontSize * 0.08);

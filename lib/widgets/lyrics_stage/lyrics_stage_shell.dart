@@ -14,6 +14,7 @@ class LyricsStageShell extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final Widget child;
   final Duration? headerVisibleDuration;
+  final EdgeInsetsGeometry contentPadding;
 
   const LyricsStageShell({
     super.key,
@@ -23,6 +24,7 @@ class LyricsStageShell extends StatefulWidget {
     required this.onOpenSettings,
     required this.child,
     this.headerVisibleDuration,
+    this.contentPadding = const EdgeInsets.symmetric(horizontal: 18),
   });
 
   @override
@@ -116,10 +118,7 @@ class _LyricsStageShellState extends State<LyricsStageShell> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: widget.child,
-          ),
+          Padding(padding: widget.contentPadding, child: widget.child),
           AnimatedOpacity(
             opacity: _headerVisible ? 1 : 0,
             duration: const Duration(milliseconds: 720),

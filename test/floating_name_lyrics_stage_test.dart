@@ -103,6 +103,36 @@ void main() {
     expect(floatingNameInterpolatedGlyphCenter(boxes, 1), const Offset(50, 10));
   });
 
+  test(
+    'floating name types whole graphemes while camera progress stays smooth',
+    () {
+      expect(floatingNameTypedGraphemeCount(0, 6), 0);
+      expect(floatingNameTypedGraphemeCount(0.01, 6), 1);
+      expect(floatingNameTypedGraphemeCount(1.4, 6), 2);
+      expect(floatingNameTypedGraphemeCount(5.8, 6), 6);
+    },
+  );
+
+  test('floating name article expands sideways in a snake', () {
+    const spacing = 300.0;
+    expect(
+      floatingNameArticleCellForIndex(0, columnSpacing: spacing, rowOffset: 0),
+      const Offset(-spacing, 0),
+    );
+    expect(
+      floatingNameArticleCellForIndex(2, columnSpacing: spacing, rowOffset: 0),
+      const Offset(spacing, 0),
+    );
+    expect(
+      floatingNameArticleCellForIndex(
+        3,
+        columnSpacing: spacing,
+        rowOffset: 180,
+      ),
+      const Offset(spacing, 180),
+    );
+  });
+
   test('floating name detects highlighted lyric intervals', () {
     const line = LyricLine(
       text: '高潮段落',
