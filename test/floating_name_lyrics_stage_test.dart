@@ -222,6 +222,36 @@ void main() {
     expect(floatingNameGlyphBounceOffset(1.5, 40), closeTo(-4, 0.001));
   });
 
+  test('floating name skips print stamps for spaces and punctuation', () {
+    for (final grapheme in [
+      ' ',
+      '\n',
+      ',',
+      '.',
+      '，',
+      '。',
+      '！',
+      '？',
+      '—',
+      '“',
+      '”',
+      '…',
+    ]) {
+      expect(
+        floatingNameGraphemeGetsPrintStamp(grapheme),
+        isFalse,
+        reason: 'Unexpected stamp for "$grapheme"',
+      );
+    }
+    for (final grapheme in ['浮', 'A', 'é', '7', '♥']) {
+      expect(
+        floatingNameGraphemeGetsPrintStamp(grapheme),
+        isTrue,
+        reason: 'Expected stamp for "$grapheme"',
+      );
+    }
+  });
+
   test('floating name reveal colors glyphs without rectangular clipping', () {
     const revealed = Color(0xFFFFFFFF);
     const pending = Color(0x1CFFFFFF);

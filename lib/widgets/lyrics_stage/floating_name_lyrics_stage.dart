@@ -630,6 +630,14 @@ TextSpan floatingNameRevealSpan({
   );
 }
 
+final RegExp _floatingNamePunctuation = RegExp(r'^\p{P}+$', unicode: true);
+
+@visibleForTesting
+bool floatingNameGraphemeGetsPrintStamp(String grapheme) {
+  return grapheme.trim().isNotEmpty &&
+      !_floatingNamePunctuation.hasMatch(grapheme);
+}
+
 class _FloatingNamePainter extends CustomPainter {
   final _FloatingArticleLayout layout;
   final int activeIndex;
@@ -781,7 +789,7 @@ class _FloatingNamePainter extends CustomPainter {
     block
         .painterForTypedPrefix(
           typedCount: typedCount,
-          revealedColor: activeColor.withValues(alpha: 0.98),
+          revealedColor: activeColor,
           pendingColor: activeColor.withValues(alpha: 0.11),
           liftedGlyphIndex: shouldBounce ? activeGlyphIndex : null,
         )
@@ -791,15 +799,16 @@ class _FloatingNamePainter extends CustomPainter {
     final fontSize = block.style.fontSize ?? 28;
     final bounceOffset = floatingNameGlyphBounceOffset(progress, fontSize);
     block
-        .painterForActiveGlyph(
-          glyphIndex: activeGlyphIndex,
-          color: activeColor.withValues(alpha: 0.98),
-        )
+        .painterForActiveGlyph(glyphIndex: activeGlyphIndex, color: activeColor)
         .paint(canvas, block.origin.translate(0, bounceOffset));
 
+    if (!floatingNameGraphemeGetsPrintStamp(block.glyphs[activeGlyphIndex])) {
+      return;
+    }
     final box = block.glyphBoxes[activeGlyphIndex];
     if (box == Rect.zero) return;
     final pulse = lyricPrintStampPulse(progress);
+    if (pulse <= 0) return;
     final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
     final stampRect = Rect.fromCenter(
       center: block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
@@ -807,8 +816,7 @@ class _FloatingNamePainter extends CustomPainter {
       height: fontSize * 0.56,
     ).translate(0, -fontSize * 0.18 * pulse);
     final stampPaint = Paint()
-      ..color = activeColor.withValues(alpha: 0.62 * pulse)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 + fontSize * 0.08);
+      ..color = activeColor.withValues(alpha: activeColor.a * 0.8 * pulse);
     canvas.drawRRect(
       RRect.fromRectAndRadius(stampRect, Radius.circular(fontSize * 0.06)),
       stampPaint,
