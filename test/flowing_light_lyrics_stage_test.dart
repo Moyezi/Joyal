@@ -109,7 +109,13 @@ void main() {
         final rowCounts = <int, int>{};
         for (final item in layout) {
           rowCounts.update(item.row, (count) => count + 1, ifAbsent: () => 1);
-          expect(item.rotationDegrees, inInclusiveRange(-25, 25));
+          expect(
+            item.rotationDegrees,
+            inInclusiveRange(
+              -flowingLightMaximumRotationDegrees,
+              flowingLightMaximumRotationDegrees,
+            ),
+          );
         }
         expect(
           rowCounts.values.every((count) => count >= 2 && count <= 3),
@@ -169,10 +175,43 @@ void main() {
     );
   });
 
-  test('flowing light ambient float returns to origin', () {
-    expect(flowingLightFloatFactor(0), 0);
-    expect(flowingLightFloatFactor(0.5), closeTo(-0.1, 0.0001));
-    expect(flowingLightFloatFactor(1), closeTo(0, 0.0001));
+  test('flowing light rotation uses a 7.2 second cycle', () {
+    expect(
+      flowingLightRotationCycleDuration,
+      const Duration(milliseconds: 7200),
+    );
+    expect(flowingLightMaximumRotationDegrees, 20);
+  });
+
+  test('revealed flowing light tokens rock gently in both directions', () {
+    expect(
+      flowingLightTokenSwayDegrees(
+        phase: 0.25,
+        tokenIndex: 0,
+        revealProgress: 0,
+      ),
+      0,
+    );
+
+    final evenRight = flowingLightTokenSwayDegrees(
+      phase: 0.25,
+      tokenIndex: 0,
+      revealProgress: 1,
+    );
+    final evenLeft = flowingLightTokenSwayDegrees(
+      phase: 0.75,
+      tokenIndex: 0,
+      revealProgress: 1,
+    );
+    final oddLeft = flowingLightTokenSwayDegrees(
+      phase: 0.25,
+      tokenIndex: 1,
+      revealProgress: 1,
+    );
+
+    expect(evenRight, closeTo(1.8, 0.0001));
+    expect(evenLeft, closeTo(-1.8, 0.0001));
+    expect(oddLeft, closeTo(-2.1, 0.0001));
   });
 
   test('last flowing light token keeps a periodic breathing glow', () {

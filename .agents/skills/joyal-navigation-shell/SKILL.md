@@ -43,6 +43,14 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Share `libraryCanvasHeroTag` between the sidebar image and the canvas header thumbnail. Keep the sidebar open while the route is active so the reverse Hero returns to a visible source.
 - Do not show the main-shell MiniPlayer or Dock inside `LibraryCanvasScreen`.
 
+## Infinite Canvas Gestures And Hero
+
+- On the home tab with the sidebar closed, use a two-finger spread to open `LibraryCanvasScreen`; use a two-finger pinch inside the canvas to pop back home.
+- Track pinch distance through `TwoFingerPinchTracker` and raw pointer events so one-finger sidebar and canvas dragging remain available.
+- Make the home two-finger recognizer win the gesture arena as soon as the second finger lands. Freeze the home vertical scroll, recent-card horizontal drag, and sidebar drag for the rest of that two-finger gesture.
+- Keep two distinct Hero routes for the custom sidebar image. Sidebar taps use `libraryCanvasHeroTag`; closed-home pinch entry uses `libraryCanvasEdgeHeroTag` with an off-screen source at the left screen edge. Pass the selected tag into the canvas header so reverse navigation returns along the same path.
+- Never mount both image sources with the same Hero tag on the home route; duplicate tags break route collection.
+
 ## Settings Entry
 
 - Settings entry lives at the lower-left settings button in the home right-swipe sidebar.
@@ -53,6 +61,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Shell/navigation: `lib/app.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
 - Sidebar: `home_sidebar.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.
+- Shared pinch tracking: `lib/utils/two_finger_pinch_tracker.dart`.
 - Floating playback UI: `mini_player.dart`, `mini_player_chrome.dart`.
 - Queues and sheets: `play_queue_sheet.dart`.
 - Settings route: `settings_hub_screen.dart`, `personalization_screen.dart`.

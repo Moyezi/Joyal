@@ -10,11 +10,14 @@ import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/sidebar_image_provider.dart';
+import '../utils/two_finger_pinch_tracker.dart';
 import '../widgets/cached_disk_image.dart';
 import '../widgets/home_sidebar.dart';
 
 class LibraryCanvasScreen extends ConsumerStatefulWidget {
-  const LibraryCanvasScreen({super.key});
+  final Object heroTag;
+
+  const LibraryCanvasScreen({super.key, this.heroTag = libraryCanvasHeroTag});
 
   @override
   ConsumerState<LibraryCanvasScreen> createState() =>
@@ -26,6 +29,8 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   static const double _horizontalStep = 248;
   static const double _verticalStep = 232;
   static const double _viewportInset = 0;
+  static const double _pinchCloseScale = 0.82;
+  static const double _pinchCloseDistance = 48;
 
   late final AnimationController _snapController;
   late final ValueNotifier<Offset> _canvasOffsetNotifier;
@@ -37,6 +42,8 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
   int _songCount = -1;
   bool _hasInitialFocus = false;
   int? _lastDragFocusIndex;
+  final TwoFingerPinchTracker _pinchTracker = TwoFingerPinchTracker();
+  bool _isPinchClosing = false;
 
   @override
   void initState() {
@@ -69,7 +76,48 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
     _snapController.dispose();
     _canvasOffsetNotifier.dispose();
     _interactionNotifier.dispose();
+    _pinchTracker.reset();
     super.dispose();
+  }
+
+  void _handlePinchPointerDown(PointerDownEvent event) {
+    if (_isPinchClosing) return;
+    _pinchTracker.addPointer(event.pointer, event.position);
+    if (_pinchTracker.isTracking) {
+      _snapController.stop();
+      _interactionNotifier.value = true;
+      _lastDragFocusIndex = null;
+    }
+  }
+
+  void _handlePinchPointerMove(PointerMoveEvent event) {
+    final progress = _pinchTracker.updatePointer(event.pointer, event.position);
+    if (progress == null || _pinchTracker.hasTriggered || _isPinchClosing) {
+      return;
+    }
+    if (progress.scale > _pinchCloseScale ||
+        progress.distanceDelta > -_pinchCloseDistance) {
+      return;
+    }
+
+    _pinchTracker.markTriggered();
+    _isPinchClosing = true;
+    HapticFeedback.mediumImpact();
+    Navigator.maybePop(context);
+  }
+
+  void _handlePinchPointerEnd(PointerEvent event) {
+    _pinchTracker.removePointer(event.pointer);
+    if (_pinchTracker.pointerCount != 0 || _isPinchClosing) return;
+
+    final nearest = _lastViewport.isEmpty
+        ? null
+        : _nearestVisibleIndex(_lastViewport);
+    if (nearest == null) {
+      _interactionNotifier.value = false;
+    } else {
+      _animateToIndex(nearest);
+    }
   }
 
   void _ensureIndex(List<Song> songs) {
@@ -184,97 +232,107 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFF121416),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(_viewportInset),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final size = constraints.biggest;
-              _lastViewport = size;
-              _initializeFocus(songs, currentSong);
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanStart: (_) {
-                        _snapController.stop();
-                        _interactionNotifier.value = true;
-                        _lastDragFocusIndex = _nearestVisibleIndex(size);
-                        HapticFeedback.lightImpact();
-                      },
-                      onPanUpdate: (details) {
-                        _canvasOffsetNotifier.value =
-                            _canvasOffset + details.delta;
-                        final nearest = _nearestVisibleIndex(size);
-                        if (nearest != null && nearest != _lastDragFocusIndex) {
-                          _lastDragFocusIndex = nearest;
-                          HapticFeedback.selectionClick();
-                        }
-                      },
-                      onPanEnd: (_) {
-                        final nearest = _nearestVisibleIndex(size);
-                        _lastDragFocusIndex = null;
-                        if (nearest != null) _animateToIndex(nearest);
-                      },
-                      onPanCancel: () {
-                        _lastDragFocusIndex = null;
-                        _interactionNotifier.value = false;
-                      },
-                      child: ColoredBox(
-                        color: const Color(0xFF121416),
-                        child: songs.isEmpty
-                            ? const _EmptyCanvas()
-                            : ValueListenableBuilder<bool>(
-                                valueListenable: _interactionNotifier,
-                                builder: (context, isInteracting, _) {
-                                  return ValueListenableBuilder<Offset>(
-                                    valueListenable: _canvasOffsetNotifier,
-                                    builder: (context, canvasOffset, _) {
-                                      final visibleIndices = _visibleIndices(
-                                        size,
-                                      );
-                                      return _CanvasCards(
-                                        songs: songs,
-                                        indices: visibleIndices,
-                                        focusedIndex: _nearestIndex(
-                                          visibleIndices,
-                                        ),
-                                        canvasOffset: canvasOffset,
-                                        viewportSize: size,
-                                        worldPosition: _worldPosition,
-                                        blurEnabled: !isInteracting,
-                                        onFocus: _animateToIndex,
-                                        onPlay: (index) =>
-                                            _playSong(songs, index),
-                                        onPlayNext: (index) => ref
-                                            .read(playerProvider.notifier)
-                                            .playNext(songs[index]),
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _handlePinchPointerDown,
+        onPointerMove: _handlePinchPointerMove,
+        onPointerUp: _handlePinchPointerEnd,
+        onPointerCancel: _handlePinchPointerEnd,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(_viewportInset),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.biggest;
+                _lastViewport = size;
+                _initializeFocus(songs, currentSong);
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onPanStart: (_) {
+                          _snapController.stop();
+                          _interactionNotifier.value = true;
+                          _lastDragFocusIndex = _nearestVisibleIndex(size);
+                          HapticFeedback.lightImpact();
+                        },
+                        onPanUpdate: (details) {
+                          if (_pinchTracker.isTracking) return;
+                          _canvasOffsetNotifier.value =
+                              _canvasOffset + details.delta;
+                          final nearest = _nearestVisibleIndex(size);
+                          if (nearest != null &&
+                              nearest != _lastDragFocusIndex) {
+                            _lastDragFocusIndex = nearest;
+                            HapticFeedback.selectionClick();
+                          }
+                        },
+                        onPanEnd: (_) {
+                          final nearest = _nearestVisibleIndex(size);
+                          _lastDragFocusIndex = null;
+                          if (nearest != null) _animateToIndex(nearest);
+                        },
+                        onPanCancel: () {
+                          _lastDragFocusIndex = null;
+                          _interactionNotifier.value = false;
+                        },
+                        child: ColoredBox(
+                          color: const Color(0xFF121416),
+                          child: songs.isEmpty
+                              ? const _EmptyCanvas()
+                              : ValueListenableBuilder<bool>(
+                                  valueListenable: _interactionNotifier,
+                                  builder: (context, isInteracting, _) {
+                                    return ValueListenableBuilder<Offset>(
+                                      valueListenable: _canvasOffsetNotifier,
+                                      builder: (context, canvasOffset, _) {
+                                        final visibleIndices = _visibleIndices(
+                                          size,
+                                        );
+                                        return _CanvasCards(
+                                          songs: songs,
+                                          indices: visibleIndices,
+                                          focusedIndex: _nearestIndex(
+                                            visibleIndices,
+                                          ),
+                                          canvasOffset: canvasOffset,
+                                          viewportSize: size,
+                                          worldPosition: _worldPosition,
+                                          blurEnabled: !isInteracting,
+                                          onFocus: _animateToIndex,
+                                          onPlay: (index) =>
+                                              _playSong(songs, index),
+                                          onPlayNext: (index) => ref
+                                              .read(playerProvider.notifier)
+                                              .playNext(songs[index]),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 18,
-                    right: 18,
-                    top: 12,
-                    child: _CanvasHeader(
-                      imagePath: sidebarImage.imagePath,
-                      alignment: Alignment(
-                        sidebarImage.alignmentX,
-                        sidebarImage.alignmentY,
+                    Positioned(
+                      left: 18,
+                      right: 18,
+                      top: 12,
+                      child: _CanvasHeader(
+                        heroTag: widget.heroTag,
+                        imagePath: sidebarImage.imagePath,
+                        alignment: Alignment(
+                          sidebarImage.alignmentX,
+                          sidebarImage.alignmentY,
+                        ),
+                        songCount: songs.length,
+                        onBack: () => Navigator.maybePop(context),
                       ),
-                      songCount: songs.length,
-                      onBack: () => Navigator.maybePop(context),
                     ),
-                  ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -550,12 +608,14 @@ class _CardAction extends StatelessWidget {
 }
 
 class _CanvasHeader extends StatelessWidget {
+  final Object heroTag;
   final String? imagePath;
   final Alignment alignment;
   final int songCount;
   final VoidCallback onBack;
 
   const _CanvasHeader({
+    required this.heroTag,
     required this.imagePath,
     required this.alignment,
     required this.songCount,
@@ -588,7 +648,7 @@ class _CanvasHeader extends StatelessWidget {
             children: [
               if (hasImage)
                 Hero(
-                  tag: libraryCanvasHeroTag,
+                  tag: heroTag,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.file(

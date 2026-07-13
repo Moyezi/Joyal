@@ -364,6 +364,7 @@ class _SidebarImagePanel extends ConsumerWidget {
 }
 
 const String libraryCanvasHeroTag = 'library-canvas-sidebar-image';
+const String libraryCanvasEdgeHeroTag = 'library-canvas-edge-image';
 
 class _SidebarImagePlaceholder extends StatelessWidget {
   final String label;

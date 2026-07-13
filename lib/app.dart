@@ -24,6 +24,7 @@ import 'screens/personalization_screen.dart';
 import 'screens/settings_hub_screen.dart';
 import 'services/android_media_bridge.dart';
 import 'services/lyrics_service.dart';
+import 'utils/two_finger_pinch_tracker.dart';
 import 'widgets/bottom_nav.dart';
 import 'widgets/home_sidebar.dart';
 import 'widgets/mini_player.dart';
@@ -96,6 +97,8 @@ class _MainShellState extends ConsumerState<MainShell>
   static const double _drawerScrimMaxAlpha = 0.10;
   static const Duration _tabSwitchDuration = Duration(milliseconds: 260);
   static const Duration _tapCloseDuration = Duration(milliseconds: 220);
+  static const double _homePinchOpenScale = 1.18;
+  static const double _homePinchOpenDistance = 48;
 
   bool _isDraggingDrawer = false;
   bool _isMiniPlayerCollapsed = false;
@@ -111,6 +114,8 @@ class _MainShellState extends ConsumerState<MainShell>
   final Set<String> _lyricsPrefetchInFlight = {};
   final List<_VelocitySample> _velocitySamples = [];
   final List<Rect> _drawerExclusionRects = [];
+  final TwoFingerPinchTracker _homePinchTracker = TwoFingerPinchTracker();
+  bool _isLibraryCanvasRouteOpen = false;
 
   void _registerDrawerExclusion(Rect rect) {
     _drawerExclusionRects.clear();
@@ -325,24 +330,85 @@ class _MainShellState extends ConsumerState<MainShell>
     ).push(MaterialPageRoute(builder: (_) => const PersonalizationScreen()));
   }
 
-  void _openLibraryCanvas() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LibraryCanvasScreen(),
-        transitionDuration: const Duration(milliseconds: 620),
-        reverseTransitionDuration: const Duration(milliseconds: 480),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(
-              parent: animation,
-              curve: const Interval(0.18, 1, curve: Curves.easeOutCubic),
-            ),
-            child: child,
-          );
-        },
-      ),
+  Future<void> _openLibraryCanvas({bool fromHomePinch = false}) async {
+    if (_isLibraryCanvasRouteOpen) return;
+    _isLibraryCanvasRouteOpen = true;
+    _homePinchTracker.reset();
+    try {
+      await Navigator.of(context).push(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              LibraryCanvasScreen(
+                heroTag: fromHomePinch
+                    ? libraryCanvasEdgeHeroTag
+                    : libraryCanvasHeroTag,
+              ),
+          transitionDuration: const Duration(milliseconds: 620),
+          reverseTransitionDuration: const Duration(milliseconds: 480),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: const Interval(0.18, 1, curve: Curves.easeOutCubic),
+              ),
+              child: child,
+            );
+          },
+        ),
+      );
+    } finally {
+      _isLibraryCanvasRouteOpen = false;
+      _homePinchTracker.reset();
+    }
+  }
+
+  void _handleHomePinchPointerDown(PointerDownEvent event) {
+    if (_homePinchTracker.pointerCount == 0 &&
+        (_currentTab != 0 ||
+            _isDrawerOpen ||
+            _tabTransitionController.isAnimating ||
+            _isLibraryCanvasRouteOpen)) {
+      return;
+    }
+
+    _homePinchTracker.addPointer(event.pointer, event.position);
+    if (_homePinchTracker.isTracking) {
+      _drawerController.stop();
+      _drawerController.value = 0;
+      _resetDrawerPointerTracking();
+    }
+  }
+
+  void _handleHomePinchPointerMove(PointerMoveEvent event) {
+    final progress = _homePinchTracker.updatePointer(
+      event.pointer,
+      event.position,
     );
+    if (progress == null || _homePinchTracker.hasTriggered) return;
+    if (progress.scale < _homePinchOpenScale ||
+        progress.distanceDelta < _homePinchOpenDistance) {
+      return;
+    }
+
+    _homePinchTracker.markTriggered();
+    HapticFeedback.mediumImpact();
+    _openLibraryCanvas(fromHomePinch: true);
+  }
+
+  void _handleHomePinchPointerEnd(PointerEvent event) {
+    _homePinchTracker.removePointer(event.pointer);
+  }
+
+  bool _shouldAllowHomePinchPointer(PointerDownEvent event) {
+    if (_currentTab != 0 ||
+        _tabTransitionController.isAnimating ||
+        _isLibraryCanvasRouteOpen) {
+      return false;
+    }
+    // Once the first finger is down, still admit the second one if the drawer
+    // recognizer has moved by a few pixels. The pinch handler immediately
+    // restores the drawer to its closed position.
+    return _homePinchTracker.pointerCount > 0 || !_isDrawerOpen;
   }
 
   bool _shouldAllowDrawerPointer(PointerDownEvent event, double drawerWidth) {
@@ -393,7 +459,9 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   void _handleDrawerDragUpdate(DragUpdateDetails details, double drawerWidth) {
-    if (!_isDraggingDrawer || drawerWidth <= 0) {
+    if (!_isDraggingDrawer ||
+        drawerWidth <= 0 ||
+        _homePinchTracker.isTracking) {
       return;
     }
 
@@ -511,40 +579,54 @@ class _MainShellState extends ConsumerState<MainShell>
         final drawerWidth = constraints.maxWidth * _drawerWidthFactor;
         _lastDrawerWidth = drawerWidth;
         return Scaffold(
-          body: RawGestureDetector(
+          body: Listener(
             behavior: HitTestBehavior.translucent,
-            gestures: {
-              _DrawerHorizontalDragGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<
-                    _DrawerHorizontalDragGestureRecognizer
-                  >(() => _DrawerHorizontalDragGestureRecognizer(), (
-                    recognizer,
-                  ) {
-                    recognizer.shouldAcceptPointer = (event) =>
-                        _shouldAllowDrawerPointer(event, drawerWidth);
-                    recognizer.onStart = _handleDrawerDragStart;
-                    recognizer.onUpdate = (details) =>
-                        _handleDrawerDragUpdate(details, drawerWidth);
-                    recognizer.onEnd = _handleDrawerDragEnd;
-                    recognizer.onCancel = _handleDrawerDragCancel;
-                  }),
-            },
-            child: Stack(
-              children: [
-                _DrawerPane(
-                  animation: _drawerController,
-                  drawerWidth: drawerWidth,
-                  child: RepaintBoundary(
-                    child: HomeSidebar(
-                      onSettingsTap: _openSettingsHub,
-                      onPersonalizationTap: _openPersonalization,
-                      onLibraryCanvasTap: _openLibraryCanvas,
+            onPointerDown: _handleHomePinchPointerDown,
+            onPointerMove: _handleHomePinchPointerMove,
+            onPointerUp: _handleHomePinchPointerEnd,
+            onPointerCancel: _handleHomePinchPointerEnd,
+            child: RawGestureDetector(
+              behavior: HitTestBehavior.translucent,
+              gestures: {
+                _TwoFingerBlockGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      _TwoFingerBlockGestureRecognizer
+                    >(() => _TwoFingerBlockGestureRecognizer(), (recognizer) {
+                      recognizer.shouldAcceptPointer =
+                          _shouldAllowHomePinchPointer;
+                    }),
+                _DrawerHorizontalDragGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<
+                      _DrawerHorizontalDragGestureRecognizer
+                    >(() => _DrawerHorizontalDragGestureRecognizer(), (
+                      recognizer,
+                    ) {
+                      recognizer.shouldAcceptPointer = (event) =>
+                          _shouldAllowDrawerPointer(event, drawerWidth);
+                      recognizer.onStart = _handleDrawerDragStart;
+                      recognizer.onUpdate = (details) =>
+                          _handleDrawerDragUpdate(details, drawerWidth);
+                      recognizer.onEnd = _handleDrawerDragEnd;
+                      recognizer.onCancel = _handleDrawerDragCancel;
+                    }),
+              },
+              child: Stack(
+                children: [
+                  _DrawerPane(
+                    animation: _drawerController,
+                    drawerWidth: drawerWidth,
+                    child: RepaintBoundary(
+                      child: HomeSidebar(
+                        onSettingsTap: _openSettingsHub,
+                        onPersonalizationTap: _openPersonalization,
+                        onLibraryCanvasTap: () => _openLibraryCanvas(),
+                      ),
                     ),
                   ),
-                ),
-                _buildTransformedShell(drawerWidth: drawerWidth),
-                _StartupMask(isVisible: isStartingUp),
-              ],
+                  _buildTransformedShell(drawerWidth: drawerWidth),
+                  _StartupMask(isVisible: isStartingUp),
+                ],
+              ),
             ),
           ),
         );
@@ -593,9 +675,19 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   Widget _buildShellContent() {
+    final sidebarImage = ref.watch(sidebarImageProvider);
     return Stack(
       children: [
         Positioned.fill(child: _buildSlidingTabs()),
+        if (sidebarImage.imagePath case final imagePath?
+            when imagePath.isNotEmpty)
+          _LibraryCanvasEdgeHero(
+            imagePath: imagePath,
+            alignment: Alignment(
+              sidebarImage.alignmentX,
+              sidebarImage.alignmentY,
+            ),
+          ),
         Align(
           alignment: Alignment.bottomCenter,
           child: Material(
@@ -691,7 +783,42 @@ class _MainShellState extends ConsumerState<MainShell>
     _drawerController.dispose();
     _tabTransitionController.dispose();
     _libraryTabRequest.dispose();
+    _homePinchTracker.reset();
     super.dispose();
+  }
+}
+
+class _LibraryCanvasEdgeHero extends StatelessWidget {
+  final String imagePath;
+  final Alignment alignment;
+
+  const _LibraryCanvasEdgeHero({
+    required this.imagePath,
+    required this.alignment,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const width = 96.0;
+    return Positioned(
+      left: -width,
+      top: MediaQuery.paddingOf(context).top + 104,
+      width: width,
+      height: 54,
+      child: Hero(
+        tag: libraryCanvasEdgeHeroTag,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.file(
+            File(imagePath),
+            fit: BoxFit.cover,
+            alignment: alignment,
+            errorBuilder: (_, _, _) =>
+                const ColoredBox(color: Color(0xFF282B2E)),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -793,4 +920,46 @@ class _DrawerHorizontalDragGestureRecognizer
     return (shouldAcceptPointer?.call(event) ?? false) &&
         super.isPointerAllowed(event);
   }
+}
+
+/// Wins the gesture arena as soon as a second finger is placed on the home
+/// screen. Pointer positions are still observed by the surrounding [Listener]
+/// for pinch detection, while descendant vertical and horizontal scrollables
+/// are prevented from reacting to the same two-finger movement.
+class _TwoFingerBlockGestureRecognizer extends OneSequenceGestureRecognizer {
+  bool Function(PointerDownEvent event)? shouldAcceptPointer;
+  final Set<int> _pointers = <int>{};
+
+  @override
+  bool isPointerAllowed(PointerEvent event) {
+    if (event is! PointerDownEvent) return false;
+    return (shouldAcceptPointer?.call(event) ?? false) &&
+        super.isPointerAllowed(event);
+  }
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    _pointers.add(event.pointer);
+    if (_pointers.length >= 2) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _pointers.remove(event.pointer);
+      stopTrackingPointer(event.pointer);
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _pointers.clear();
+    resolve(GestureDisposition.rejected);
+  }
+
+  @override
+  String get debugDescription => 'home two-finger block';
 }

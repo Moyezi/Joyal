@@ -10,6 +10,7 @@ import 'package:joyal_music/providers/auth_provider.dart';
 import 'package:joyal_music/providers/library_provider.dart';
 import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/screens/home_screen.dart';
+import 'package:joyal_music/screens/library_canvas_screen.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
 import 'package:joyal_music/services/cache_repository.dart';
 import 'package:joyal_music/services/buckets/album_cache_bucket.dart';
@@ -32,6 +33,80 @@ void main() {
     expect(find.text('曲库'), findsWidgets);
     expect(find.text('发现'), findsWidgets);
     expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
+  });
+
+  testWidgets('Home spread opens canvas and canvas pinch returns home', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    final outwardLeft = await tester.createGesture(pointer: 11);
+    final outwardRight = await tester.createGesture(pointer: 12);
+    await outwardLeft.down(const Offset(280, 320));
+    await outwardRight.down(const Offset(520, 320));
+    await outwardLeft.moveTo(const Offset(225, 320));
+    await tester.pump();
+    await outwardLeft.up();
+    await outwardRight.up();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LibraryCanvasScreen), findsOneWidget);
+
+    final inwardLeft = await tester.createGesture(pointer: 13);
+    final inwardRight = await tester.createGesture(pointer: 14);
+    await inwardLeft.down(const Offset(240, 320));
+    await inwardRight.down(const Offset(560, 320));
+    await inwardLeft.moveTo(const Offset(315, 320));
+    await tester.pump();
+    await inwardLeft.up();
+    await inwardRight.up();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LibraryCanvasScreen), findsNothing);
+    expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
+  });
+
+  testWidgets('Two fingers freeze every home scroll direction', (tester) async {
+    await tester.pumpWidget(
+      _testApp(
+        overrides: [
+          libraryProvider.overrideWith(
+            (ref) => _TestLibraryNotifier(_libraryWithManyAlbums()),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scrollables = tester
+        .stateList<ScrollableState>(
+          find.descendant(
+            of: find.byType(HomeScreen),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .toList(growable: false);
+    final initialOffsets = <ScrollableState, double>{
+      for (final state in scrollables) state: state.position.pixels,
+    };
+
+    final first = await tester.createGesture(pointer: 21);
+    final second = await tester.createGesture(pointer: 22);
+    await first.down(const Offset(200, 400));
+    await second.down(const Offset(400, 400));
+    await first.moveTo(const Offset(300, 250));
+    await second.moveTo(const Offset(500, 250));
+    await tester.pump();
+
+    for (final entry in initialOffsets.entries) {
+      expect(entry.key.position.pixels, moreOrLessEquals(entry.value));
+    }
+    expect(find.byType(LibraryCanvasScreen), findsNothing);
+
+    await first.up();
+    await second.up();
+    await tester.pumpAndSettle();
   });
 
   // ━━━ GlassTopBar search icon tests ━━━━━━━━━━━━━━━━━━━━━━

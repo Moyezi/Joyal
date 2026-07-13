@@ -193,7 +193,10 @@ List<FlowingLightTokenPlacement> flowingLightPlacementsForTokens(
       placements.add(
         FlowingLightTokenPlacement(
           row: row,
-          rotationDegrees: (_normalSample(random) * 8.5).clamp(-25.0, 25.0),
+          rotationDegrees: (_normalSample(random) * 8.5).clamp(
+            -flowingLightMaximumRotationDegrees,
+            flowingLightMaximumRotationDegrees,
+          ),
           horizontalJitter: (_normalSample(random) * 0.11).clamp(-0.24, 0.24),
           verticalJitter: (_normalSample(random) * 0.10).clamp(-0.22, 0.22),
           scale: (1 + _normalSample(random) * 0.045).clamp(0.91, 1.09),
@@ -363,6 +366,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
             placements: placements,
             fontSize: fontSize,
             ambientMotionEnabled: ambientMotionEnabled,
+            revealProgresses: List<double>.filled(displayPieces.length, 1),
             children: [
               for (final piece in displayPieces) Text(piece, style: style),
             ],
@@ -372,6 +376,10 @@ class _FlowingLightActiveLine extends ConsumerWidget {
           placements: placements,
           fontSize: fontSize,
           ambientMotionEnabled: ambientMotionEnabled,
+          revealProgresses: [
+            for (final token in tokens)
+              flowingLightTokenRevealProgress(token, animatedPosition),
+          ],
           children: [
             for (var index = 0; index < tokens.length; index++)
               _FlowingLightTokenView(
@@ -422,15 +430,18 @@ List<String> _flowingLightDisplayPieces(String text) {
 class _ScatteredFlowingLightLayout extends StatefulWidget {
   final List<FlowingLightTokenPlacement> placements;
   final List<Widget> children;
+  final List<double> revealProgresses;
   final double fontSize;
   final bool ambientMotionEnabled;
 
   const _ScatteredFlowingLightLayout({
     required this.placements,
     required this.children,
+    required this.revealProgresses,
     required this.fontSize,
     required this.ambientMotionEnabled,
-  });
+  }) : assert(placements.length == children.length),
+       assert(revealProgresses.length == children.length);
 
   @override
   State<_ScatteredFlowingLightLayout> createState() =>
@@ -440,14 +451,14 @@ class _ScatteredFlowingLightLayout extends StatefulWidget {
 class _ScatteredFlowingLightLayoutState
     extends State<_ScatteredFlowingLightLayout>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _floatController;
+  late final AnimationController _rotationController;
 
   @override
   void initState() {
     super.initState();
-    _floatController = AnimationController(
+    _rotationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3600),
+      duration: flowingLightRotationCycleDuration,
     );
     _syncAmbientMotion();
   }
@@ -462,16 +473,16 @@ class _ScatteredFlowingLightLayoutState
 
   void _syncAmbientMotion() {
     if (widget.ambientMotionEnabled) {
-      _floatController.repeat();
+      _rotationController.repeat();
     } else {
-      _floatController.stop();
-      _floatController.value = 0;
+      _rotationController.stop();
+      _rotationController.value = 0;
     }
   }
 
   @override
   void dispose() {
-    _floatController.dispose();
+    _rotationController.dispose();
     super.dispose();
   }
 
@@ -521,11 +532,13 @@ class _ScatteredFlowingLightLayoutState
                             widget.placements[index].verticalJitter *
                                 widget.fontSize,
                           ),
-                          child: Transform.rotate(
-                            angle:
-                                widget.placements[index].rotationDegrees *
-                                math.pi /
-                                180,
+                          child: _FlowingLightRockingRotation(
+                            animation: _rotationController,
+                            baseRotationDegrees:
+                                widget.placements[index].rotationDegrees,
+                            tokenIndex: index,
+                            revealProgress: widget.revealProgresses[index],
+                            enabled: widget.ambientMotionEnabled,
                             child: Transform.scale(
                               scale: widget.placements[index].scale,
                               child: widget.children[index],
@@ -541,21 +554,74 @@ class _ScatteredFlowingLightLayoutState
         ),
       ),
     );
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _floatController,
-        child: composition,
-        builder: (context, child) => Transform.translate(
-          offset: Offset(
-            0,
-            flowingLightFloatFactor(_floatController.value) * widget.fontSize,
-          ),
+    return RepaintBoundary(child: composition);
+  }
+}
+
+class _FlowingLightRockingRotation extends StatelessWidget {
+  final Animation<double> animation;
+  final double baseRotationDegrees;
+  final int tokenIndex;
+  final double revealProgress;
+  final bool enabled;
+  final Widget child;
+
+  const _FlowingLightRockingRotation({
+    required this.animation,
+    required this.baseRotationDegrees,
+    required this.tokenIndex,
+    required this.revealProgress,
+    required this.enabled,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final swayDegrees = enabled
+            ? flowingLightTokenSwayDegrees(
+                phase: animation.value,
+                tokenIndex: tokenIndex,
+                revealProgress: revealProgress,
+              )
+            : 0.0;
+        final rotationDegrees = (baseRotationDegrees + swayDegrees)
+            .clamp(
+              -flowingLightMaximumRotationDegrees,
+              flowingLightMaximumRotationDegrees,
+            )
+            .toDouble();
+        return Transform.rotate(
+          angle: rotationDegrees * math.pi / 180,
           child: child,
-        ),
-      ),
+        );
+      },
     );
   }
 }
+
+double flowingLightTokenSwayDegrees({
+  required double phase,
+  required int tokenIndex,
+  required double revealProgress,
+}) {
+  final normalizedPhase = phase - phase.floorToDouble();
+  final normalizedReveal = revealProgress.clamp(0.0, 1.0).toDouble();
+  if (normalizedReveal <= 0) return 0;
+  final direction = tokenIndex.isEven ? 1.0 : -1.0;
+  final amplitude = 1.8 + (tokenIndex % 3) * 0.3;
+  final revealRamp = Curves.easeOutCubic.transform(normalizedReveal);
+  return math.sin(2 * math.pi * normalizedPhase) *
+      amplitude *
+      direction *
+      revealRamp;
+}
+
+const flowingLightRotationCycleDuration = Duration(milliseconds: 7200);
+const flowingLightMaximumRotationDegrees = 20.0;
 
 double flowingLightEntranceScale(double progress) {
   final clamped = progress.clamp(0.0, 1.0).toDouble();
@@ -597,13 +663,7 @@ double flowingLightBreathingGlowIntensity(double phase) {
   return 0.36 + 0.28 * wave;
 }
 
-double flowingLightFloatFactor(double phase) {
-  final normalized = phase.clamp(0.0, 1.0).toDouble();
-  return -0.05 * (1 - math.cos(2 * math.pi * normalized));
-}
-
 class _FlowingLightTokenView extends StatelessWidget {
-  static const _popDuration = Duration(milliseconds: 520);
   static const _breathingDuration = Duration(milliseconds: 2200);
 
   final FlowingLightToken token;
@@ -629,9 +689,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final elapsedMicros = (position - token.start).inMicroseconds;
-    final reveal = (elapsedMicros / _popDuration.inMicroseconds)
-        .clamp(0.0, 1.0)
-        .toDouble();
+    final reveal = flowingLightTokenRevealProgress(token, position);
     final visible = elapsedMicros >= 0;
     final horizontalPadding = token.isLatinWord ? 4.0 : 0.5;
     final text = Text(token.text, style: style);
@@ -719,6 +777,18 @@ class _FlowingLightTokenView extends StatelessWidget {
       ),
     );
   }
+}
+
+const flowingLightTokenEntranceDuration = Duration(milliseconds: 520);
+
+double flowingLightTokenRevealProgress(
+  FlowingLightToken token,
+  Duration position,
+) {
+  return ((position - token.start).inMicroseconds /
+          flowingLightTokenEntranceDuration.inMicroseconds)
+      .clamp(0.0, 1.0)
+      .toDouble();
 }
 
 class _TokenGlowPainter extends CustomPainter {
