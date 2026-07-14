@@ -347,6 +347,53 @@ void main() {
     ]);
   });
 
+  test('floating name keyword print stamp uses the keyword color', () {
+    const active = Color(0xFFFFFFFF);
+    const stamp = Color(0xFF778899);
+    const keyword = Color(0xFFCC6633);
+
+    expect(
+      floatingNamePrintStampColor(
+        activeColor: active,
+        aiStampColor: stamp,
+        semanticColor: keyword,
+      ),
+      keyword,
+    );
+    expect(
+      floatingNamePrintStampColor(activeColor: active, aiStampColor: stamp),
+      stamp,
+    );
+  });
+
+  test('floating name passed text fades smoothly from active to gray', () {
+    const active = Color(0xFFFFFFFF);
+    const passed = Color(0x66FFFFFF);
+
+    expect(
+      floatingNamePassedTextColor(
+        activeColor: active,
+        passedColor: passed,
+        transitionProgress: 0,
+      ),
+      active,
+    );
+    final midpoint = floatingNamePassedTextColor(
+      activeColor: active,
+      passedColor: passed,
+      transitionProgress: 0.5,
+    );
+    expect(midpoint.a, inExclusiveRange(passed.a, active.a));
+    expect(
+      floatingNamePassedTextColor(
+        activeColor: active,
+        passedColor: passed,
+        transitionProgress: 1,
+      ),
+      passed,
+    );
+  });
+
   test('floating name lays out every visual row of a long lyric', () {
     final painter = layoutFloatingNameText(
       text: const TextSpan(

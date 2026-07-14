@@ -732,6 +732,27 @@ bool floatingNameGraphemeGetsPrintStamp(String grapheme) {
       !_floatingNamePunctuation.hasMatch(grapheme);
 }
 
+@visibleForTesting
+Color floatingNamePrintStampColor({
+  required Color activeColor,
+  Color? aiStampColor,
+  Color? semanticColor,
+}) {
+  return semanticColor ?? aiStampColor ?? activeColor;
+}
+
+@visibleForTesting
+Color floatingNamePassedTextColor({
+  required Color activeColor,
+  required Color passedColor,
+  required double transitionProgress,
+}) {
+  final eased = Curves.easeInOutCubic.transform(
+    transitionProgress.clamp(0.0, 1.0).toDouble(),
+  );
+  return Color.lerp(activeColor, passedColor, eased)!;
+}
+
 class _FloatingNamePainter extends CustomPainter {
   final _FloatingArticleLayout layout;
   final int activeIndex;
@@ -892,7 +913,18 @@ class _FloatingNamePainter extends CustomPainter {
         : distance <= 2
         ? 0.072
         : 0.035;
-    final defaultColor = activeColor.withValues(alpha: opacity);
+    final passedColor = activeColor.withValues(alpha: opacity);
+    final isBecomingPassed =
+        passed &&
+        block.index == cameraFromIndex &&
+        cameraFromIndex != activeIndex;
+    final defaultColor = isBecomingPassed
+        ? floatingNamePassedTextColor(
+            activeColor: activeColor,
+            passedColor: passedColor,
+            transitionProgress: cameraAnimation.value,
+          )
+        : passedColor;
     if (!passed || aiKeywordColors.isEmpty) {
       _paintBlockText(canvas, block, defaultColor);
       return;
@@ -973,7 +1005,14 @@ class _FloatingNamePainter extends CustomPainter {
       width: stampWidth,
       height: fontSize * 0.56,
     ).translate(0, -fontSize * 0.18 * pulse);
-    final stampColor = aiStampColor ?? activeColor;
+    final semanticColor = activeGlyphIndex < semanticColors.length
+        ? semanticColors[activeGlyphIndex]
+        : null;
+    final stampColor = floatingNamePrintStampColor(
+      activeColor: activeColor,
+      aiStampColor: aiStampColor,
+      semanticColor: semanticColor,
+    );
     final stampPaint = Paint()
       ..color = stampColor.withValues(alpha: stampColor.a * 0.8 * pulse);
     canvas.drawRRect(

@@ -435,7 +435,10 @@ class _FlowingLightActiveLine extends ConsumerWidget {
                 nextStart: index + 1 < tokens.length
                     ? tokens[index + 1].start
                     : null,
-                ringColor: stampColor,
+                ringColor: flowingLightEntranceRingColor(
+                  fallbackColor: stampColor,
+                  semanticColor: semanticColors[index],
+                ),
                 keepBreathing: index == tokens.length - 1,
                 breathingEnabled: ambientMotionEnabled,
                 showEntranceRing:
@@ -869,6 +872,14 @@ double flowingLightTokenAiColorIntensity(
     nextStart: nextStart,
     persist: persist,
   );
+}
+
+@visibleForTesting
+Color flowingLightEntranceRingColor({
+  required Color fallbackColor,
+  Color? semanticColor,
+}) {
+  return semanticColor ?? fallbackColor;
 }
 
 class _TokenGlowPainter extends CustomPainter {

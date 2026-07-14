@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/models/lyrics.dart';
 import 'package:joyal_music/widgets/lyrics_stage/flowing_light_lyrics_stage.dart';
@@ -269,5 +270,19 @@ void main() {
       ),
       1,
     );
+  });
+
+  test('flowing light keyword entrance ring uses the keyword color', () {
+    const fallback = Color(0xFF778899);
+    const keyword = Color(0xFFCC6633);
+
+    expect(
+      flowingLightEntranceRingColor(
+        fallbackColor: fallback,
+        semanticColor: keyword,
+      ),
+      keyword,
+    );
+    expect(flowingLightEntranceRingColor(fallbackColor: fallback), fallback);
   });
 }
