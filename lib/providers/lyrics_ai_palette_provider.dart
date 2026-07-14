@@ -198,7 +198,8 @@ class LyricsAiPaletteController {
   }
 
   Future<LyricsAiPaletteActivationResult> refresh(Song? song) async {
-    if (song == null || _ref.read(subsonicApiProvider) == null) {
+    final api = _ref.read(subsonicApiProvider);
+    if (song == null || api == null) {
       return LyricsAiPaletteActivationResult.noServer;
     }
 
@@ -215,11 +216,29 @@ class LyricsAiPaletteController {
     );
     if (refreshing.state) return LyricsAiPaletteActivationResult.applied;
     refreshing.state = true;
+    LyricsAiPalette? previousPalette;
+    LyricsAiPaletteRepository? repository;
+    String? scope;
+    var cacheDeleted = false;
     try {
       final lyrics = await _ref.read(lyricsProvider(song).future);
       if (lyrics.isEmpty) {
         return LyricsAiPaletteActivationResult.generationFailed;
       }
+      final currentScope = AppCacheService.instance.serverScope(
+        api.baseUrl,
+        api.username,
+      );
+      final currentRepository = _ref.read(lyricsAiPaletteRepositoryProvider);
+      scope = currentScope;
+      repository = currentRepository;
+      previousPalette = await currentRepository.load(currentScope, song.id);
+
+      // Reuse the palette management screen's known-good deletion path before
+      // generating the replacement, including cleanup of the legacy cache.
+      await currentRepository.delete(currentScope, song.id);
+      cacheDeleted = true;
+
       final forcedRequest = LyricsAiPaletteRequest(
         song,
         lyrics,
@@ -230,13 +249,18 @@ class LyricsAiPaletteController {
         lyricsAiPaletteProvider(forcedRequest).future,
       );
       if (palette == null) {
-        return LyricsAiPaletteActivationResult.generationFailed;
+        throw StateError('AI palette generation returned no palette');
       }
       _ref.invalidate(
         lyricsAiPaletteProvider(LyricsAiPaletteRequest(song, lyrics)),
       );
+      _ref.invalidate(recognizedLyricsAiPalettesProvider);
       return LyricsAiPaletteActivationResult.applied;
     } catch (_) {
+      if (cacheDeleted && previousPalette != null) {
+        await repository!.save(scope!, song.id, previousPalette);
+        _ref.invalidate(recognizedLyricsAiPalettesProvider);
+      }
       return LyricsAiPaletteActivationResult.generationFailed;
     } finally {
       refreshing.state = false;

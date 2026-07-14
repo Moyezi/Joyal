@@ -2,16 +2,26 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:joyal_music/models/lyrics.dart';
 import 'package:joyal_music/models/lyrics_ai_palette.dart';
 import 'package:joyal_music/models/music_classification.dart';
 import 'package:joyal_music/models/song.dart';
 import 'package:joyal_music/providers/lyrics_ai_palette_provider.dart';
+import 'package:joyal_music/providers/lyrics_provider.dart';
+import 'package:joyal_music/providers/music_classification_provider.dart';
+import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
+import 'package:joyal_music/services/deepseek_classification_service.dart';
+import 'package:joyal_music/services/deepseek_lyrics_ai_palette_service.dart';
 import 'package:joyal_music/services/lyrics_ai_palette_protocol.dart';
 import 'package:joyal_music/services/lyrics_ai_palette_repository.dart';
+import 'package:joyal_music/services/music_classification_repository.dart';
+import 'package:joyal_music/services/subsonic_api.dart';
 import 'package:joyal_music/widgets/lyrics/lyric_semantic_colors.dart';
 
 void main() {
@@ -145,6 +155,83 @@ void main() {
     },
   );
 
+  test('refresh deletes the existing palette before generation', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'joyal_lyrics_ai_palette_refresh_',
+    );
+    AppCacheService.debugCacheDirectoryOverride = directory;
+    addTearDown(() async {
+      AppCacheService.debugCacheDirectoryOverride = null;
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+
+    const api = SubsonicApi(
+      baseUrl: 'https://music.example.test',
+      username: 'jo',
+      password: 'secret',
+    );
+    final scope = AppCacheService.instance.serverScope(
+      api.baseUrl,
+      api.username,
+    );
+    final repository = LyricsAiPaletteRepository(AppCacheService.instance);
+    final oldPalette = LyricsAiPalette(
+      light: const LyricsAiColors(primary: 0xFF111111, stamp: 0xFF222222),
+      dark: const LyricsAiColors(primary: 0xFFEEEEEE, stamp: 0xFFDDDDDD),
+      metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
+      model: 'deepseek-chat',
+      promptVersion: lyricsAiPalettePromptVersion,
+      generatedAt: DateTime.utc(2026, 7, 13),
+    );
+    final newPalette = LyricsAiPalette(
+      light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
+      dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
+      metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
+      model: 'deepseek-chat',
+      promptVersion: lyricsAiPalettePromptVersion,
+      generatedAt: DateTime.utc(2026, 7, 14),
+    );
+    await repository.save(scope, song.id, oldPalette);
+
+    var cacheWasEmptyDuringGeneration = false;
+    final apiKeyRepository = _ApiKeyRepository();
+    final paletteService = _InspectingPaletteService(
+      beforeGenerate: () async {
+        cacheWasEmptyDuringGeneration =
+            await repository.load(scope, song.id) == null;
+      },
+      result: newPalette,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        subsonicApiProvider.overrideWithValue(api),
+        lyricsProvider.overrideWith((ref, requestedSong) async => lyrics),
+        lyricsAiPaletteRepositoryProvider.overrideWithValue(repository),
+        musicClassificationRepositoryProvider.overrideWithValue(
+          apiKeyRepository,
+        ),
+        musicClassificationProvider.overrideWith(
+          (ref) => _ConfiguredClassificationNotifier(apiKeyRepository),
+        ),
+        deepSeekLyricsAiPaletteServiceProvider.overrideWithValue(
+          paletteService,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final result = await container
+        .read(lyricsAiPaletteControllerProvider)
+        .refresh(song);
+
+    expect(result, LyricsAiPaletteActivationResult.applied);
+    expect(cacheWasEmptyDuringGeneration, isTrue);
+    expect(
+      (await repository.load(scope, song.id))?.toJson(),
+      newPalette.toJson(),
+    );
+  });
+
   test('repository migrates the renderer-specific legacy cache name', () async {
     final directory = await Directory.systemTemp.createTemp(
       'joyal_lyrics_ai_palette_',
@@ -248,4 +335,42 @@ void main() {
       expect(unmatchedFlowingUnit, [null, null, love]);
     },
   );
+}
+
+class _ApiKeyRepository extends MusicClassificationRepository {
+  _ApiKeyRepository()
+    : super(AppCacheService.instance, const FlutterSecureStorage());
+
+  @override
+  Future<String?> readApiKey() async => 'test-api-key';
+}
+
+class _ConfiguredClassificationNotifier extends MusicClassificationNotifier {
+  _ConfiguredClassificationNotifier(MusicClassificationRepository repository)
+    : super(repository, DeepSeekClassificationService(Dio())) {
+    state = const MusicClassificationState(
+      settings: AiClassificationSettings(apiKeyConfigured: true),
+    );
+  }
+}
+
+class _InspectingPaletteService extends DeepSeekLyricsAiPaletteService {
+  final Future<void> Function() beforeGenerate;
+  final LyricsAiPalette result;
+
+  _InspectingPaletteService({
+    required this.beforeGenerate,
+    required this.result,
+  }) : super(Dio());
+
+  @override
+  Future<LyricsAiPalette> generate({
+    required String apiKey,
+    required AiClassificationSettings settings,
+    required Song song,
+    required LyricsData lyrics,
+  }) async {
+    await beforeGenerate();
+    return result;
+  }
 }
