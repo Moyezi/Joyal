@@ -285,4 +285,26 @@ void main() {
     );
     expect(flowingLightEntranceRingColor(fallbackColor: fallback), fallback);
   });
+
+  test('climax keywords use larger text and halo than other tokens', () {
+    final keywordTextScale = flowingLightClimaxKeywordTextScale(
+      isClimax: true,
+      isKeyword: true,
+    );
+    final keywordHaloScale = flowingLightClimaxKeywordHaloScale(
+      isClimax: true,
+      isKeyword: true,
+    );
+
+    expect(keywordTextScale, greaterThan(1));
+    expect(keywordHaloScale, greaterThan(keywordTextScale));
+    expect(
+      flowingLightClimaxKeywordTextScale(isClimax: true, isKeyword: false),
+      1,
+    );
+    expect(
+      flowingLightClimaxKeywordHaloScale(isClimax: false, isKeyword: true),
+      1,
+    );
+  });
 }

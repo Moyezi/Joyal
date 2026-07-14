@@ -45,6 +45,11 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
             ),
           )
         : null;
+    final isRefreshingAiPalette = currentSong != null
+        ? ref.watch(lyricsAiPaletteRefreshInProgressProvider(currentSong.id))
+        : false;
+    final isAiPaletteBusy =
+        aiPaletteState?.isLoading == true || isRefreshingAiPalette;
     final resolvedLyricsSource = resolvedLyrics?.source;
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
@@ -417,7 +422,9 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                     const SizedBox(height: 16),
                     LyricsToggleTile(
                       title: 'AI 文字配色',
-                      subtitle: aiPaletteState?.isLoading == true
+                      subtitle: isRefreshingAiPalette
+                          ? '正在重新分析当前歌曲并生成新配色'
+                          : aiPaletteState?.isLoading == true
                           ? '正在分析歌词语义、情绪走向与歌曲氛围'
                           : aiPaletteState?.asData?.value != null
                           ? '已为歌词关键词生成情绪分层配色；关闭后恢复默认'
@@ -429,9 +436,28 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                               _ => '当前高亮字使用歌曲专属 primary 配色',
                             },
                       value: preferences.aiColorEnabled,
-                      isLoading: aiPaletteState?.isLoading == true,
+                      isLoading: isAiPaletteBusy,
                       onChanged: (enabled) => unawaited(
                         _setAiColorEnabled(context, ref, currentSong, enabled),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: LyricsActionButton(
+                        onPressed:
+                            preferences.aiColorEnabled &&
+                                currentSong != null &&
+                                resolvedLyrics != null &&
+                                !isAiPaletteBusy
+                            ? () => unawaited(
+                                _refreshAiPalette(context, ref, currentSong),
+                              )
+                            : null,
+                        icon: isRefreshingAiPalette
+                            ? Icons.hourglass_top_rounded
+                            : Icons.refresh_rounded,
+                        label: isRefreshingAiPalette ? '正在重新获取' : '重新获取 AI 配色',
                       ),
                     ),
                   ],
@@ -651,6 +677,28 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
       LyricsAiPaletteActivationResult.missingApiKey =>
         '请先在“小Jo同学”中配置 DeepSeek API Key',
       LyricsAiPaletteActivationResult.generationFailed => 'AI 配色生成失败，已继续使用默认颜色',
+    };
+    showAppToast(context, message, replaceCurrent: true);
+  }
+
+  Future<void> _refreshAiPalette(
+    BuildContext context,
+    WidgetRef ref,
+    Song song,
+  ) async {
+    HapticFeedback.selectionClick();
+    final result = await ref
+        .read(lyricsAiPaletteControllerProvider)
+        .refresh(song);
+    if (!context.mounted) return;
+    final message = switch (result) {
+      LyricsAiPaletteActivationResult.applied => '已重新获取当前歌曲的 AI 配色',
+      LyricsAiPaletteActivationResult.noServer => '连接音乐服务器后才能生成 AI 配色',
+      LyricsAiPaletteActivationResult.configurationLoading =>
+        'DeepSeek 配置正在读取，请稍后重试',
+      LyricsAiPaletteActivationResult.missingApiKey =>
+        '请先在“小Jo同学”中配置 DeepSeek API Key',
+      LyricsAiPaletteActivationResult.generationFailed => 'AI 配色重新获取失败，已保留现有配色',
     };
     showAppToast(context, message, replaceCurrent: true);
   }

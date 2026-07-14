@@ -766,6 +766,14 @@ class _FlowingLightTokenView extends StatelessWidget {
     final entranceRingIntensity = showEntranceRing
         ? _flowingLightRingIntensity(reveal)
         : 0.0;
+    final climaxKeywordTextScale = flowingLightClimaxKeywordTextScale(
+      isClimax: showEntranceRing,
+      isKeyword: semanticColor != null,
+    );
+    final climaxKeywordHaloScale = flowingLightClimaxKeywordHaloScale(
+      isClimax: showEntranceRing,
+      isKeyword: semanticColor != null,
+    );
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
     final breathingGlowIntensity = keepBreathing
@@ -801,12 +809,12 @@ class _FlowingLightTokenView extends StatelessWidget {
           if (glowIntensity > 0)
             Shadow(
               color: highlightColor.withValues(alpha: 0.82 * glowIntensity),
-              blurRadius: 12 + 16 * glowIntensity,
+              blurRadius: (12 + 16 * glowIntensity) * climaxKeywordHaloScale,
             ),
           if (glowIntensity > 0)
             Shadow(
               color: color.withValues(alpha: 0.58 * glowIntensity),
-              blurRadius: 28 + 18 * glowIntensity,
+              blurRadius: (28 + 18 * glowIntensity) * climaxKeywordHaloScale,
             ),
         ],
       ),
@@ -816,7 +824,7 @@ class _FlowingLightTokenView extends StatelessWidget {
       child: Transform.translate(
         offset: Offset(0, lift),
         child: Transform.scale(
-          scale: scale,
+          scale: scale * climaxKeywordTextScale,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
@@ -832,6 +840,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                         progress: reveal,
                         intensity: glowIntensity,
                         ringIntensity: entranceRingIntensity,
+                        emphasisScale: climaxKeywordHaloScale,
                       ),
                     ),
                   ),
@@ -875,6 +884,22 @@ double flowingLightTokenAiColorIntensity(
 }
 
 @visibleForTesting
+double flowingLightClimaxKeywordTextScale({
+  required bool isClimax,
+  required bool isKeyword,
+}) {
+  return isClimax && isKeyword ? 1.18 : 1.0;
+}
+
+@visibleForTesting
+double flowingLightClimaxKeywordHaloScale({
+  required bool isClimax,
+  required bool isKeyword,
+}) {
+  return isClimax && isKeyword ? 1.42 : 1.0;
+}
+
+@visibleForTesting
 Color flowingLightEntranceRingColor({
   required Color fallbackColor,
   Color? semanticColor,
@@ -889,6 +914,7 @@ class _TokenGlowPainter extends CustomPainter {
   final double progress;
   final double intensity;
   final double ringIntensity;
+  final double emphasisScale;
 
   const _TokenGlowPainter({
     required this.color,
@@ -897,25 +923,29 @@ class _TokenGlowPainter extends CustomPainter {
     required this.progress,
     required this.intensity,
     required this.ringIntensity,
+    required this.emphasisScale,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final eased = Curves.easeOutCubic.transform(progress);
-    final radius = math.max(size.width, size.height) * (0.42 + eased * 1.05);
+    final radius =
+        math.max(size.width, size.height) *
+        (0.42 + eased * 1.05) *
+        emphasisScale;
     final center = Offset(size.width / 2, size.height / 2);
     final haloPaint = Paint()
       ..color = highlightColor.withValues(alpha: 0.3 * intensity)
       ..maskFilter = MaskFilter.blur(
         BlurStyle.normal,
-        8 + math.max(size.width, size.height) * 0.16,
+        (8 + math.max(size.width, size.height) * 0.16) * emphasisScale,
       );
     canvas.drawOval(
       Rect.fromCenter(
         center: center,
-        width: size.width * (1.12 + intensity * 0.34),
-        height: size.height * (1.08 + intensity * 0.28),
+        width: size.width * (1.12 + intensity * 0.34) * emphasisScale,
+        height: size.height * (1.08 + intensity * 0.28) * emphasisScale,
       ),
       haloPaint,
     );
@@ -933,6 +963,7 @@ class _TokenGlowPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.intensity != intensity ||
         oldDelegate.ringIntensity != ringIntensity ||
+        oldDelegate.emphasisScale != emphasisScale ||
         oldDelegate.color != color ||
         oldDelegate.highlightColor != highlightColor ||
         oldDelegate.ringColor != ringColor;

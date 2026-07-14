@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
 import '../models/lyrics_ai_palette.dart';
 import '../models/lyrics.dart';
@@ -17,19 +18,21 @@ class LyricsAiPaletteRequest {
   final Song song;
   final LyricsData lyrics;
   final String metadataHash;
+  final bool forceRefresh;
 
-  LyricsAiPaletteRequest(this.song, this.lyrics)
+  LyricsAiPaletteRequest(this.song, this.lyrics, {this.forceRefresh = false})
     : metadataHash = lyricsAiPaletteMetadataHash(song, lyrics);
 
   @override
   bool operator ==(Object other) {
     return other is LyricsAiPaletteRequest &&
         other.song.id == song.id &&
-        other.metadataHash == metadataHash;
+        other.metadataHash == metadataHash &&
+        other.forceRefresh == forceRefresh;
   }
 
   @override
-  int get hashCode => Object.hash(song.id, metadataHash);
+  int get hashCode => Object.hash(song.id, metadataHash, forceRefresh);
 }
 
 final lyricsAiPaletteRepositoryProvider = Provider<LyricsAiPaletteRepository>((
@@ -69,14 +72,16 @@ final lyricsAiPaletteProvider = FutureProvider.autoDispose
         api.username,
       );
       final repository = ref.read(lyricsAiPaletteRepositoryProvider);
-      final cached = await repository.load(scope, request.song.id);
-      if (cached != null &&
-          cached.matches(
-            currentMetadataHash: request.metadataHash,
-            currentModel: classification.settings.model,
-            currentPromptVersion: lyricsAiPalettePromptVersion,
-          )) {
-        return cached;
+      if (!request.forceRefresh) {
+        final cached = await repository.load(scope, request.song.id);
+        if (cached != null &&
+            cached.matches(
+              currentMetadataHash: request.metadataHash,
+              currentModel: classification.settings.model,
+              currentPromptVersion: lyricsAiPalettePromptVersion,
+            )) {
+          return cached;
+        }
       }
 
       if (!classification.hasApiKey) return null;
@@ -104,6 +109,9 @@ enum LyricsAiPaletteActivationResult {
   missingApiKey,
   generationFailed,
 }
+
+final lyricsAiPaletteRefreshInProgressProvider =
+    StateProvider.family<bool, String>((ref, songId) => false);
 
 class LyricsAiPaletteController {
   final Ref _ref;
@@ -146,6 +154,52 @@ class LyricsAiPaletteController {
     } catch (_) {
       await personalization.setAiColorEnabled(false);
       return LyricsAiPaletteActivationResult.generationFailed;
+    }
+  }
+
+  Future<LyricsAiPaletteActivationResult> refresh(Song? song) async {
+    if (song == null || _ref.read(subsonicApiProvider) == null) {
+      return LyricsAiPaletteActivationResult.noServer;
+    }
+
+    final classification = _ref.read(musicClassificationProvider);
+    if (classification.isLoading) {
+      return LyricsAiPaletteActivationResult.configurationLoading;
+    }
+    if (!classification.hasApiKey) {
+      return LyricsAiPaletteActivationResult.missingApiKey;
+    }
+
+    final refreshing = _ref.read(
+      lyricsAiPaletteRefreshInProgressProvider(song.id).notifier,
+    );
+    if (refreshing.state) return LyricsAiPaletteActivationResult.applied;
+    refreshing.state = true;
+    try {
+      final lyrics = await _ref.read(lyricsProvider(song).future);
+      if (lyrics.isEmpty) {
+        return LyricsAiPaletteActivationResult.generationFailed;
+      }
+      final forcedRequest = LyricsAiPaletteRequest(
+        song,
+        lyrics,
+        forceRefresh: true,
+      );
+      _ref.invalidate(lyricsAiPaletteProvider(forcedRequest));
+      final palette = await _ref.read(
+        lyricsAiPaletteProvider(forcedRequest).future,
+      );
+      if (palette == null) {
+        return LyricsAiPaletteActivationResult.generationFailed;
+      }
+      _ref.invalidate(
+        lyricsAiPaletteProvider(LyricsAiPaletteRequest(song, lyrics)),
+      );
+      return LyricsAiPaletteActivationResult.applied;
+    } catch (_) {
+      return LyricsAiPaletteActivationResult.generationFailed;
+    } finally {
+      refreshing.state = false;
     }
   }
 }

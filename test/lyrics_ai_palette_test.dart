@@ -8,6 +8,7 @@ import 'package:joyal_music/models/lyrics.dart';
 import 'package:joyal_music/models/lyrics_ai_palette.dart';
 import 'package:joyal_music/models/music_classification.dart';
 import 'package:joyal_music/models/song.dart';
+import 'package:joyal_music/providers/lyrics_ai_palette_provider.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
 import 'package:joyal_music/services/lyrics_ai_palette_protocol.dart';
 import 'package:joyal_music/services/lyrics_ai_palette_repository.dart';
@@ -127,6 +128,22 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'forced AI palette requests do not share the cached request identity',
+    () {
+      final cached = LyricsAiPaletteRequest(song, lyrics);
+      final refreshed = LyricsAiPaletteRequest(
+        song,
+        lyrics,
+        forceRefresh: true,
+      );
+
+      expect(cached, isNot(refreshed));
+      expect(cached.forceRefresh, isFalse);
+      expect(refreshed.forceRefresh, isTrue);
+    },
+  );
 
   test('repository migrates the renderer-specific legacy cache name', () async {
     final directory = await Directory.systemTemp.createTemp(
