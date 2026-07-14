@@ -252,6 +252,57 @@ void main() {
     }
   });
 
+  test('floating name handheld drift only appears during a long lyric gap', () {
+    const current = LyricLine(
+      text: '上一句',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 4),
+    );
+    const nearNext = LyricLine(text: '下一句', start: Duration(seconds: 7));
+    const farNext = LyricLine(text: '下一句', start: Duration(seconds: 12));
+
+    expect(
+      floatingNameWaitingCameraStrength(
+        line: current,
+        nextLine: nearNext,
+        position: const Duration(seconds: 6),
+      ),
+      0,
+    );
+    expect(
+      floatingNameWaitingCameraStrength(
+        line: current,
+        nextLine: farNext,
+        position: const Duration(seconds: 4, milliseconds: 500),
+      ),
+      0,
+    );
+    expect(
+      floatingNameWaitingCameraStrength(
+        line: current,
+        nextLine: farNext,
+        position: const Duration(seconds: 7),
+      ),
+      closeTo(1, 0.001),
+    );
+    expect(
+      floatingNameWaitingCameraStrength(
+        line: current,
+        nextLine: farNext,
+        position: const Duration(milliseconds: 11700),
+      ),
+      inExclusiveRange(0, 1),
+    );
+    expect(
+      floatingNameWaitingCameraStrength(
+        line: current,
+        nextLine: null,
+        position: const Duration(seconds: 20),
+      ),
+      0,
+    );
+  });
+
   test('floating name reveal colors glyphs without rectangular clipping', () {
     const revealed = Color(0xFFFFFFFF);
     const pending = Color(0x1CFFFFFF);

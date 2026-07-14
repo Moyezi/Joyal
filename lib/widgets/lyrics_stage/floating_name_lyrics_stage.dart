@@ -134,7 +134,10 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
   );
   late final AnimationController _frameController = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 1),
+    // One deliberately slow loop drives both position sampling and the
+    // long-gap handheld camera drift. Reusing it keeps 浮名 to a single
+    // persistent frame ticker in addition to its finite block transition.
+    duration: const Duration(seconds: 12),
   );
   _FloatingArticleLayout? _layout;
   Object? _layoutKey;
@@ -290,6 +293,72 @@ double floatingNamePrintedGraphemeProgress(
 int floatingNameTypedGraphemeCount(double progress, int glyphCount) {
   if (progress <= 0 || glyphCount <= 0) return 0;
   return progress.ceil().clamp(0, glyphCount);
+}
+
+/// Fades in a restrained handheld-camera drift only when the silence between
+/// the printed line and the next timed lyric is long enough to feel static.
+///
+/// Short gaps remain completely still. The motion also eases away before the
+/// next line so its ordinary block transition starts from a settled frame.
+@visibleForTesting
+double floatingNameWaitingCameraStrength({
+  required LyricLine line,
+  required LyricLine? nextLine,
+  required Duration position,
+}) {
+  if (nextLine == null) return 0;
+  final nextStart = nextLine.start ?? nextLine.words.firstOrNull?.start;
+  if (nextStart == null) return 0;
+
+  final glyphs = line.text.characters.toList(growable: false);
+  final lineStart = line.start ?? line.words.firstOrNull?.start;
+  if (lineStart == null) return 0;
+  final waitStart = glyphs.every((glyph) => glyph.trim().isEmpty)
+      ? lineStart
+      : _timingsForLine(line, glyphs).lastOrNull?.end ?? lineStart;
+  final gap = nextStart - waitStart;
+  const minimumLongGap = Duration(milliseconds: 4200);
+  if (gap < minimumLongGap || position <= waitStart || position >= nextStart) {
+    return 0;
+  }
+
+  const settleDelay = Duration(milliseconds: 700);
+  const fadeIn = Duration(milliseconds: 1400);
+  const fadeOut = Duration(milliseconds: 900);
+  final elapsed = position - waitStart;
+  final remaining = nextStart - position;
+  if (elapsed <= settleDelay) return 0;
+  final entrance =
+      ((elapsed - settleDelay).inMicroseconds / fadeIn.inMicroseconds).clamp(
+        0.0,
+        1.0,
+      );
+  final exit = (remaining.inMicroseconds / fadeOut.inMicroseconds).clamp(
+    0.0,
+    1.0,
+  );
+  return Curves.easeInOutSine.transform(math.min(entrance, exit));
+}
+
+({double dx, double dy, double rotation}) _waitingCameraDrift(
+  double cycle,
+  double strength,
+) {
+  if (strength <= 0) return (dx: 0, dy: 0, rotation: 0);
+  final phase = cycle * math.pi * 2;
+  // Unequal harmonics keep the loop organic while remaining exactly periodic,
+  // so the twelve-second seam cannot produce a visible camera step.
+  final dx =
+      (math.sin(phase) + math.sin(phase * 2 + 1.1) * 0.32) * 3.8 * strength;
+  final dy =
+      (math.sin(phase + 1.7) + math.sin(phase * 3 + 0.4) * 0.2) *
+      2.7 *
+      strength;
+  final rotation =
+      (math.sin(phase + 0.35) + math.sin(phase * 2 + 2.2) * 0.24) *
+      0.0028 *
+      strength;
+  return (dx: dx, dy: dy, rotation: rotation);
 }
 
 /// Lifts the glyph currently being printed, then returns it to its baseline.
@@ -686,10 +755,20 @@ class _FloatingNamePainter extends CustomPainter {
     final currentFocus = _focusForBlock(current, printProgress);
     final fromFocus = _focusForBlock(from, from.glyphs.length.toDouble());
     final transition = Curves.easeInOutCubic.transform(cameraAnimation.value);
-    final camera = Offset.lerp(fromFocus, currentFocus, transition)!;
+    var camera = Offset.lerp(fromFocus, currentFocus, transition)!;
     final fromScale = _cameraScale(from, size);
     final toScale = _cameraScale(current, size);
     final scale = ui.lerpDouble(fromScale, toScale, transition)!;
+    final position = audioService?.position ?? fallbackPosition.value;
+    final waitingStrength = motionEnabled
+        ? floatingNameWaitingCameraStrength(
+            line: current.line,
+            nextLine: _nextTimedNonEmptyLine(),
+            position: position,
+          )
+        : 0.0;
+    final drift = _waitingCameraDrift(frameAnimation.value, waitingStrength);
+    camera += Offset(drift.dx / scale, drift.dy / scale);
 
     // The paper tint is screen-space and edge-to-edge. It never has a world-
     // space rectangle for the travelling camera to expose at the song edges.
@@ -700,6 +779,7 @@ class _FloatingNamePainter extends CustomPainter {
 
     canvas.save();
     canvas.translate(size.width / 2, size.height / 2);
+    canvas.rotate(drift.rotation);
     canvas.scale(scale);
     canvas.translate(-camera.dx, -camera.dy);
 
@@ -718,6 +798,17 @@ class _FloatingNamePainter extends CustomPainter {
       }
     }
     canvas.restore();
+  }
+
+  LyricLine? _nextTimedNonEmptyLine() {
+    for (var index = activeIndex + 1; index < layout.blocks.length; index++) {
+      final line = layout.blocks[index].line;
+      if (line.text.trim().isNotEmpty &&
+          (line.start != null || line.words.firstOrNull?.start != null)) {
+        return line;
+      }
+    }
+    return null;
   }
 
   Offset _focusForBlock(_FloatingBlock block, double progress) {
