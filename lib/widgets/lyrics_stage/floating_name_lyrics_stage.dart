@@ -12,6 +12,7 @@ import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../../services/audio_player_service.dart';
 import '../lyrics/lyric_print_effect.dart';
+import '../lyrics/lyric_semantic_colors.dart';
 import 'lyrics_stage_shell.dart';
 
 /// Folia-inspired "浮名" stage, implemented independently for Joyal.
@@ -31,6 +32,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
   final double fontSize;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -48,6 +50,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
     required this.fontSize,
     required this.aiPrimaryColor,
     required this.aiStampColor,
+    this.aiKeywordColors = const {},
     required this.wordByWordEnabled,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -84,6 +87,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
               wordByWordEnabled: wordByWordEnabled,
               aiPrimaryColor: aiPrimaryColor,
               aiStampColor: aiStampColor,
+              aiKeywordColors: aiKeywordColors,
               positionUpdatesEnabled: positionUpdatesEnabled,
               highlightSignature: highlightTimeline?.segments
                   .map(
@@ -110,6 +114,7 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
   final bool wordByWordEnabled;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool positionUpdatesEnabled;
   final String? highlightSignature;
   final List<SongHighlightSegment> highlightSegments;
@@ -124,6 +129,7 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
     required this.wordByWordEnabled,
     required this.aiPrimaryColor,
     required this.aiStampColor,
+    required this.aiKeywordColors,
     required this.positionUpdatesEnabled,
     required this.highlightSignature,
     required this.highlightSegments,
@@ -239,6 +245,7 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
         activeColor: widget.activeColor,
         aiPrimaryColor: widget.aiPrimaryColor,
         aiStampColor: widget.aiStampColor,
+        aiKeywordColors: widget.aiKeywordColors,
         wordByWordEnabled: widget.wordByWordEnabled,
         motionEnabled: _motionEnabled,
         cameraAnimation: _cameraController,
@@ -747,6 +754,7 @@ class _FloatingNamePainter extends CustomPainter {
   final Color activeColor;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool motionEnabled;
   final Animation<double> cameraAnimation;
@@ -762,6 +770,7 @@ class _FloatingNamePainter extends CustomPainter {
     required this.activeColor,
     required this.aiPrimaryColor,
     required this.aiStampColor,
+    required this.aiKeywordColors,
     required this.wordByWordEnabled,
     required this.motionEnabled,
     required this.cameraAnimation,
@@ -908,7 +917,14 @@ class _FloatingNamePainter extends CustomPainter {
         motionEnabled &&
         activeGlyphIndex >= 0 &&
         activeGlyphIndex < block.glyphBoxes.length;
-    final aiPrimary = aiPrimaryColor;
+    final semanticColors = lyricSemanticColorsForUnits(
+      block.glyphs,
+      aiKeywordColors,
+    );
+    final aiPrimary =
+        activeGlyphIndex >= 0 && activeGlyphIndex < semanticColors.length
+        ? semanticColors[activeGlyphIndex] ?? aiPrimaryColor
+        : aiPrimaryColor;
     final hasAiActiveGlyph =
         aiPrimary != null &&
         wordByWordEnabled &&
@@ -939,7 +955,7 @@ class _FloatingNamePainter extends CustomPainter {
           canvas,
           block,
           glyphIndex: activeGlyphIndex - 1,
-          color: aiPrimary,
+          color: semanticColors[activeGlyphIndex - 1] ?? aiPrimary,
           opacity: previousOpacity,
         );
       }
@@ -1009,6 +1025,7 @@ class _FloatingNamePainter extends CustomPainter {
         oldDelegate.activeColor != activeColor ||
         oldDelegate.aiPrimaryColor != aiPrimaryColor ||
         oldDelegate.aiStampColor != aiStampColor ||
+        !mapEquals(oldDelegate.aiKeywordColors, aiKeywordColors) ||
         oldDelegate.wordByWordEnabled != wordByWordEnabled ||
         oldDelegate.motionEnabled != motionEnabled;
   }

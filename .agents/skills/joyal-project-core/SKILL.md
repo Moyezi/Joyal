@@ -35,6 +35,7 @@ The visual direction is minimal, immersive, cool black/white/gray, large-radius,
 - Never write the DeepSeek API key to SQLite, JSON, logs, crash reports, or Git.
 - Classification requests may send only textual song metadata.
 - Flowing-light climax analysis may send title, artist, album, duration, and timed lyric text to the configured DeepSeek endpoint. It must not send Navidrome credentials, `baseUrl`, media URLs, or cover URLs.
+- AI lyric palette analysis may send title, artist, album, and plain lyric lines to the configured DeepSeek endpoint so it can derive emotion-aware base colors and 10–20 keyword colors. It must not send song/server IDs, credentials, `baseUrl`, media URLs, or cover URLs.
 
 ## Key Paths
 

@@ -70,17 +70,6 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                     dynamicLyricColorFromPalette(palette, brightness),
                 orElse: () => null,
               );
-    final aiPalette = song == null || !aiColorEnabled
-        ? null
-        : ref
-              .watch(lyricsAiPaletteProvider(LyricsAiPaletteRequest(song)))
-              .maybeWhen(data: (palette) => palette, orElse: () => null);
-    final aiColors = aiPalette?.colorsFor(
-      darkMode: brightness == Brightness.dark,
-    );
-    final aiPrimaryColor = aiColors == null ? null : Color(aiColors.primary);
-    final aiStampColor = aiColors == null ? null : Color(aiColors.stamp);
-
     return Scaffold(
       extendBody: true,
       extendBodyBehindAppBar: true,
@@ -122,6 +111,32 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                         ),
                       );
                     }
+                    final aiPalette = !aiColorEnabled
+                        ? null
+                        : ref
+                              .watch(
+                                lyricsAiPaletteProvider(
+                                  LyricsAiPaletteRequest(song, lyrics),
+                                ),
+                              )
+                              .maybeWhen(
+                                data: (palette) => palette,
+                                orElse: () => null,
+                              );
+                    final darkMode = brightness == Brightness.dark;
+                    final aiColors = aiPalette?.colorsFor(darkMode: darkMode);
+                    final aiPrimaryColor = aiColors == null
+                        ? null
+                        : Color(aiColors.primary);
+                    final aiStampColor = aiColors == null
+                        ? null
+                        : Color(aiColors.stamp);
+                    final aiKeywordColors = <String, Color>{
+                      for (final keyword in aiPalette?.keywords ?? const [])
+                        keyword.text: Color(
+                          keyword.colorFor(darkMode: darkMode),
+                        ),
+                    };
                     return _LyricsPositionedList(
                       data: lyrics,
                       song: song,
@@ -130,6 +145,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                       dynamicColor: dynamicLyricColor,
                       aiPrimaryColor: aiPrimaryColor,
                       aiStampColor: aiStampColor,
+                      aiKeywordColors: aiKeywordColors,
                       stageVisible: widget.stageVisible,
                       positionUpdatesEnabled: widget.positionUpdatesEnabled,
                       onSettingsSheetVisibilityChanged:
@@ -149,6 +165,7 @@ class _LyricsPositionedList extends ConsumerWidget {
   final Color? dynamicColor;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -161,6 +178,7 @@ class _LyricsPositionedList extends ConsumerWidget {
     this.dynamicColor,
     this.aiPrimaryColor,
     this.aiStampColor,
+    this.aiKeywordColors = const {},
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -186,6 +204,7 @@ class _LyricsPositionedList extends ConsumerWidget {
         dynamicColor: dynamicColor,
         aiPrimaryColor: aiPrimaryColor,
         aiStampColor: aiStampColor,
+        aiKeywordColors: aiKeywordColors,
         stageVisible: stageVisible,
         positionUpdatesEnabled: positionUpdatesEnabled,
         onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
@@ -198,6 +217,7 @@ class _LyricsPositionedList extends ConsumerWidget {
       artist: artist,
       dynamicColor: dynamicColor,
       aiPrimaryColor: aiPrimaryColor,
+      aiKeywordColors: aiKeywordColors,
       stageVisible: stageVisible,
       positionUpdatesEnabled: positionUpdatesEnabled,
       onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
@@ -218,6 +238,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final Color? dynamicColor;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -232,6 +253,7 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
     required this.dynamicColor,
     required this.aiPrimaryColor,
     required this.aiStampColor,
+    required this.aiKeywordColors,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -284,6 +306,7 @@ class _FlowingLightStageHostState
         fontSize: preferences.floatingNameFontSize,
         aiPrimaryColor: widget.aiPrimaryColor,
         aiStampColor: widget.aiStampColor,
+        aiKeywordColors: widget.aiKeywordColors,
         wordByWordEnabled: preferences.wordByWordEnabled,
         stageVisible: widget.stageVisible,
         positionUpdatesEnabled:
@@ -306,6 +329,7 @@ class _FlowingLightStageHostState
       fontSize: preferences.flowingLightFontSize,
       aiPrimaryColor: widget.aiPrimaryColor,
       aiStampColor: widget.aiStampColor,
+      aiKeywordColors: widget.aiKeywordColors,
       wordByWordEnabled: preferences.wordByWordEnabled,
       stageVisible: widget.stageVisible,
       positionUpdatesEnabled:

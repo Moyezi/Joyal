@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 
 import 'song.dart';
+import 'lyrics.dart';
 
 class LyricsAiColors {
   final int primary;
@@ -33,9 +34,49 @@ class LyricsAiColors {
   int get hashCode => Object.hash(primary, stamp);
 }
 
+class LyricsAiKeywordColors {
+  final String text;
+  final int light;
+  final int dark;
+
+  const LyricsAiKeywordColors({
+    required this.text,
+    required this.light,
+    required this.dark,
+  });
+
+  factory LyricsAiKeywordColors.fromJson(Map<String, dynamic> json) {
+    return LyricsAiKeywordColors(
+      text: json['text'] as String? ?? '',
+      light: _storedColor(json['light']),
+      dark: _storedColor(json['dark']),
+    );
+  }
+
+  int colorFor({required bool darkMode}) => darkMode ? dark : light;
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'light': _hexColor(light),
+    'dark': _hexColor(dark),
+  };
+
+  @override
+  bool operator ==(Object other) {
+    return other is LyricsAiKeywordColors &&
+        other.text == text &&
+        other.light == light &&
+        other.dark == dark;
+  }
+
+  @override
+  int get hashCode => Object.hash(text, light, dark);
+}
+
 class LyricsAiPalette {
   final LyricsAiColors light;
   final LyricsAiColors dark;
+  final List<LyricsAiKeywordColors> keywords;
   final String metadataHash;
   final String model;
   final int promptVersion;
@@ -44,6 +85,7 @@ class LyricsAiPalette {
   const LyricsAiPalette({
     required this.light,
     required this.dark,
+    this.keywords = const [],
     required this.metadataHash,
     required this.model,
     required this.promptVersion,
@@ -73,6 +115,13 @@ class LyricsAiPalette {
     return LyricsAiPalette(
       light: LyricsAiColors.fromJson(Map<String, dynamic>.from(light)),
       dark: LyricsAiColors.fromJson(Map<String, dynamic>.from(dark)),
+      keywords: (json['keywords'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map(
+            (item) =>
+                LyricsAiKeywordColors.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList(growable: false),
       metadataHash: json['metadataHash'] as String? ?? '',
       model: json['model'] as String? ?? '',
       promptVersion: (json['promptVersion'] as num?)?.toInt() ?? 0,
@@ -85,6 +134,7 @@ class LyricsAiPalette {
   Map<String, dynamic> toJson() => {
     'light': light.toJson(),
     'dark': dark.toJson(),
+    'keywords': keywords.map((keyword) => keyword.toJson()).toList(),
     'metadataHash': metadataHash,
     'model': model,
     'promptVersion': promptVersion,
@@ -92,7 +142,7 @@ class LyricsAiPalette {
   };
 }
 
-String lyricsAiPaletteMetadataHash(Song song) {
+String lyricsAiPaletteMetadataHash(Song song, LyricsData lyrics) {
   return sha256
       .convert(
         utf8.encode(
@@ -100,6 +150,10 @@ String lyricsAiPaletteMetadataHash(Song song) {
             'title': song.title.trim(),
             'album': song.album.trim(),
             'artist': song.artist.trim(),
+            'lyrics': lyrics.lines
+                .map((line) => line.text.trim())
+                .where((line) => line.isNotEmpty)
+                .toList(growable: false),
           }),
         ),
       )

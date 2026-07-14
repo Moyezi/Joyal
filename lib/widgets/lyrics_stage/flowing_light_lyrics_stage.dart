@@ -8,6 +8,7 @@ import '../../models/song.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../lyrics/lyric_print_effect.dart';
+import '../lyrics/lyric_semantic_colors.dart';
 import 'lyrics_stage_shell.dart';
 
 class FlowingLightLyricsStage extends ConsumerWidget {
@@ -21,6 +22,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
   final double fontSize;
   final Color? aiPrimaryColor;
   final Color? aiStampColor;
+  final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -38,6 +40,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
     required this.fontSize,
     required this.aiPrimaryColor,
     required this.aiStampColor,
+    this.aiKeywordColors = const {},
     required this.wordByWordEnabled,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -86,6 +89,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
           activeColor: activeColor,
           aiPrimaryColor: aiPrimaryColor,
           stampColor: stampColor,
+          aiKeywordColors: aiKeywordColors,
           fontFamily: fontFamily,
           fontSize: fontSize,
           wordByWordEnabled: wordByWordEnabled,
@@ -102,6 +106,7 @@ class _FlowingLightComposition extends StatelessWidget {
   final Color activeColor;
   final Color? aiPrimaryColor;
   final Color stampColor;
+  final Map<String, Color> aiKeywordColors;
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
@@ -114,6 +119,7 @@ class _FlowingLightComposition extends StatelessWidget {
     required this.activeColor,
     required this.aiPrimaryColor,
     required this.stampColor,
+    required this.aiKeywordColors,
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
@@ -131,6 +137,7 @@ class _FlowingLightComposition extends StatelessWidget {
           activeColor: activeColor,
           aiPrimaryColor: aiPrimaryColor,
           stampColor: stampColor,
+          aiKeywordColors: aiKeywordColors,
           fontFamily: fontFamily,
           fontSize: math.max(fontSize, 36),
           wordByWordEnabled: wordByWordEnabled,
@@ -326,6 +333,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
   final Color activeColor;
   final Color? aiPrimaryColor;
   final Color stampColor;
+  final Map<String, Color> aiKeywordColors;
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
@@ -337,6 +345,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
     required this.activeColor,
     required this.aiPrimaryColor,
     required this.stampColor,
+    required this.aiKeywordColors,
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
@@ -352,6 +361,10 @@ class _FlowingLightActiveLine extends ConsumerWidget {
         ? tokens.map((token) => token.text).toList(growable: false)
         : _flowingLightDisplayPieces(line.text);
     final placements = flowingLightPlacementsForTokens(displayPieces);
+    final semanticColors = lyricSemanticColorsForUnits(
+      displayPieces,
+      aiKeywordColors,
+    );
     final ambientMotionEnabled =
         positionUpdatesEnabled && !MediaQuery.disableAnimationsOf(context);
     final shouldTrack =
@@ -386,7 +399,13 @@ class _FlowingLightActiveLine extends ConsumerWidget {
             ambientMotionEnabled: ambientMotionEnabled,
             revealProgresses: List<double>.filled(displayPieces.length, 1),
             children: [
-              for (final piece in displayPieces) Text(piece, style: style),
+              for (var index = 0; index < displayPieces.length; index++)
+                Text(
+                  displayPieces[index],
+                  style: style.copyWith(
+                    color: semanticColors[index] ?? activeColor,
+                  ),
+                ),
             ],
           );
         }
@@ -411,6 +430,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
                 style: style,
                 defaultColor: activeColor,
                 aiPrimaryColor: aiPrimaryColor,
+                semanticColor: semanticColors[index],
                 nextStart: index + 1 < tokens.length
                     ? tokens[index + 1].start
                     : null,
@@ -695,6 +715,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   final TextStyle style;
   final Color defaultColor;
   final Color? aiPrimaryColor;
+  final Color? semanticColor;
   final Duration? nextStart;
   final Color ringColor;
   final bool keepBreathing;
@@ -708,6 +729,7 @@ class _FlowingLightTokenView extends StatelessWidget {
     required this.style,
     required this.defaultColor,
     required this.aiPrimaryColor,
+    required this.semanticColor,
     required this.nextStart,
     required this.ringColor,
     required this.keepBreathing,
@@ -753,16 +775,17 @@ class _FlowingLightTokenView extends StatelessWidget {
       breathingGlowIntensity,
     );
     final lift = 7 * (1 - Curves.easeOutCubic.transform(reveal));
-    final aiIntensity = aiPrimaryColor == null
+    final resolvedAiColor = semanticColor ?? aiPrimaryColor;
+    final aiIntensity = resolvedAiColor == null
         ? 0.0
         : flowingLightTokenAiColorIntensity(
             token,
             position,
             nextStart: nextStart,
           );
-    final color = aiPrimaryColor == null
+    final color = resolvedAiColor == null
         ? defaultColor
-        : Color.lerp(defaultColor, aiPrimaryColor, aiIntensity)!;
+        : Color.lerp(defaultColor, resolvedAiColor, aiIntensity)!;
     final highlightColor = color;
     final highlightedText = Text(
       token.text,

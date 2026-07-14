@@ -17,7 +17,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Do not store the key in SQLite, JSON, logs, crash reports, or Git.
 - Classification requests send only textual song metadata.
 - Lyrics climax analysis reuses the same secure-storage API key and saved endpoint/model settings, but has its own service and derived-data cache; requests contain only title, artist, album, duration, and timed lyric text.
-- 默认滚动、`流光`与`浮名`的 AI 文字配色也复用 secure-storage API key 和已保存的 endpoint/model，但只发送 title、album、artist。网络、协议、缓存与编排分别由 `DeepSeekLyricsAiPaletteService`、`lyrics_ai_palette_protocol.dart`、`LyricsAiPaletteRepository`、`lyricsAiPaletteProvider` 负责；缓存只能包含派生颜色、metadata hash、model、prompt version 和生成时间。
+- 默认滚动、`流光`与`浮名`的 AI 文字配色也复用 secure-storage API key 和已保存的 endpoint/model，发送 title、album、artist 和纯歌词文本以分析语义、情绪走向及歌曲氛围；不得发送歌曲/服务器 ID、凭据、服务地址、媒体 URL 或封面 URL。网络、协议、缓存与编排分别由 `DeepSeekLyricsAiPaletteService`、`lyrics_ai_palette_protocol.dart`、`LyricsAiPaletteRepository`、`lyricsAiPaletteProvider` 负责；缓存只能包含派生基础色、10～20 个歌词原文关键词及其派生颜色、包含歌词内容的 metadata hash、model、prompt version 和生成时间。
 - Keep climax analysis separate from `DeepSeekClassificationService` and the classification store: `DeepSeekHighlightService` owns the request, `SongHighlightProvider` owns lazy orchestration, and `SongHighlightRepository` stores only the derived timeline. Never persist or log the API key with that timeline.
 - If no API key is configured, guide the user to configuration. Do not describe the feature as already connected.
 

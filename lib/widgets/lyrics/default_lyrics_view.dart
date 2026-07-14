@@ -14,6 +14,7 @@ import '../../providers/lyrics_provider.dart';
 import '../../providers/player_provider.dart';
 import '../lyrics_stage/lyrics_stage_shell.dart';
 import 'lyric_print_effect.dart';
+import 'lyric_semantic_colors.dart';
 import 'lyrics_palette.dart';
 import 'lyrics_personalization_sheet.dart';
 
@@ -24,6 +25,7 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
   final String artist;
   final Color? dynamicColor;
   final Color? aiPrimaryColor;
+  final Map<String, Color> aiKeywordColors;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -37,6 +39,7 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
     required this.artist,
     required this.dynamicColor,
     required this.aiPrimaryColor,
+    this.aiKeywordColors = const {},
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -363,6 +366,9 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
                             highlightColor: isActive
                                 ? widget.aiPrimaryColor
                                 : null,
+                            keywordColors: isActive
+                                ? widget.aiKeywordColors
+                                : const {},
                             positionUpdatesEnabled:
                                 widget.positionUpdatesEnabled,
                             textAlign: textAlign,
@@ -469,6 +475,7 @@ class _TimedLyricText extends ConsumerWidget {
   final bool enabled;
   final bool isActive;
   final Color? highlightColor;
+  final Map<String, Color> keywordColors;
   final bool positionUpdatesEnabled;
   final TextAlign textAlign;
   final TextStyle style;
@@ -478,6 +485,7 @@ class _TimedLyricText extends ConsumerWidget {
     required this.enabled,
     required this.isActive,
     required this.highlightColor,
+    required this.keywordColors,
     required this.positionUpdatesEnabled,
     required this.textAlign,
     required this.style,
@@ -487,6 +495,22 @@ class _TimedLyricText extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hasWordTiming = line.words.any((word) => word.start != null);
     if (!enabled || !isActive || !hasWordTiming || !positionUpdatesEnabled) {
+      if (isActive && keywordColors.isNotEmpty) {
+        final glyphs = line.text.characters.toList(growable: false);
+        final colors = lyricSemanticColorsForUnits(glyphs, keywordColors);
+        return Text.rich(
+          TextSpan(
+            children: [
+              for (var index = 0; index < glyphs.length; index++)
+                TextSpan(
+                  text: glyphs[index],
+                  style: style.copyWith(color: colors[index] ?? style.color),
+                ),
+            ],
+          ),
+          textAlign: textAlign,
+        );
+      }
       return Text(
         line.text.isEmpty ? ' ' : line.text,
         textAlign: textAlign,
@@ -506,6 +530,10 @@ class _TimedLyricText extends ConsumerWidget {
         final animatedPosition = Duration(microseconds: microseconds.round());
         final pendingColor = style.color!.withValues(alpha: 0.24);
         final glyphs = _timedGlyphsForLine(line);
+        final semanticColors = lyricSemanticColorsForUnits(
+          glyphs.map((glyph) => glyph.text).toList(growable: false),
+          keywordColors,
+        );
         return Text.rich(
           TextSpan(
             children: [
@@ -517,6 +545,7 @@ class _TimedLyricText extends ConsumerWidget {
                   style: style,
                   pendingColor: pendingColor,
                   aiPrimaryColor: highlightColor,
+                  semanticColor: semanticColors[index],
                   motionEnabled: motionEnabled,
                 ),
             ],
@@ -534,6 +563,7 @@ class _TimedLyricText extends ConsumerWidget {
     required TextStyle style,
     required Color pendingColor,
     required Color? aiPrimaryColor,
+    required Color? semanticColor,
     required bool motionEnabled,
   }) {
     final rawProgress = lyricGlyphProgress(
@@ -543,8 +573,9 @@ class _TimedLyricText extends ConsumerWidget {
       glyphCount: glyph.count,
     );
     final progress = Curves.easeOutCubic.transform(rawProgress);
+    final resolvedAiColor = semanticColor ?? aiPrimaryColor;
     final aiIntensity =
-        aiPrimaryColor == null ||
+        resolvedAiColor == null ||
             glyph.start == null ||
             glyph.text.trim().isEmpty
         ? 0.0
@@ -554,12 +585,12 @@ class _TimedLyricText extends ConsumerWidget {
             nextStart: nextStart,
           );
     final defaultColor = Color.lerp(pendingColor, style.color!, progress)!;
-    final glyphColor = aiPrimaryColor == null
+    final glyphColor = resolvedAiColor == null
         ? defaultColor
-        : Color.lerp(defaultColor, aiPrimaryColor, aiIntensity)!;
-    final effectColor = aiPrimaryColor == null
+        : Color.lerp(defaultColor, resolvedAiColor, aiIntensity)!;
+    final effectColor = resolvedAiColor == null
         ? style.color!
-        : Color.lerp(style.color!, aiPrimaryColor, aiIntensity)!;
+        : Color.lerp(style.color!, resolvedAiColor, aiIntensity)!;
     final frontier = (1 - (rawProgress * 2 - 1).abs()).clamp(0.0, 1.0);
     final shadows = <Shadow>[
       ...?style.shadows,

@@ -6,7 +6,7 @@
 
 Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 Navidrome，通过 Subsonic/OpenSubsonic API 获取曲库、封面、歌词和音频。视觉方向是极简、沉浸、黑白灰冷色调、大圆角和柔和层次；UI 改动优先保持整体空间关系和观感。
 
-核心技术：Flutter / Dart / Material 3、Riverpod、`just_audio`、`dio`、本地磁盘封面缓存。安全底线：真实凭据和 DeepSeek API Key 只能进 secure storage；Android 媒体桥不得传流媒体 URL、token、密码或 `baseUrl`；分类请求只发歌曲文字元数据。流光歌词的高潮分析可发送歌曲名、歌手、专辑、时长和带时间歌词，但不得发送凭据、服务地址或媒体 URL。
+核心技术：Flutter / Dart / Material 3、Riverpod、`just_audio`、`dio`、本地磁盘封面缓存。安全底线：真实凭据和 DeepSeek API Key 只能进 secure storage；Android 媒体桥不得传流媒体 URL、token、密码或 `baseUrl`；分类请求只发歌曲文字元数据。歌词高潮分析可发送歌曲名、歌手、专辑、时长和带时间歌词；AI 歌词配色可发送歌曲名、歌手、专辑和纯歌词文本。两者均不得发送凭据、服务地址、媒体 URL 或封面 URL。
 
 ## 项目 Skills
 

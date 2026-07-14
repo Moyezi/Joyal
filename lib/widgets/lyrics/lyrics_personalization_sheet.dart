@@ -34,12 +34,18 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
     final currentLyrics = currentSong == null
         ? null
         : ref.watch(lyricsProvider(currentSong));
-    final aiPaletteState = preferences.aiColorEnabled && currentSong != null
+    final resolvedLyrics = currentLyrics?.asData?.value;
+    final aiPaletteState =
+        preferences.aiColorEnabled &&
+            currentSong != null &&
+            resolvedLyrics != null
         ? ref.watch(
-            lyricsAiPaletteProvider(LyricsAiPaletteRequest(currentSong)),
+            lyricsAiPaletteProvider(
+              LyricsAiPaletteRequest(currentSong, resolvedLyrics),
+            ),
           )
         : null;
-    final resolvedLyricsSource = currentLyrics?.asData?.value.source;
+    final resolvedLyricsSource = resolvedLyrics?.source;
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
     final inactiveBlur = ref
@@ -412,9 +418,9 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                     LyricsToggleTile(
                       title: 'AI 文字配色',
                       subtitle: aiPaletteState?.isLoading == true
-                          ? '正在根据歌名、专辑和歌手生成配色'
+                          ? '正在分析歌词语义、情绪走向与歌曲氛围'
                           : aiPaletteState?.asData?.value != null
-                          ? '当前歌曲已使用 AI 配色；关闭后恢复默认'
+                          ? '已为歌词关键词生成情绪分层配色；关闭后恢复默认'
                           : switch (preferences.stageMode) {
                               LyricsStageMode.flowingLight =>
                                 '当前字与光晕使用 primary，高潮圆环使用 stamp',

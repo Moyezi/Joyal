@@ -2,21 +2,24 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/lyrics_ai_palette.dart';
+import '../models/lyrics.dart';
 import '../models/song.dart';
 import '../services/app_cache_service.dart';
 import '../services/deepseek_lyrics_ai_palette_service.dart';
 import '../services/lyrics_ai_palette_protocol.dart';
 import '../services/lyrics_ai_palette_repository.dart';
 import 'lyrics_personalization_provider.dart';
+import 'lyrics_provider.dart';
 import 'music_classification_provider.dart';
 import 'player_provider.dart';
 
 class LyricsAiPaletteRequest {
   final Song song;
+  final LyricsData lyrics;
   final String metadataHash;
 
-  LyricsAiPaletteRequest(this.song)
-    : metadataHash = lyricsAiPaletteMetadataHash(song);
+  LyricsAiPaletteRequest(this.song, this.lyrics)
+    : metadataHash = lyricsAiPaletteMetadataHash(song, lyrics);
 
   @override
   bool operator ==(Object other) {
@@ -88,6 +91,7 @@ final lyricsAiPaletteProvider = FutureProvider.autoDispose
             apiKey: apiKey,
             settings: classification.settings,
             song: request.song,
+            lyrics: request.lyrics,
           );
       await repository.save(scope, request.song.id, palette);
       return palette;
@@ -125,8 +129,13 @@ class LyricsAiPaletteController {
     final personalization = _ref.read(lyricsPersonalizationProvider.notifier);
     await personalization.setAiColorEnabled(true);
     try {
+      final lyrics = await _ref.read(lyricsProvider(song).future);
+      if (lyrics.isEmpty) {
+        await personalization.setAiColorEnabled(false);
+        return LyricsAiPaletteActivationResult.generationFailed;
+      }
       final palette = await _ref.read(
-        lyricsAiPaletteProvider(LyricsAiPaletteRequest(song)).future,
+        lyricsAiPaletteProvider(LyricsAiPaletteRequest(song, lyrics)).future,
       );
       if (palette != null) return LyricsAiPaletteActivationResult.applied;
 
