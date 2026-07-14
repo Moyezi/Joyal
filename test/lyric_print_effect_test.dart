@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/models/lyrics.dart';
-import 'package:joyal_music/models/song.dart';
 import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/widgets/lyrics/default_lyrics_view.dart';
 import 'package:joyal_music/widgets/lyrics/lyric_print_effect.dart';
@@ -64,17 +63,6 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: DefaultLyricsView(
-              song: const Song(
-                id: 'song-1',
-                parent: 'album-1',
-                title: '测试歌曲',
-                album: '测试专辑',
-                artist: '测试歌手',
-                duration: 1,
-                coverArt: '',
-                contentType: 'audio/mpeg',
-                suffix: 'mp3',
-              ),
               data: const LyricsData(
                 synced: true,
                 lines: [
@@ -96,6 +84,7 @@ void main() {
               title: '测试歌曲',
               artist: '测试歌手',
               dynamicColor: null,
+              aiPrimaryColor: null,
               stageVisible: true,
               positionUpdatesEnabled: true,
               onSeek: (_) {},

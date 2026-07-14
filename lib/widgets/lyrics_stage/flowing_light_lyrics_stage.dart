@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/lyrics.dart';
 import '../../models/song.dart';
-import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../lyrics/lyric_print_effect.dart';
@@ -20,7 +19,8 @@ class FlowingLightLyricsStage extends ConsumerWidget {
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
-  final bool aiColorEnabled;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool wordByWordEnabled;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -36,7 +36,8 @@ class FlowingLightLyricsStage extends ConsumerWidget {
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
-    required this.aiColorEnabled,
+    required this.aiPrimaryColor,
+    required this.aiStampColor,
     required this.wordByWordEnabled,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -56,22 +57,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
           error: (_, _) => null,
           loading: () => null,
         );
-    final aiPalette = aiColorEnabled
-        ? ref
-              .watch(
-                floatingNameAiPaletteProvider(
-                  FloatingNameAiPaletteRequest(song),
-                ),
-              )
-              .maybeWhen(data: (palette) => palette, orElse: () => null)
-        : null;
-    final aiColors = aiPalette == null
-        ? null
-        : Theme.of(context).brightness == Brightness.dark
-        ? aiPalette.dark
-        : aiPalette.light;
-    final aiPrimaryColor = aiColors == null ? null : Color(aiColors.primary);
-    final stampColor = aiColors == null ? activeColor : Color(aiColors.stamp);
+    final stampColor = aiStampColor ?? activeColor;
 
     return LyricsStageShell(
       title: title,

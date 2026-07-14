@@ -8,8 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/theme_context.dart';
 import '../../models/lyrics.dart';
-import '../../models/song.dart';
-import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/glass_effect_provider.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../../providers/lyrics_provider.dart';
@@ -21,11 +19,11 @@ import 'lyrics_personalization_sheet.dart';
 
 class DefaultLyricsView extends ConsumerStatefulWidget {
   final LyricsData data;
-  final Song song;
   final int activeIndex;
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final Color? aiPrimaryColor;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -34,11 +32,11 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
   const DefaultLyricsView({
     super.key,
     required this.data,
-    required this.song,
     required this.activeIndex,
     required this.title,
     required this.artist,
     required this.dynamicColor,
+    required this.aiPrimaryColor,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -272,21 +270,6 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
   Widget build(BuildContext context) {
     final active = _activeIndex;
     final preferences = ref.watch(lyricsPersonalizationProvider);
-    final aiPalette = preferences.aiColorEnabled
-        ? ref
-              .watch(
-                floatingNameAiPaletteProvider(
-                  FloatingNameAiPaletteRequest(widget.song),
-                ),
-              )
-              .maybeWhen(data: (palette) => palette, orElse: () => null)
-        : null;
-    final aiColors = aiPalette == null
-        ? null
-        : Theme.of(context).brightness == Brightness.dark
-        ? aiPalette.dark
-        : aiPalette.light;
-    final aiPrimaryColor = aiColors == null ? null : Color(aiColors.primary);
     final inactiveBlur = ref
         .watch(
           glassEffectProvider.select(
@@ -377,7 +360,9 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
                             line: line,
                             enabled: preferences.wordByWordEnabled,
                             isActive: isActive,
-                            highlightColor: isActive ? aiPrimaryColor : null,
+                            highlightColor: isActive
+                                ? widget.aiPrimaryColor
+                                : null,
                             positionUpdatesEnabled:
                                 widget.positionUpdatesEnabled,
                             textAlign: textAlign,

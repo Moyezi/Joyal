@@ -5,11 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/floating_name_ai_palette.dart';
 import '../../models/lyrics.dart';
 import '../../models/song.dart';
 import '../../models/song_highlight.dart';
-import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../../services/audio_player_service.dart';
@@ -31,7 +29,8 @@ class FloatingNameLyricsStage extends ConsumerWidget {
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
-  final bool aiColorEnabled;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool wordByWordEnabled;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -47,7 +46,8 @@ class FloatingNameLyricsStage extends ConsumerWidget {
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
-    required this.aiColorEnabled,
+    required this.aiPrimaryColor,
+    required this.aiStampColor,
     required this.wordByWordEnabled,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -65,20 +65,6 @@ class FloatingNameLyricsStage extends ConsumerWidget {
           error: (_, _) => null,
           loading: () => null,
         );
-    final aiPalette = aiColorEnabled
-        ? ref
-              .watch(
-                floatingNameAiPaletteProvider(
-                  FloatingNameAiPaletteRequest(song),
-                ),
-              )
-              .maybeWhen(data: (palette) => palette, orElse: () => null)
-        : null;
-    final aiColors = aiPalette == null
-        ? null
-        : Theme.of(context).brightness == Brightness.dark
-        ? aiPalette.dark
-        : aiPalette.light;
     return LyricsStageShell(
       title: title,
       artist: artist,
@@ -96,7 +82,8 @@ class FloatingNameLyricsStage extends ConsumerWidget {
               fontFamily: fontFamily,
               fontSize: fontSize,
               wordByWordEnabled: wordByWordEnabled,
-              aiColors: aiColors,
+              aiPrimaryColor: aiPrimaryColor,
+              aiStampColor: aiStampColor,
               positionUpdatesEnabled: positionUpdatesEnabled,
               highlightSignature: highlightTimeline?.segments
                   .map(
@@ -121,7 +108,8 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
-  final FloatingNameAiColors? aiColors;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool positionUpdatesEnabled;
   final String? highlightSignature;
   final List<SongHighlightSegment> highlightSegments;
@@ -134,7 +122,8 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
-    required this.aiColors,
+    required this.aiPrimaryColor,
+    required this.aiStampColor,
     required this.positionUpdatesEnabled,
     required this.highlightSignature,
     required this.highlightSegments,
@@ -248,7 +237,8 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
         fallbackPosition: _fallbackPosition,
         isPlaying: isPlaying,
         activeColor: widget.activeColor,
-        aiColors: widget.aiColors,
+        aiPrimaryColor: widget.aiPrimaryColor,
+        aiStampColor: widget.aiStampColor,
         wordByWordEnabled: widget.wordByWordEnabled,
         motionEnabled: _motionEnabled,
         cameraAnimation: _cameraController,
@@ -755,7 +745,8 @@ class _FloatingNamePainter extends CustomPainter {
   final ValueListenable<Duration> fallbackPosition;
   final bool isPlaying;
   final Color activeColor;
-  final FloatingNameAiColors? aiColors;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool wordByWordEnabled;
   final bool motionEnabled;
   final Animation<double> cameraAnimation;
@@ -769,7 +760,8 @@ class _FloatingNamePainter extends CustomPainter {
     required this.fallbackPosition,
     required this.isPlaying,
     required this.activeColor,
-    required this.aiColors,
+    required this.aiPrimaryColor,
+    required this.aiStampColor,
     required this.wordByWordEnabled,
     required this.motionEnabled,
     required this.cameraAnimation,
@@ -916,7 +908,7 @@ class _FloatingNamePainter extends CustomPainter {
         motionEnabled &&
         activeGlyphIndex >= 0 &&
         activeGlyphIndex < block.glyphBoxes.length;
-    final aiPrimary = aiColors == null ? null : Color(aiColors!.primary);
+    final aiPrimary = aiPrimaryColor;
     final hasAiActiveGlyph =
         aiPrimary != null &&
         wordByWordEnabled &&
@@ -977,7 +969,7 @@ class _FloatingNamePainter extends CustomPainter {
       width: stampWidth,
       height: fontSize * 0.56,
     ).translate(0, -fontSize * 0.18 * pulse);
-    final stampColor = aiColors == null ? activeColor : Color(aiColors!.stamp);
+    final stampColor = aiStampColor ?? activeColor;
     final stampPaint = Paint()
       ..color = stampColor.withValues(alpha: stampColor.a * 0.8 * pulse);
     canvas.drawRRect(
@@ -1015,7 +1007,8 @@ class _FloatingNamePainter extends CustomPainter {
         oldDelegate.audioService != audioService ||
         oldDelegate.isPlaying != isPlaying ||
         oldDelegate.activeColor != activeColor ||
-        oldDelegate.aiColors != aiColors ||
+        oldDelegate.aiPrimaryColor != aiPrimaryColor ||
+        oldDelegate.aiStampColor != aiStampColor ||
         oldDelegate.wordByWordEnabled != wordByWordEnabled ||
         oldDelegate.motionEnabled != motionEnabled;
   }

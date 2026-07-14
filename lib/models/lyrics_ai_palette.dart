@@ -4,16 +4,14 @@ import 'package:crypto/crypto.dart';
 
 import 'song.dart';
 
-const int floatingNameAiPalettePromptVersion = 4;
-
-class FloatingNameAiColors {
+class LyricsAiColors {
   final int primary;
   final int stamp;
 
-  const FloatingNameAiColors({required this.primary, required this.stamp});
+  const LyricsAiColors({required this.primary, required this.stamp});
 
-  factory FloatingNameAiColors.fromJson(Map<String, dynamic> json) {
-    return FloatingNameAiColors(
+  factory LyricsAiColors.fromJson(Map<String, dynamic> json) {
+    return LyricsAiColors(
       primary: _storedColor(json['primary']),
       stamp: _storedColor(json['stamp']),
     );
@@ -26,7 +24,7 @@ class FloatingNameAiColors {
 
   @override
   bool operator ==(Object other) {
-    return other is FloatingNameAiColors &&
+    return other is LyricsAiColors &&
         other.primary == primary &&
         other.stamp == stamp;
   }
@@ -35,15 +33,15 @@ class FloatingNameAiColors {
   int get hashCode => Object.hash(primary, stamp);
 }
 
-class FloatingNameAiPalette {
-  final FloatingNameAiColors light;
-  final FloatingNameAiColors dark;
+class LyricsAiPalette {
+  final LyricsAiColors light;
+  final LyricsAiColors dark;
   final String metadataHash;
   final String model;
   final int promptVersion;
   final DateTime generatedAt;
 
-  const FloatingNameAiPalette({
+  const LyricsAiPalette({
     required this.light,
     required this.dark,
     required this.metadataHash,
@@ -52,24 +50,29 @@ class FloatingNameAiPalette {
     required this.generatedAt,
   });
 
+  LyricsAiColors colorsFor({required bool darkMode}) {
+    return darkMode ? dark : light;
+  }
+
   bool matches({
     required String currentMetadataHash,
     required String currentModel,
+    required int currentPromptVersion,
   }) {
     return metadataHash == currentMetadataHash &&
         model == currentModel &&
-        promptVersion == floatingNameAiPalettePromptVersion;
+        promptVersion == currentPromptVersion;
   }
 
-  factory FloatingNameAiPalette.fromJson(Map<String, dynamic> json) {
+  factory LyricsAiPalette.fromJson(Map<String, dynamic> json) {
     final light = json['light'];
     final dark = json['dark'];
     if (light is! Map || dark is! Map) {
       throw const FormatException('AI 歌词配色缓存格式异常');
     }
-    return FloatingNameAiPalette(
-      light: FloatingNameAiColors.fromJson(Map<String, dynamic>.from(light)),
-      dark: FloatingNameAiColors.fromJson(Map<String, dynamic>.from(dark)),
+    return LyricsAiPalette(
+      light: LyricsAiColors.fromJson(Map<String, dynamic>.from(light)),
+      dark: LyricsAiColors.fromJson(Map<String, dynamic>.from(dark)),
       metadataHash: json['metadataHash'] as String? ?? '',
       model: json['model'] as String? ?? '',
       promptVersion: (json['promptVersion'] as num?)?.toInt() ?? 0,
@@ -89,7 +92,7 @@ class FloatingNameAiPalette {
   };
 }
 
-String floatingNameAiPaletteMetadataHash(Song song) {
+String lyricsAiPaletteMetadataHash(Song song) {
   return sha256
       .convert(
         utf8.encode(

@@ -17,7 +17,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Do not store the key in SQLite, JSON, logs, crash reports, or Git.
 - Classification requests send only textual song metadata.
 - Lyrics climax analysis reuses the same secure-storage API key and saved endpoint/model settings, but has its own service and derived-data cache; requests contain only title, artist, album, duration, and timed lyric text.
-- 默认滚动、`流光`与`浮名`的 AI 文字配色 also reuses that secure-storage API key and saved endpoint/model settings, but sends only title, album, and artist. Keep it in `DeepSeekFloatingNamePaletteService` / `FloatingNameAiPaletteRepository` / `floatingNameAiPaletteProvider`; cache only the derived colors, metadata hash, model, prompt version, and generation time.
+- 默认滚动、`流光`与`浮名`的 AI 文字配色也复用 secure-storage API key 和已保存的 endpoint/model，但只发送 title、album、artist。网络、协议、缓存与编排分别由 `DeepSeekLyricsAiPaletteService`、`lyrics_ai_palette_protocol.dart`、`LyricsAiPaletteRepository`、`lyricsAiPaletteProvider` 负责；缓存只能包含派生颜色、metadata hash、model、prompt version 和生成时间。
 - Keep climax analysis separate from `DeepSeekClassificationService` and the classification store: `DeepSeekHighlightService` owns the request, `SongHighlightProvider` owns lazy orchestration, and `SongHighlightRepository` stores only the derived timeline. Never persist or log the API key with that timeline.
 - If no API key is configured, guide the user to configuration. Do not describe the feature as already connected.
 
@@ -80,4 +80,4 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Song detail/manual correction: `lib/widgets/song_actions/song_detail_dialog.dart`.
 - Discovery entry: `hotlist_screen.dart`.
 - Lyrics climax integration: `song_highlight_provider.dart`, `deepseek_highlight_service.dart`, `song_highlight_repository.dart`, `models/song_highlight.dart`, `widgets/lyrics_stage/flowing_light_lyrics_stage.dart`.
-- Lyrics AI palette: `floating_name_ai_palette_provider.dart`, `deepseek_floating_name_palette_service.dart`, `floating_name_ai_palette_repository.dart`, `models/floating_name_ai_palette.dart`.
+- Lyrics AI palette: `lyrics_ai_palette_provider.dart`, `deepseek_lyrics_ai_palette_service.dart`, `lyrics_ai_palette_protocol.dart`, `lyrics_ai_palette_repository.dart`, `models/lyrics_ai_palette.dart`.

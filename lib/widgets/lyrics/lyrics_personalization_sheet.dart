@@ -6,13 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/theme_context.dart';
 import '../../models/song.dart';
-import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/glass_effect_provider.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/lyrics_ai_palette_provider.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../../providers/lyrics_provider.dart';
 import '../../providers/lyrics_source_provider.dart';
-import '../../providers/music_classification_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../services/lyrics_service.dart';
 import '../../utils/app_toast.dart';
@@ -37,9 +36,7 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
         : ref.watch(lyricsProvider(currentSong));
     final aiPaletteState = preferences.aiColorEnabled && currentSong != null
         ? ref.watch(
-            floatingNameAiPaletteProvider(
-              FloatingNameAiPaletteRequest(currentSong),
-            ),
+            lyricsAiPaletteProvider(LyricsAiPaletteRequest(currentSong)),
           )
         : null;
     final resolvedLyricsSource = currentLyrics?.asData?.value.source;
@@ -633,55 +630,23 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
     bool enabled,
   ) async {
     HapticFeedback.selectionClick();
-    final notifier = ref.read(lyricsPersonalizationProvider.notifier);
+    final controller = ref.read(lyricsAiPaletteControllerProvider);
     if (!enabled) {
-      await notifier.setAiColorEnabled(false);
+      await controller.disable();
       return;
     }
-
-    if (song == null || ref.read(subsonicApiProvider) == null) {
-      if (context.mounted) {
-        showAppToast(context, '连接音乐服务器后才能生成 AI 配色', replaceCurrent: true);
-      }
-      return;
-    }
-    final classification = ref.read(musicClassificationProvider);
-    if (classification.isLoading) {
-      if (context.mounted) {
-        showAppToast(context, 'DeepSeek 配置正在读取，请稍后重试', replaceCurrent: true);
-      }
-      return;
-    }
-
-    await notifier.setAiColorEnabled(true);
-    try {
-      final palette = await ref.read(
-        floatingNameAiPaletteProvider(
-          FloatingNameAiPaletteRequest(song),
-        ).future,
-      );
-      if (palette == null) {
-        await notifier.setAiColorEnabled(false);
-        if (context.mounted) {
-          showAppToast(
-            context,
-            classification.hasApiKey
-                ? 'AI 配色生成失败，已继续使用默认颜色'
-                : '请先在“小Jo同学”中配置 DeepSeek API Key',
-            replaceCurrent: true,
-          );
-        }
-        return;
-      }
-      if (context.mounted) {
-        showAppToast(context, '已应用当前歌曲的 AI 配色', replaceCurrent: true);
-      }
-    } catch (_) {
-      await notifier.setAiColorEnabled(false);
-      if (context.mounted) {
-        showAppToast(context, 'AI 配色生成失败，已继续使用默认颜色', replaceCurrent: true);
-      }
-    }
+    final result = await controller.enable(song);
+    if (!context.mounted) return;
+    final message = switch (result) {
+      LyricsAiPaletteActivationResult.applied => '已应用当前歌曲的 AI 配色',
+      LyricsAiPaletteActivationResult.noServer => '连接音乐服务器后才能生成 AI 配色',
+      LyricsAiPaletteActivationResult.configurationLoading =>
+        'DeepSeek 配置正在读取，请稍后重试',
+      LyricsAiPaletteActivationResult.missingApiKey =>
+        '请先在“小Jo同学”中配置 DeepSeek API Key',
+      LyricsAiPaletteActivationResult.generationFailed => 'AI 配色生成失败，已继续使用默认颜色',
+    };
+    showAppToast(context, message, replaceCurrent: true);
   }
 
   Future<void> _refreshCurrentLyrics(

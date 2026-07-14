@@ -1,53 +1,13 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-
-import '../models/floating_name_ai_palette.dart';
+import '../models/lyrics_ai_palette.dart';
 import '../models/music_classification.dart';
 import '../models/song.dart';
 
-class DeepSeekFloatingNamePaletteService {
-  final Dio _dio;
+const int lyricsAiPalettePromptVersion = 4;
 
-  const DeepSeekFloatingNamePaletteService(this._dio);
-
-  Future<FloatingNameAiPalette> generate({
-    required String apiKey,
-    required AiClassificationSettings settings,
-    required Song song,
-  }) async {
-    final uri = Uri.parse(settings.apiBaseUrl).resolve('/chat/completions');
-    final response = await _dio.postUri<Map<String, dynamic>>(
-      uri,
-      options: Options(
-        headers: {
-          'Authorization': 'Bearer $apiKey',
-          'Content-Type': 'application/json',
-        },
-      ),
-      data: floatingNameAiPaletteRequestBody(settings: settings, song: song),
-    );
-    final content =
-        (((response.data?['choices'] as List<dynamic>?)?.firstOrNull
-                    as Map?)?['message']
-                as Map?)?['content']
-            as String?;
-    final colors = parseFloatingNameAiPaletteContent(content ?? '');
-    return FloatingNameAiPalette(
-      light: colors.light,
-      dark: colors.dark,
-      metadataHash: floatingNameAiPaletteMetadataHash(song),
-      model: settings.model,
-      promptVersion: floatingNameAiPalettePromptVersion,
-      generatedAt: DateTime.now(),
-    );
-  }
-}
-
-@visibleForTesting
-Map<String, dynamic> floatingNameAiPaletteRequestBody({
+Map<String, dynamic> buildLyricsAiPaletteRequestBody({
   required AiClassificationSettings settings,
   required Song song,
 }) {
@@ -71,9 +31,9 @@ Map<String, dynamic> floatingNameAiPaletteRequestBody({
   };
 }
 
-@visibleForTesting
-({FloatingNameAiColors light, FloatingNameAiColors dark})
-parseFloatingNameAiPaletteContent(String content) {
+({LyricsAiColors light, LyricsAiColors dark}) parseLyricsAiPaletteResponse(
+  String content,
+) {
   try {
     final decoded = jsonDecode(content);
     if (decoded is! Map) return _fallbackPalette;
@@ -97,13 +57,13 @@ parseFloatingNameAiPaletteContent(String content) {
   }
 }
 
-FloatingNameAiColors _normalizedColors(
+LyricsAiColors _normalizedColors(
   Map<String, dynamic> json, {
   required int background,
   required bool lighten,
 }) {
-  final parsed = FloatingNameAiColors.fromJson(json);
-  return FloatingNameAiColors(
+  final parsed = LyricsAiColors.fromJson(json);
+  return LyricsAiColors(
     primary: _ensureContrast(
       parsed.primary,
       background,
@@ -166,8 +126,8 @@ double _relativeLuminance(int color) {
 }
 
 const _fallbackPalette = (
-  light: FloatingNameAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
-  dark: FloatingNameAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
+  light: LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
+  dark: LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
 );
 
 const _systemPrompt = '''

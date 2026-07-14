@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme_context.dart';
 import '../models/lyrics.dart';
 import '../models/song.dart';
+import '../providers/lyrics_ai_palette_provider.dart';
 import '../providers/lyrics_personalization_provider.dart';
 import '../providers/lyrics_provider.dart';
 import '../providers/player_provider.dart';
@@ -47,6 +48,9 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
     final colorMode = ref.watch(
       lyricsPersonalizationProvider.select((state) => state.colorMode),
     );
+    final aiColorEnabled = ref.watch(
+      lyricsPersonalizationProvider.select((state) => state.aiColorEnabled),
+    );
     final dynamicLyricColor =
         song == null || colorMode != LyricsColorMode.dynamicLight
         ? null
@@ -66,6 +70,16 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                     dynamicLyricColorFromPalette(palette, brightness),
                 orElse: () => null,
               );
+    final aiPalette = song == null || !aiColorEnabled
+        ? null
+        : ref
+              .watch(lyricsAiPaletteProvider(LyricsAiPaletteRequest(song)))
+              .maybeWhen(data: (palette) => palette, orElse: () => null);
+    final aiColors = aiPalette?.colorsFor(
+      darkMode: brightness == Brightness.dark,
+    );
+    final aiPrimaryColor = aiColors == null ? null : Color(aiColors.primary);
+    final aiStampColor = aiColors == null ? null : Color(aiColors.stamp);
 
     return Scaffold(
       extendBody: true,
@@ -114,6 +128,8 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen> {
                       title: song.title,
                       artist: song.artist,
                       dynamicColor: dynamicLyricColor,
+                      aiPrimaryColor: aiPrimaryColor,
+                      aiStampColor: aiStampColor,
                       stageVisible: widget.stageVisible,
                       positionUpdatesEnabled: widget.positionUpdatesEnabled,
                       onSettingsSheetVisibilityChanged:
@@ -131,6 +147,8 @@ class _LyricsPositionedList extends ConsumerWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -141,6 +159,8 @@ class _LyricsPositionedList extends ConsumerWidget {
     required this.title,
     required this.artist,
     this.dynamicColor,
+    this.aiPrimaryColor,
+    this.aiStampColor,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -164,6 +184,8 @@ class _LyricsPositionedList extends ConsumerWidget {
         title: title,
         artist: artist,
         dynamicColor: dynamicColor,
+        aiPrimaryColor: aiPrimaryColor,
+        aiStampColor: aiStampColor,
         stageVisible: stageVisible,
         positionUpdatesEnabled: positionUpdatesEnabled,
         onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
@@ -171,11 +193,11 @@ class _LyricsPositionedList extends ConsumerWidget {
     }
     return DefaultLyricsView(
       data: data,
-      song: song,
       activeIndex: activeIndex,
       title: title,
       artist: artist,
       dynamicColor: dynamicColor,
+      aiPrimaryColor: aiPrimaryColor,
       stageVisible: stageVisible,
       positionUpdatesEnabled: positionUpdatesEnabled,
       onSettingsSheetVisibilityChanged: onSettingsSheetVisibilityChanged,
@@ -194,6 +216,8 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
+  final Color? aiPrimaryColor;
+  final Color? aiStampColor;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
   final ValueChanged<bool>? onSettingsSheetVisibilityChanged;
@@ -206,6 +230,8 @@ class _FlowingLightStageHost extends ConsumerStatefulWidget {
     required this.title,
     required this.artist,
     required this.dynamicColor,
+    required this.aiPrimaryColor,
+    required this.aiStampColor,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
     this.onSettingsSheetVisibilityChanged,
@@ -256,7 +282,8 @@ class _FlowingLightStageHostState
         ),
         fontFamily: preferences.effectiveFontFamily,
         fontSize: preferences.floatingNameFontSize,
-        aiColorEnabled: preferences.aiColorEnabled,
+        aiPrimaryColor: widget.aiPrimaryColor,
+        aiStampColor: widget.aiStampColor,
         wordByWordEnabled: preferences.wordByWordEnabled,
         stageVisible: widget.stageVisible,
         positionUpdatesEnabled:
@@ -277,7 +304,8 @@ class _FlowingLightStageHostState
       ),
       fontFamily: preferences.effectiveFontFamily,
       fontSize: preferences.flowingLightFontSize,
-      aiColorEnabled: preferences.aiColorEnabled,
+      aiPrimaryColor: widget.aiPrimaryColor,
+      aiStampColor: widget.aiStampColor,
       wordByWordEnabled: preferences.wordByWordEnabled,
       stageVisible: widget.stageVisible,
       positionUpdatesEnabled:
