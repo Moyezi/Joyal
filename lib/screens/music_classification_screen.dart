@@ -23,18 +23,42 @@ class MusicClassificationScreen extends ConsumerStatefulWidget {
 }
 
 class _MusicClassificationScreenState
-    extends ConsumerState<MusicClassificationScreen> {
+    extends ConsumerState<MusicClassificationScreen>
+    with SingleTickerProviderStateMixin {
   final _apiKeyController = TextEditingController();
   final _apiUrlController = TextEditingController();
   final _modelController = TextEditingController();
+  late final TabController _tabController;
   bool _obscureApiKey = true;
   bool _initializedFields = false;
+  bool _highlightsRequested = false;
+  bool _palettesRequested = false;
   int _batchSize = 20;
   bool _wifiOnly = true;
   bool _notificationsEnabled = true;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this)
+      ..addListener(_handleTabChange);
+  }
+
+  void _handleTabChange() {
+    if (!mounted) return;
+    final index = _tabController.index;
+    if (index == 1 && !_highlightsRequested) {
+      setState(() => _highlightsRequested = true);
+    } else if (index == 2 && !_palettesRequested) {
+      setState(() => _palettesRequested = true);
+    }
+  }
+
+  @override
   void dispose() {
+    _tabController
+      ..removeListener(_handleTabChange)
+      ..dispose();
     _apiKeyController.dispose();
     _apiUrlController.dispose();
     _modelController.dispose();
@@ -293,41 +317,53 @@ class _MusicClassificationScreenState
     _syncFields();
     final state = ref.watch(musicClassificationProvider);
     final library = ref.watch(libraryProvider);
-    final highlights = ref.watch(recognizedSongHighlightsProvider);
-    final palettes = ref.watch(recognizedLyricsAiPalettesProvider);
+    final cachedHighlightCount = ref.watch(
+      cachedRecognizedSongHighlightCountProvider,
+    );
+    final cachedPaletteCount = ref.watch(
+      cachedRecognizedLyricsAiPaletteCountProvider,
+    );
+    final highlights = _highlightsRequested
+        ? ref.watch(recognizedSongHighlightsProvider)
+        : null;
+    final palettes = _palettesRequested
+        ? ref.watch(recognizedLyricsAiPalettesProvider)
+        : null;
     final pendingCount = ref
         .read(musicClassificationProvider.notifier)
         .pendingCount(library.songs);
 
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('小Jo同学')),
-        body: Column(
-          children: [
-            JoHeader(
-              classifiedCount: state.classifiedCount,
-              totalCount: library.songs.length,
-              highlightCount: highlights.asData?.value.length,
-              paletteCount: palettes.asData?.value.length,
+    return Scaffold(
+      appBar: AppBar(title: const Text('小Jo同学')),
+      body: Column(
+        children: [
+          JoHeader(
+            classifiedCount: state.classifiedCount,
+            totalCount: library.songs.length,
+            highlightCount:
+                highlights?.asData?.value.length ??
+                cachedHighlightCount.asData?.value,
+            paletteCount:
+                palettes?.asData?.value.length ??
+                cachedPaletteCount.asData?.value,
+          ),
+          JoTabBar(controller: _tabController),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildClassificationTab(
+                  state,
+                  pendingCount,
+                  library.songs.length,
+                ),
+                _buildHighlightsTab(highlights),
+                _buildLyricsPalettesTab(palettes),
+                _buildServiceTab(state),
+              ],
             ),
-            const JoTabBar(),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildClassificationTab(
-                    state,
-                    pendingCount,
-                    library.songs.length,
-                  ),
-                  _buildHighlightsTab(highlights),
-                  _buildLyricsPalettesTab(palettes),
-                  _buildServiceTab(state),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -409,120 +445,206 @@ class _MusicClassificationScreenState
   }
 
   Widget _buildHighlightsTab(
-    AsyncValue<List<RecognizedSongHighlight>> highlights,
+    AsyncValue<List<RecognizedSongHighlight>>? highlights,
   ) {
-    return highlights.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => HighlightsError(
-        onRetry: () => ref.invalidate(recognizedSongHighlightsProvider),
-      ),
-      data: (entries) => ListView(
-        padding: const EdgeInsets.all(AppTheme.spacingLG),
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('高潮记录', style: context.textTitleLarge),
-                    const SizedBox(height: 4),
-                    Text(
-                      entries.isEmpty
-                          ? '还没有本地识别记录'
-                          : '已识别 ${entries.length} 首，按最近识别排序',
-                      style: context.textBodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              if (entries.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => _deleteAllHighlights(entries),
-                  icon: const Icon(Icons.delete_sweep_outlined),
-                  label: const Text('全部清除'),
-                ),
-            ],
+    if (highlights == null) return const SizedBox.shrink();
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: highlights.isLoading
+          ? const RecordsLoading(
+              key: ValueKey('highlights-loading'),
+              label: '正在轻轻翻找本地高潮记录',
+            )
+          : highlights.hasError
+          ? HighlightsError(
+              key: const ValueKey('highlights-error'),
+              onRetry: () => ref.invalidate(recognizedSongHighlightsProvider),
+            )
+          : _buildHighlightRecords(highlights.requireValue),
+    );
+  }
+
+  Widget _buildHighlightRecords(List<RecognizedSongHighlight> entries) {
+    return CustomScrollView(
+      key: const ValueKey('highlights-data'),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+            AppTheme.spacingMD,
           ),
-          const SizedBox(height: AppTheme.spacingMD),
-          if (entries.isEmpty)
-            const EmptyHighlights()
-          else
-            for (final entry in entries) ...[
-              HighlightSongCard(
-                entry: entry,
-                coverUrl: _coverUrl(entry.song),
-                onDelete: () => _deleteHighlight(entry),
-              ),
-              const SizedBox(height: AppTheme.spacingSM),
-            ],
-          const SizedBox(height: AppTheme.spacingSM),
-          const PrivacyNote(
-            icon: Icons.lyrics_outlined,
-            text: '高潮分析来自带时间歌词；这里展示和清除的都是当前服务器在本机保存的结果。',
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('高潮记录', style: context.textTitleLarge),
+                      const SizedBox(height: 4),
+                      Text(
+                        entries.isEmpty
+                            ? '还没有本地识别记录'
+                            : '已识别 ${entries.length} 首，按最近识别排序',
+                        style: context.textBodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (entries.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => _deleteAllHighlights(entries),
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    label: const Text('全部清除'),
+                  ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        if (entries.isEmpty)
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverToBoxAdapter(child: EmptyHighlights()),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final entry = entries[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.spacingSM),
+                  child: HighlightSongCard(
+                    entry: entry,
+                    coverUrl: _coverUrl(entry.song),
+                    onDelete: () => _deleteHighlight(entry),
+                  ),
+                );
+              }, childCount: entries.length),
+            ),
+          ),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            AppTheme.spacingLG,
+            AppTheme.spacingSM,
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+          ),
+          sliver: SliverToBoxAdapter(
+            child: PrivacyNote(
+              icon: Icons.lyrics_outlined,
+              text: '高潮分析来自带时间歌词；这里展示和清除的都是当前服务器在本机保存的结果。',
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildLyricsPalettesTab(
-    AsyncValue<List<RecognizedLyricsAiPalette>> palettes,
+    AsyncValue<List<RecognizedLyricsAiPalette>>? palettes,
   ) {
-    return palettes.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => LyricsPalettesError(
-        onRetry: () => ref.invalidate(recognizedLyricsAiPalettesProvider),
-      ),
-      data: (entries) => ListView(
-        padding: const EdgeInsets.all(AppTheme.spacingLG),
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('AI 歌词配色', style: context.textTitleLarge),
-                    const SizedBox(height: 4),
-                    Text(
-                      entries.isEmpty
-                          ? '还没有本地生成记录'
-                          : '已生成 ${entries.length} 首，按最近生成排序',
-                      style: context.textBodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              if (entries.isNotEmpty)
-                TextButton.icon(
-                  onPressed: () => _deleteAllLyricsPalettes(entries),
-                  icon: const Icon(Icons.delete_sweep_outlined),
-                  label: const Text('全部清除'),
-                ),
-            ],
+    if (palettes == null) return const SizedBox.shrink();
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: palettes.isLoading
+          ? const RecordsLoading(
+              key: ValueKey('palettes-loading'),
+              label: '正在轻轻整理本地歌词配色',
+            )
+          : palettes.hasError
+          ? LyricsPalettesError(
+              key: const ValueKey('palettes-error'),
+              onRetry: () => ref.invalidate(recognizedLyricsAiPalettesProvider),
+            )
+          : _buildPaletteRecords(palettes.requireValue),
+    );
+  }
+
+  Widget _buildPaletteRecords(List<RecognizedLyricsAiPalette> entries) {
+    return CustomScrollView(
+      key: const ValueKey('palettes-data'),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+            AppTheme.spacingMD,
           ),
-          const SizedBox(height: AppTheme.spacingMD),
-          if (entries.isEmpty)
-            const EmptyLyricsPalettes()
-          else
-            for (final entry in entries) ...[
-              LyricsPaletteSongCard(
-                entry: entry,
-                coverUrl: _coverUrl(entry.song),
-                onDelete: () => _deleteLyricsPalette(entry),
-              ),
-              const SizedBox(height: AppTheme.spacingSM),
-            ],
-          const SizedBox(height: AppTheme.spacingSM),
-          const PrivacyNote(
-            icon: Icons.palette_outlined,
-            text: '这里只读取和清除本机缓存，不会触发新的 AI 请求；生成时仅发送歌曲文字信息和纯歌词文本。',
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('AI 歌词配色', style: context.textTitleLarge),
+                      const SizedBox(height: 4),
+                      Text(
+                        entries.isEmpty
+                            ? '还没有本地生成记录'
+                            : '已生成 ${entries.length} 首，按最近生成排序',
+                        style: context.textBodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (entries.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () => _deleteAllLyricsPalettes(entries),
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    label: const Text('全部清除'),
+                  ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        if (entries.isEmpty)
+          const SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverToBoxAdapter(child: EmptyLyricsPalettes()),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final entry = entries[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.spacingSM),
+                  child: LyricsPaletteSongCard(
+                    entry: entry,
+                    coverUrl: _coverUrl(entry.song),
+                    onDelete: () => _deleteLyricsPalette(entry),
+                  ),
+                );
+              }, childCount: entries.length),
+            ),
+          ),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            AppTheme.spacingLG,
+            AppTheme.spacingSM,
+            AppTheme.spacingLG,
+            AppTheme.spacingLG,
+          ),
+          sliver: SliverToBoxAdapter(
+            child: PrivacyNote(
+              icon: Icons.palette_outlined,
+              text: '这里只读取和清除本机缓存，不会触发新的 AI 请求；生成时仅发送歌曲文字信息和纯歌词文本。',
+            ),
+          ),
+        ),
+      ],
     );
   }
 

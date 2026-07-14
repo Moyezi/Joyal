@@ -68,10 +68,26 @@ final cachedSongHighlightProvider = FutureProvider.autoDispose
       return ref.read(songHighlightRepositoryProvider).load(scope, song.id);
     });
 
+/// Reads the last completed management scan count without scanning the library.
+final cachedRecognizedSongHighlightCountProvider =
+    FutureProvider.autoDispose<int?>((ref) async {
+      final api = ref.watch(subsonicApiProvider);
+      if (api == null) return null;
+      final scope = AppCacheService.instance.serverScope(
+        api.baseUrl,
+        api.username,
+      );
+      return ref
+          .read(songHighlightRepositoryProvider)
+          .loadRecognizedCount(scope);
+    });
+
 /// Scans the current library for locally cached climax timelines so records
 /// created before the management screen was introduced remain visible.
 final recognizedSongHighlightsProvider =
     FutureProvider.autoDispose<List<RecognizedSongHighlight>>((ref) async {
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
       final api = ref.watch(subsonicApiProvider);
       final songs = ref.watch(libraryProvider.select((state) => state.songs));
       if (api == null || songs.isEmpty) return const [];
@@ -81,22 +97,35 @@ final recognizedSongHighlightsProvider =
         api.username,
       );
       final repository = ref.read(songHighlightRepositoryProvider);
-      final timelines = await Future.wait(
-        songs.map((song) => repository.load(scope, song.id)),
-      );
       final recognized = <RecognizedSongHighlight>[];
-      for (var index = 0; index < songs.length; index++) {
-        final timeline = timelines[index];
-        if (timeline != null && timeline.segments.isNotEmpty) {
-          recognized.add(
-            RecognizedSongHighlight(song: songs[index], timeline: timeline),
-          );
+      // Keep local file reads bounded so opening this view does not flood the
+      // event loop on large libraries.
+      const batchSize = 24;
+      for (var start = 0; start < songs.length; start += batchSize) {
+        final end = (start + batchSize).clamp(0, songs.length);
+        final batch = songs.sublist(start, end);
+        final timelines = await Future.wait(
+          batch.map((song) => repository.load(scope, song.id)),
+        );
+        for (var index = 0; index < batch.length; index++) {
+          final timeline = timelines[index];
+          if (timeline != null && timeline.segments.isNotEmpty) {
+            recognized.add(
+              RecognizedSongHighlight(song: batch[index], timeline: timeline),
+            );
+          }
         }
+        if (disposed) return const [];
+        if (end < songs.length) await Future<void>.delayed(Duration.zero);
       }
       recognized.sort(
         (left, right) =>
             right.timeline.analyzedAt.compareTo(left.timeline.analyzedAt),
       );
+      await repository.saveRecognizedCount(scope, recognized.length);
+      if (!disposed) {
+        ref.invalidate(cachedRecognizedSongHighlightCountProvider);
+      }
       return recognized;
     });
 

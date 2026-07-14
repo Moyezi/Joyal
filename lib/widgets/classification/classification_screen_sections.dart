@@ -114,13 +114,16 @@ class _HeaderMetric extends StatelessWidget {
 }
 
 class JoTabBar extends StatelessWidget {
-  const JoTabBar({super.key});
+  final TabController controller;
+
+  const JoTabBar({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
       child: TabBar(
+        controller: controller,
         dividerColor: Colors.transparent,
         splashFactory: NoSplash.splashFactory,
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
@@ -135,6 +138,35 @@ class JoTabBar extends StatelessWidget {
           Tab(text: '配色'),
           Tab(text: '服务'),
         ],
+      ),
+    );
+  }
+}
+
+class RecordsLoading extends StatelessWidget {
+  final String label;
+
+  const RecordsLoading({super.key, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingXL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 72,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: const LinearProgressIndicator(minHeight: 4),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingMD),
+            Text(label, style: context.textBodySmall),
+          ],
+        ),
       ),
     );
   }

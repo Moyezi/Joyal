@@ -8,6 +8,7 @@ import 'app_cache_service.dart';
 class LyricsAiPaletteRepository {
   static const _cachePrefix = 'lyrics_ai_palette_';
   static const _legacyCachePrefix = 'floating_name_palette_';
+  static const _recognizedCountPrefix = 'lyrics_ai_palette_count_';
 
   final AppCacheService _cache;
 
@@ -16,6 +17,22 @@ class LyricsAiPaletteRepository {
   String _cacheName(String prefix, String serverScope, String songId) {
     final id = sha1.convert(utf8.encode('$serverScope|$songId'));
     return '$prefix$id';
+  }
+
+  String _countCacheName(String serverScope) {
+    return '$_recognizedCountPrefix$serverScope';
+  }
+
+  Future<int?> loadRecognizedCount(String serverScope) async {
+    final json = await _cache.readJson(_countCacheName(serverScope));
+    final count = json?['count'];
+    return count is int && count >= 0 ? count : null;
+  }
+
+  Future<void> saveRecognizedCount(String serverScope, int count) {
+    return _cache.writeJson(_countCacheName(serverScope), {
+      'count': count.clamp(0, 0x7fffffff),
+    });
   }
 
   Future<LyricsAiPalette?> load(String serverScope, String songId) async {

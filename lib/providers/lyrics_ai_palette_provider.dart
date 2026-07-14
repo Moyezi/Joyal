@@ -47,10 +47,26 @@ final lyricsAiPaletteRepositoryProvider = Provider<LyricsAiPaletteRepository>((
   return LyricsAiPaletteRepository(AppCacheService.instance);
 });
 
+/// Reads the last completed management scan count without scanning the library.
+final cachedRecognizedLyricsAiPaletteCountProvider =
+    FutureProvider.autoDispose<int?>((ref) async {
+      final api = ref.watch(subsonicApiProvider);
+      if (api == null) return null;
+      final scope = AppCacheService.instance.serverScope(
+        api.baseUrl,
+        api.username,
+      );
+      return ref
+          .read(lyricsAiPaletteRepositoryProvider)
+          .loadRecognizedCount(scope);
+    });
+
 /// Scans only the current library's local palette cache. Opening the
 /// management screen must never start a DeepSeek request.
 final recognizedLyricsAiPalettesProvider =
     FutureProvider.autoDispose<List<RecognizedLyricsAiPalette>>((ref) async {
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
       final api = ref.watch(subsonicApiProvider);
       final songs = ref.watch(libraryProvider.select((state) => state.songs));
       if (api == null || songs.isEmpty) return const [];
@@ -60,22 +76,35 @@ final recognizedLyricsAiPalettesProvider =
         api.username,
       );
       final repository = ref.read(lyricsAiPaletteRepositoryProvider);
-      final palettes = await Future.wait(
-        songs.map((song) => repository.load(scope, song.id)),
-      );
       final recognized = <RecognizedLyricsAiPalette>[];
-      for (var index = 0; index < songs.length; index++) {
-        final palette = palettes[index];
-        if (palette != null) {
-          recognized.add(
-            RecognizedLyricsAiPalette(song: songs[index], palette: palette),
-          );
+      // Keep local file reads bounded so opening this view does not flood the
+      // event loop on large libraries.
+      const batchSize = 24;
+      for (var start = 0; start < songs.length; start += batchSize) {
+        final end = (start + batchSize).clamp(0, songs.length);
+        final batch = songs.sublist(start, end);
+        final palettes = await Future.wait(
+          batch.map((song) => repository.load(scope, song.id)),
+        );
+        for (var index = 0; index < batch.length; index++) {
+          final palette = palettes[index];
+          if (palette != null) {
+            recognized.add(
+              RecognizedLyricsAiPalette(song: batch[index], palette: palette),
+            );
+          }
         }
+        if (disposed) return const [];
+        if (end < songs.length) await Future<void>.delayed(Duration.zero);
       }
       recognized.sort(
         (left, right) =>
             right.palette.generatedAt.compareTo(left.palette.generatedAt),
       );
+      await repository.saveRecognizedCount(scope, recognized.length);
+      if (!disposed) {
+        ref.invalidate(cachedRecognizedLyricsAiPaletteCountProvider);
+      }
       return recognized;
     });
 
