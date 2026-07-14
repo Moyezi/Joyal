@@ -13,6 +13,9 @@ const _fontFamilyKey = 'lyrics_font_family';
 const _fontSizeKey = 'lyrics_font_size';
 const _flowingLightFontSizeKey = 'lyrics_flowing_light_font_size';
 const _floatingNameFontSizeKey = 'lyrics_floating_name_font_size';
+const _aiColorEnabledKey = 'lyrics_ai_color_enabled';
+const _legacyFloatingNameAiColorEnabledKey =
+    'lyrics_floating_name_ai_color_enabled';
 const _wordByWordEnabledKey = 'lyrics_word_by_word_enabled';
 const _stageModeKey = 'lyrics_stage_mode';
 const _customFontPathKey = 'lyrics_custom_font_path';
@@ -120,6 +123,7 @@ class LyricsPersonalizationState {
   final double fontSize;
   final double flowingLightFontSize;
   final double floatingNameFontSize;
+  final bool aiColorEnabled;
   final bool wordByWordEnabled;
   final LyricsStageMode stageMode;
   final String? customFontPath;
@@ -134,6 +138,7 @@ class LyricsPersonalizationState {
     this.fontSize = defaultFontSize,
     this.flowingLightFontSize = defaultFlowingLightFontSize,
     this.floatingNameFontSize = defaultFloatingNameFontSize,
+    this.aiColorEnabled = false,
     this.wordByWordEnabled = true,
     this.stageMode = LyricsStageMode.defaultScroll,
     this.customFontPath,
@@ -160,6 +165,7 @@ class LyricsPersonalizationState {
     double? fontSize,
     double? flowingLightFontSize,
     double? floatingNameFontSize,
+    bool? aiColorEnabled,
     bool? wordByWordEnabled,
     LyricsStageMode? stageMode,
     String? customFontPath,
@@ -175,6 +181,7 @@ class LyricsPersonalizationState {
       fontSize: fontSize ?? this.fontSize,
       flowingLightFontSize: flowingLightFontSize ?? this.flowingLightFontSize,
       floatingNameFontSize: floatingNameFontSize ?? this.floatingNameFontSize,
+      aiColorEnabled: aiColorEnabled ?? this.aiColorEnabled,
       wordByWordEnabled: wordByWordEnabled ?? this.wordByWordEnabled,
       stageMode: stageMode ?? this.stageMode,
       customFontPath: clearCustomFont
@@ -216,6 +223,10 @@ class LyricsPersonalizationNotifier
     final savedFloatingNameFontSize = double.tryParse(
       await _storage.read(key: _floatingNameFontSizeKey) ?? '',
     );
+    final savedAiColorEnabled =
+        await _storage.read(key: _aiColorEnabledKey) ??
+        await _storage.read(key: _legacyFloatingNameAiColorEnabledKey);
+    final aiColorEnabled = savedAiColorEnabled == 'true';
     final wordByWordEnabled =
         await _storage.read(key: _wordByWordEnabledKey) != 'false';
     final stageMode = LyricsStageMode.fromStorageValue(
@@ -293,6 +304,7 @@ class LyricsPersonalizationNotifier
       fontSize: fontSize,
       flowingLightFontSize: flowingLightFontSize,
       floatingNameFontSize: floatingNameFontSize,
+      aiColorEnabled: aiColorEnabled,
       wordByWordEnabled: wordByWordEnabled,
       stageMode: stageMode,
       customFontPath: customFontPath,
@@ -406,6 +418,15 @@ class LyricsPersonalizationNotifier
     );
   }
 
+  Future<void> setAiColorEnabled(bool enabled) async {
+    if (state.aiColorEnabled == enabled && !state.isLoading) {
+      return;
+    }
+    state = state.copyWith(aiColorEnabled: enabled, isLoading: false);
+    await _storage.write(key: _aiColorEnabledKey, value: enabled.toString());
+    await _storage.delete(key: _legacyFloatingNameAiColorEnabledKey);
+  }
+
   Future<void> setWordByWordEnabled(bool enabled) async {
     if (state.wordByWordEnabled == enabled && !state.isLoading) return;
     state = state.copyWith(wordByWordEnabled: enabled, isLoading: false);
@@ -429,6 +450,8 @@ class LyricsPersonalizationNotifier
       _storage.delete(key: _fontSizeKey),
       _storage.delete(key: _flowingLightFontSizeKey),
       _storage.delete(key: _floatingNameFontSizeKey),
+      _storage.delete(key: _aiColorEnabledKey),
+      _storage.delete(key: _legacyFloatingNameAiColorEnabledKey),
       _storage.delete(key: _wordByWordEnabledKey),
       _storage.delete(key: _stageModeKey),
       _storage.delete(key: _customFontPathKey),

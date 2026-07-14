@@ -125,6 +125,7 @@ class LyricsToggleTile extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool isLoading;
 
   const LyricsToggleTile({
     super.key,
@@ -132,6 +133,7 @@ class LyricsToggleTile extends StatelessWidget {
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    this.isLoading = false,
   });
 
   @override
@@ -164,7 +166,17 @@ class LyricsToggleTile extends StatelessWidget {
               ],
             ),
           ),
-          Switch.adaptive(value: value, onChanged: onChanged),
+          if (isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            Switch.adaptive(value: value, onChanged: onChanged),
         ],
       ),
     );

@@ -171,6 +171,7 @@ class _LyricsPositionedList extends ConsumerWidget {
     }
     return DefaultLyricsView(
       data: data,
+      song: song,
       activeIndex: activeIndex,
       title: title,
       artist: artist,
@@ -275,6 +276,7 @@ class _FlowingLightStageHostState
       ),
       fontFamily: preferences.effectiveFontFamily,
       fontSize: preferences.flowingLightFontSize,
+      aiColorEnabled: preferences.aiColorEnabled,
       wordByWordEnabled: preferences.wordByWordEnabled,
       stageVisible: widget.stageVisible,
       positionUpdatesEnabled:

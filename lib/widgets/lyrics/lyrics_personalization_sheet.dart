@@ -5,11 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/theme_context.dart';
+import '../../models/song.dart';
+import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/glass_effect_provider.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../../providers/lyrics_provider.dart';
 import '../../providers/lyrics_source_provider.dart';
+import '../../providers/music_classification_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../services/lyrics_service.dart';
 import '../../utils/app_toast.dart';
@@ -32,6 +35,17 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
     final currentLyrics = currentSong == null
         ? null
         : ref.watch(lyricsProvider(currentSong));
+    final aiColorSupported =
+        preferences.stageMode == LyricsStageMode.defaultScroll ||
+        preferences.stageMode == LyricsStageMode.flowingLight;
+    final aiPaletteState =
+        aiColorSupported && preferences.aiColorEnabled && currentSong != null
+        ? ref.watch(
+            floatingNameAiPaletteProvider(
+              FloatingNameAiPaletteRequest(currentSong),
+            ),
+          )
+        : null;
     final resolvedLyricsSource = currentLyrics?.asData?.value.source;
     const inactiveLyricsTarget = GlassEffectTarget.lyricsPage;
     const drawerGlassTarget = GlassEffectTarget.lyricsDrawer;
@@ -401,6 +415,30 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                         color: context.secondaryColor,
                       ),
                     ),
+                    if (aiColorSupported) ...[
+                      const SizedBox(height: 16),
+                      LyricsToggleTile(
+                        title: 'AI 文字配色',
+                        subtitle: aiPaletteState?.isLoading == true
+                            ? '正在根据歌名、专辑和歌手生成配色'
+                            : aiPaletteState?.asData?.value != null
+                            ? '当前歌曲已使用 AI 配色；关闭后恢复默认'
+                            : preferences.stageMode ==
+                                  LyricsStageMode.flowingLight
+                            ? '高光文字与光晕使用 primary，高潮圆环使用 stamp'
+                            : '当前高亮歌词使用歌曲专属 primary 配色',
+                        value: preferences.aiColorEnabled,
+                        isLoading: aiPaletteState?.isLoading == true,
+                        onChanged: (enabled) => unawaited(
+                          _setAiColorEnabled(
+                            context,
+                            ref,
+                            currentSong,
+                            enabled,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -594,6 +632,64 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
       picked ? '自定义字体已更新' : '字体加载失败，请选择有效的 .ttf 文件',
       replaceCurrent: true,
     );
+  }
+
+  Future<void> _setAiColorEnabled(
+    BuildContext context,
+    WidgetRef ref,
+    Song? song,
+    bool enabled,
+  ) async {
+    HapticFeedback.selectionClick();
+    final notifier = ref.read(lyricsPersonalizationProvider.notifier);
+    if (!enabled) {
+      await notifier.setAiColorEnabled(false);
+      return;
+    }
+
+    if (song == null || ref.read(subsonicApiProvider) == null) {
+      if (context.mounted) {
+        showAppToast(context, '连接音乐服务器后才能生成 AI 配色', replaceCurrent: true);
+      }
+      return;
+    }
+    final classification = ref.read(musicClassificationProvider);
+    if (classification.isLoading) {
+      if (context.mounted) {
+        showAppToast(context, 'DeepSeek 配置正在读取，请稍后重试', replaceCurrent: true);
+      }
+      return;
+    }
+
+    await notifier.setAiColorEnabled(true);
+    try {
+      final palette = await ref.read(
+        floatingNameAiPaletteProvider(
+          FloatingNameAiPaletteRequest(song),
+        ).future,
+      );
+      if (palette == null) {
+        await notifier.setAiColorEnabled(false);
+        if (context.mounted) {
+          showAppToast(
+            context,
+            classification.hasApiKey
+                ? 'AI 配色生成失败，已继续使用默认颜色'
+                : '请先在“小Jo同学”中配置 DeepSeek API Key',
+            replaceCurrent: true,
+          );
+        }
+        return;
+      }
+      if (context.mounted) {
+        showAppToast(context, '已应用当前歌曲的 AI 配色', replaceCurrent: true);
+      }
+    } catch (_) {
+      await notifier.setAiColorEnabled(false);
+      if (context.mounted) {
+        showAppToast(context, 'AI 配色生成失败，已继续使用默认颜色', replaceCurrent: true);
+      }
+    }
   }
 
   Future<void> _refreshCurrentLyrics(

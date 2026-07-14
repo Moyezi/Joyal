@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../config/theme_context.dart';
 import '../../models/lyrics.dart';
+import '../../models/song.dart';
+import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/glass_effect_provider.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../../providers/lyrics_provider.dart';
@@ -19,6 +21,7 @@ import 'lyrics_personalization_sheet.dart';
 
 class DefaultLyricsView extends ConsumerStatefulWidget {
   final LyricsData data;
+  final Song song;
   final int activeIndex;
   final String title;
   final String artist;
@@ -31,6 +34,7 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
   const DefaultLyricsView({
     super.key,
     required this.data,
+    required this.song,
     required this.activeIndex,
     required this.title,
     required this.artist,
@@ -268,6 +272,21 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
   Widget build(BuildContext context) {
     final active = _activeIndex;
     final preferences = ref.watch(lyricsPersonalizationProvider);
+    final aiPalette = preferences.aiColorEnabled
+        ? ref
+              .watch(
+                floatingNameAiPaletteProvider(
+                  FloatingNameAiPaletteRequest(widget.song),
+                ),
+              )
+              .maybeWhen(data: (palette) => palette, orElse: () => null)
+        : null;
+    final aiColors = aiPalette == null
+        ? null
+        : Theme.of(context).brightness == Brightness.dark
+        ? aiPalette.dark
+        : aiPalette.light;
+    final aiPrimaryColor = aiColors == null ? null : Color(aiColors.primary);
     final inactiveBlur = ref
         .watch(
           glassEffectProvider.select(
@@ -358,6 +377,7 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
                             line: line,
                             enabled: preferences.wordByWordEnabled,
                             isActive: isActive,
+                            highlightColor: isActive ? aiPrimaryColor : null,
                             positionUpdatesEnabled:
                                 widget.positionUpdatesEnabled,
                             textAlign: textAlign,
@@ -463,6 +483,7 @@ class _TimedLyricText extends ConsumerWidget {
   final LyricLine line;
   final bool enabled;
   final bool isActive;
+  final Color? highlightColor;
   final bool positionUpdatesEnabled;
   final TextAlign textAlign;
   final TextStyle style;
@@ -471,6 +492,7 @@ class _TimedLyricText extends ConsumerWidget {
     required this.line,
     required this.enabled,
     required this.isActive,
+    required this.highlightColor,
     required this.positionUpdatesEnabled,
     required this.textAlign,
     required this.style,
@@ -483,7 +505,9 @@ class _TimedLyricText extends ConsumerWidget {
       return Text(
         line.text.isEmpty ? ' ' : line.text,
         textAlign: textAlign,
-        style: style,
+        style: highlightColor == null
+            ? style
+            : style.copyWith(color: highlightColor),
       );
     }
     final position = ref.watch(
@@ -497,8 +521,8 @@ class _TimedLyricText extends ConsumerWidget {
       curve: Curves.linear,
       builder: (context, microseconds, child) {
         final animatedPosition = Duration(microseconds: microseconds.round());
-        final activeColor = style.color!;
-        final pendingColor = activeColor.withValues(alpha: 0.24);
+        final activeColor = highlightColor ?? style.color!;
+        final pendingColor = style.color!.withValues(alpha: 0.24);
         return Text.rich(
           TextSpan(
             children: [

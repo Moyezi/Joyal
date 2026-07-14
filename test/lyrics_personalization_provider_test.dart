@@ -2,6 +2,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/providers/lyrics_personalization_provider.dart';
 
 void main() {
+  test('AI lyrics color defaults off and can be copied on', () {
+    const defaults = LyricsPersonalizationState(isLoading: false);
+
+    expect(defaults.aiColorEnabled, isFalse);
+    expect(defaults.copyWith(aiColorEnabled: true).aiColorEnabled, isTrue);
+  });
+
   test('legacy justify alignment migrates to right alignment', () {
     expect(
       LyricsAlignmentMode.fromStorageValue('justify'),
