@@ -286,6 +286,21 @@ void main() {
     expect(flowingLightEntranceRingColor(fallbackColor: fallback), fallback);
   });
 
+  test('flowing light keywords keep the entrance ring outside climax', () {
+    expect(
+      flowingLightShouldShowEntranceRing(isClimax: false, isKeyword: true),
+      isTrue,
+    );
+    expect(
+      flowingLightShouldShowEntranceRing(isClimax: true, isKeyword: false),
+      isTrue,
+    );
+    expect(
+      flowingLightShouldShowEntranceRing(isClimax: false, isKeyword: false),
+      isFalse,
+    );
+  });
+
   test('climax keywords use larger text and halo than other tokens', () {
     final keywordTextScale = flowingLightClimaxKeywordTextScale(
       isClimax: true,

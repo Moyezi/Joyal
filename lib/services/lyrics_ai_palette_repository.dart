@@ -48,6 +48,19 @@ class LyricsAiPaletteRepository {
     );
   }
 
+  Future<void> delete(String serverScope, String songId) {
+    return Future.wait([
+      _cache.deleteJson(_cacheName(_cachePrefix, serverScope, songId)),
+      _cache.deleteJson(_cacheName(_legacyCachePrefix, serverScope, songId)),
+    ]).then((_) {});
+  }
+
+  Future<void> deleteAll(String serverScope, Iterable<String> songIds) {
+    return Future.wait(
+      songIds.map((songId) => delete(serverScope, songId)),
+    ).then((_) {});
+  }
+
   Future<LyricsAiPalette?> _read(String cacheName) async {
     final json = await _cache.readJson(cacheName);
     if (json == null) return null;

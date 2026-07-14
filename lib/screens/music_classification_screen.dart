@@ -6,6 +6,7 @@ import '../config/theme_context.dart';
 import '../models/music_classification.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
+import '../providers/lyrics_ai_palette_provider.dart';
 import '../providers/music_classification_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/song_highlight_provider.dart';
@@ -216,18 +217,90 @@ class _MusicClassificationScreenState
     if (mounted) showAppToast(context, '全部高潮记录已清除');
   }
 
+  Future<void> _deleteLyricsPalette(RecognizedLyricsAiPalette entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除歌词配色'),
+        content: Text('清除《${entry.song.title}》的本地 AI 歌词配色？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('保留'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    final scope = AppCacheService.instance.serverScope(
+      api.baseUrl,
+      api.username,
+    );
+    await ref
+        .read(lyricsAiPaletteRepositoryProvider)
+        .delete(scope, entry.song.id);
+    ref.invalidate(lyricsAiPaletteProvider);
+    ref.invalidate(recognizedLyricsAiPalettesProvider);
+    if (mounted) showAppToast(context, '已清除《${entry.song.title}》的歌词配色');
+  }
+
+  Future<void> _deleteAllLyricsPalettes(
+    List<RecognizedLyricsAiPalette> entries,
+  ) async {
+    if (entries.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清除全部歌词配色'),
+        content: Text(
+          '将清除 ${entries.length} 首歌曲的本地 AI 歌词配色。标签、高潮记录和歌词缓存不会受影响。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('全部清除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final api = ref.read(subsonicApiProvider);
+    if (api == null) return;
+    final scope = AppCacheService.instance.serverScope(
+      api.baseUrl,
+      api.username,
+    );
+    await ref
+        .read(lyricsAiPaletteRepositoryProvider)
+        .deleteAll(scope, entries.map((entry) => entry.song.id));
+    ref.invalidate(lyricsAiPaletteProvider);
+    ref.invalidate(recognizedLyricsAiPalettesProvider);
+    if (mounted) showAppToast(context, '全部歌词配色已清除');
+  }
+
   @override
   Widget build(BuildContext context) {
     _syncFields();
     final state = ref.watch(musicClassificationProvider);
     final library = ref.watch(libraryProvider);
     final highlights = ref.watch(recognizedSongHighlightsProvider);
+    final palettes = ref.watch(recognizedLyricsAiPalettesProvider);
     final pendingCount = ref
         .read(musicClassificationProvider.notifier)
         .pendingCount(library.songs);
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(title: const Text('小Jo同学')),
         body: Column(
@@ -236,6 +309,7 @@ class _MusicClassificationScreenState
               classifiedCount: state.classifiedCount,
               totalCount: library.songs.length,
               highlightCount: highlights.asData?.value.length,
+              paletteCount: palettes.asData?.value.length,
             ),
             const JoTabBar(),
             Expanded(
@@ -247,6 +321,7 @@ class _MusicClassificationScreenState
                     library.songs.length,
                   ),
                   _buildHighlightsTab(highlights),
+                  _buildLyricsPalettesTab(palettes),
                   _buildServiceTab(state),
                 ],
               ),
@@ -392,13 +467,72 @@ class _MusicClassificationScreenState
     );
   }
 
+  Widget _buildLyricsPalettesTab(
+    AsyncValue<List<RecognizedLyricsAiPalette>> palettes,
+  ) {
+    return palettes.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => LyricsPalettesError(
+        onRetry: () => ref.invalidate(recognizedLyricsAiPalettesProvider),
+      ),
+      data: (entries) => ListView(
+        padding: const EdgeInsets.all(AppTheme.spacingLG),
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('AI 歌词配色', style: context.textTitleLarge),
+                    const SizedBox(height: 4),
+                    Text(
+                      entries.isEmpty
+                          ? '还没有本地生成记录'
+                          : '已生成 ${entries.length} 首，按最近生成排序',
+                      style: context.textBodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (entries.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => _deleteAllLyricsPalettes(entries),
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                  label: const Text('全部清除'),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingMD),
+          if (entries.isEmpty)
+            const EmptyLyricsPalettes()
+          else
+            for (final entry in entries) ...[
+              LyricsPaletteSongCard(
+                entry: entry,
+                coverUrl: _coverUrl(entry.song),
+                onDelete: () => _deleteLyricsPalette(entry),
+              ),
+              const SizedBox(height: AppTheme.spacingSM),
+            ],
+          const SizedBox(height: AppTheme.spacingSM),
+          const PrivacyNote(
+            icon: Icons.palette_outlined,
+            text: '这里只读取和清除本机缓存，不会触发新的 AI 请求；生成时仅发送歌曲文字信息和纯歌词文本。',
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildServiceTab(MusicClassificationState state) {
     return ListView(
       padding: const EdgeInsets.all(AppTheme.spacingLG),
       children: [
         Text('DeepSeek 服务', style: context.textTitleLarge),
         const SizedBox(height: 4),
-        Text('标签整理与歌词高潮分析共用这套连接设置。', style: context.textBodySmall),
+        Text('标签整理、歌词高潮分析与 AI 歌词配色共用这套连接设置。', style: context.textBodySmall),
         const SizedBox(height: AppTheme.spacingMD),
         ClassificationTextInput(
           controller: _apiKeyController,

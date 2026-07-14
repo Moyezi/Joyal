@@ -11,8 +11,16 @@ import '../services/lyrics_ai_palette_protocol.dart';
 import '../services/lyrics_ai_palette_repository.dart';
 import 'lyrics_personalization_provider.dart';
 import 'lyrics_provider.dart';
+import 'library_provider.dart';
 import 'music_classification_provider.dart';
 import 'player_provider.dart';
+
+class RecognizedLyricsAiPalette {
+  final Song song;
+  final LyricsAiPalette palette;
+
+  const RecognizedLyricsAiPalette({required this.song, required this.palette});
+}
 
 class LyricsAiPaletteRequest {
   final Song song;
@@ -40,6 +48,38 @@ final lyricsAiPaletteRepositoryProvider = Provider<LyricsAiPaletteRepository>((
 ) {
   return LyricsAiPaletteRepository(AppCacheService.instance);
 });
+
+/// Scans only the current library's local palette cache. Opening the
+/// management screen must never start a DeepSeek request.
+final recognizedLyricsAiPalettesProvider =
+    FutureProvider.autoDispose<List<RecognizedLyricsAiPalette>>((ref) async {
+      final api = ref.watch(subsonicApiProvider);
+      final songs = ref.watch(libraryProvider.select((state) => state.songs));
+      if (api == null || songs.isEmpty) return const [];
+
+      final scope = AppCacheService.instance.serverScope(
+        api.baseUrl,
+        api.username,
+      );
+      final repository = ref.read(lyricsAiPaletteRepositoryProvider);
+      final palettes = await Future.wait(
+        songs.map((song) => repository.load(scope, song.id)),
+      );
+      final recognized = <RecognizedLyricsAiPalette>[];
+      for (var index = 0; index < songs.length; index++) {
+        final palette = palettes[index];
+        if (palette != null) {
+          recognized.add(
+            RecognizedLyricsAiPalette(song: songs[index], palette: palette),
+          );
+        }
+      }
+      recognized.sort(
+        (left, right) =>
+            right.palette.generatedAt.compareTo(left.palette.generatedAt),
+      );
+      return recognized;
+    });
 
 final deepSeekLyricsAiPaletteServiceProvider =
     Provider<DeepSeekLyricsAiPaletteService>((ref) {

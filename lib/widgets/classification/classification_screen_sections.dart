@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../config/theme.dart';
 import '../../config/theme_context.dart';
 import '../../models/song_highlight.dart';
+import '../../providers/lyrics_ai_palette_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../album_cover.dart';
 
@@ -11,12 +12,14 @@ class JoHeader extends StatelessWidget {
   final int classifiedCount;
   final int totalCount;
   final int? highlightCount;
+  final int? paletteCount;
 
   const JoHeader({
     super.key,
     required this.classifiedCount,
     required this.totalCount,
     required this.highlightCount,
+    required this.paletteCount,
   });
 
   @override
@@ -57,18 +60,23 @@ class JoHeader extends StatelessWidget {
               children: [
                 Text('你的音乐整理台', style: context.textTitleLarge),
                 const SizedBox(height: 3),
-                Text('标签与高潮，都在本机有迹可循。', style: context.textBodySmall),
+                Text('标签、高潮与歌词配色，都在本机有迹可循。', style: context.textBodySmall),
                 const SizedBox(height: AppTheme.spacingSM),
-                Row(
+                Wrap(
+                  spacing: AppTheme.spacingLG,
+                  runSpacing: 4,
                   children: [
                     _HeaderMetric(
                       label: '标签',
                       value: '$classifiedCount/$totalCount',
                     ),
-                    const SizedBox(width: AppTheme.spacingLG),
                     _HeaderMetric(
                       label: '高潮',
                       value: highlightCount?.toString() ?? '—',
+                    ),
+                    _HeaderMetric(
+                      label: '配色',
+                      value: paletteCount?.toString() ?? '—',
                     ),
                   ],
                 ),
@@ -124,6 +132,7 @@ class JoTabBar extends StatelessWidget {
         tabs: const [
           Tab(text: '标签'),
           Tab(text: '高潮'),
+          Tab(text: '配色'),
           Tab(text: '服务'),
         ],
       ),
@@ -352,6 +361,236 @@ class HighlightsError extends StatelessWidget {
   }
 }
 
+class LyricsPaletteSongCard extends StatelessWidget {
+  final RecognizedLyricsAiPalette entry;
+  final String coverUrl;
+  final VoidCallback onDelete;
+
+  const LyricsPaletteSongCard({
+    super.key,
+    required this.entry,
+    required this.coverUrl,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final song = entry.song;
+    final palette = entry.palette;
+    final visibleKeywords = palette.keywords.take(6).toList(growable: false);
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingSM),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AlbumCover(
+            coverArtUrl: coverUrl,
+            cacheKey: song.coverArt,
+            size: 58,
+            borderRadius: 18,
+            showShadow: false,
+          ),
+          const SizedBox(width: AppTheme.spacingSM),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textTitleMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  song.artist.isEmpty ? '未知歌手' : song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textBodySmall,
+                ),
+                const SizedBox(height: AppTheme.spacingSM),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _PaletteColorPair(
+                      label: '浅色',
+                      primary: Color(palette.light.primary),
+                      stamp: Color(palette.light.stamp),
+                    ),
+                    _PaletteColorPair(
+                      label: '深色',
+                      primary: Color(palette.dark.primary),
+                      stamp: Color(palette.dark.stamp),
+                    ),
+                  ],
+                ),
+                if (visibleKeywords.isNotEmpty) ...[
+                  const SizedBox(height: AppTheme.spacingSM),
+                  Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      for (final keyword in visibleKeywords)
+                        _KeywordColorChip(
+                          text: keyword.text,
+                          color: Color(
+                            Theme.of(context).brightness == Brightness.dark
+                                ? keyword.dark
+                                : keyword.light,
+                          ),
+                        ),
+                      if (palette.keywords.length > visibleKeywords.length)
+                        _KeywordColorChip(
+                          text:
+                              '+${palette.keywords.length - visibleKeywords.length}',
+                          color: context.secondaryColor,
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  '${palette.keywords.length} 个关键词 · ${palette.model} · ${_formatPaletteDate(palette.generatedAt)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textCaption.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: '清除这首歌的 AI 歌词配色',
+            onPressed: onDelete,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaletteColorPair extends StatelessWidget {
+  final String label;
+  final Color primary;
+  final Color stamp;
+
+  const _PaletteColorPair({
+    required this.label,
+    required this.primary,
+    required this.stamp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: context.textCaption),
+        const SizedBox(width: 5),
+        _PaletteDot(color: primary),
+        Transform.translate(
+          offset: const Offset(-3, 0),
+          child: _PaletteDot(color: stamp),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaletteDot extends StatelessWidget {
+  final Color color;
+  const _PaletteDot({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.32), blurRadius: 6),
+        ],
+      ),
+    );
+  }
+}
+
+class _KeywordColorChip extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _KeywordColorChip({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      ),
+      child: Text(text, style: context.textCaption.copyWith(color: color)),
+    );
+  }
+}
+
+class EmptyLyricsPalettes extends StatelessWidget {
+  const EmptyLyricsPalettes({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLG,
+        vertical: AppTheme.spacingXL,
+      ),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.palette_outlined, size: 42, color: context.secondaryColor),
+          const SizedBox(height: AppTheme.spacingSM),
+          Text('还没有 AI 歌词配色', style: context.textTitleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '在歌词个性化的“文字”栏开启 AI 文字配色后，生成结果会保存在本机并显示在这里。',
+            textAlign: TextAlign.center,
+            style: context.textBodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LyricsPalettesError extends StatelessWidget {
+  final VoidCallback onRetry;
+  const LyricsPalettesError({super.key, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton.icon(
+        onPressed: onRetry,
+        icon: const Icon(Icons.refresh_rounded),
+        label: const Text('歌词配色记录读取失败，重新加载'),
+      ),
+    );
+  }
+}
+
 class PrivacyNote extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -378,6 +617,13 @@ String _formatSegment(SongHighlightSegment segment) {
   }
 
   return '${format(segment.start)}–${format(segment.end)}';
+}
+
+String _formatPaletteDate(DateTime value) {
+  final local = value.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year}-$month-$day';
 }
 
 ButtonStyle classificationFilledPillButtonStyle(BuildContext context) {

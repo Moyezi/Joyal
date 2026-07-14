@@ -183,6 +183,41 @@ void main() {
     );
   });
 
+  test('repository deletes current and legacy AI palette caches', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'joyal_lyrics_ai_palette_delete_',
+    );
+    AppCacheService.debugCacheDirectoryOverride = directory;
+    addTearDown(() async {
+      AppCacheService.debugCacheDirectoryOverride = null;
+      if (await directory.exists()) await directory.delete(recursive: true);
+    });
+
+    const scope = 'server-scope';
+    final cacheId = sha1.convert(utf8.encode('$scope|${song.id}'));
+    final current = File(
+      '${directory.path}${Platform.pathSeparator}lyrics_ai_palette_$cacheId.json',
+    );
+    final legacy = File(
+      '${directory.path}${Platform.pathSeparator}floating_name_palette_$cacheId.json',
+    );
+    await AppCacheService.instance.writeJson('lyrics_ai_palette_$cacheId', {
+      'light': {},
+      'dark': {},
+    });
+    await AppCacheService.instance.writeJson('floating_name_palette_$cacheId', {
+      'light': {},
+      'dark': {},
+    });
+
+    await LyricsAiPaletteRepository(
+      AppCacheService.instance,
+    ).delete(scope, song.id);
+
+    expect(await current.exists(), isFalse);
+    expect(await legacy.exists(), isFalse);
+  });
+
   test(
     'semantic colors map phrases and complete Latin words to text units',
     () {

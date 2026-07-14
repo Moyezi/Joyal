@@ -441,8 +441,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
                 ),
                 keepBreathing: index == tokens.length - 1,
                 breathingEnabled: ambientMotionEnabled,
-                showEntranceRing:
-                    isHighlightAt?.call(tokens[index].start) ?? false,
+                isClimax: isHighlightAt?.call(tokens[index].start) ?? false,
               ),
           ],
         );
@@ -724,7 +723,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   final Color ringColor;
   final bool keepBreathing;
   final bool breathingEnabled;
-  final bool showEntranceRing;
+  final bool isClimax;
 
   const _FlowingLightTokenView({
     required this.token,
@@ -738,7 +737,7 @@ class _FlowingLightTokenView extends StatelessWidget {
     required this.ringColor,
     required this.keepBreathing,
     required this.breathingEnabled,
-    required this.showEntranceRing,
+    required this.isClimax,
   });
 
   @override
@@ -763,15 +762,19 @@ class _FlowingLightTokenView extends StatelessWidget {
       elapsed: Duration(microseconds: elapsedMicros),
       holdUntilNext: Duration(microseconds: highlightDurationMicros),
     );
+    final showEntranceRing = flowingLightShouldShowEntranceRing(
+      isClimax: isClimax,
+      isKeyword: semanticColor != null,
+    );
     final entranceRingIntensity = showEntranceRing
         ? _flowingLightRingIntensity(reveal)
         : 0.0;
     final climaxKeywordTextScale = flowingLightClimaxKeywordTextScale(
-      isClimax: showEntranceRing,
+      isClimax: isClimax,
       isKeyword: semanticColor != null,
     );
     final climaxKeywordHaloScale = flowingLightClimaxKeywordHaloScale(
-      isClimax: showEntranceRing,
+      isClimax: isClimax,
       isKeyword: semanticColor != null,
     );
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
@@ -897,6 +900,14 @@ double flowingLightClimaxKeywordHaloScale({
   required bool isKeyword,
 }) {
   return isClimax && isKeyword ? 1.42 : 1.0;
+}
+
+@visibleForTesting
+bool flowingLightShouldShowEntranceRing({
+  required bool isClimax,
+  required bool isKeyword,
+}) {
+  return isClimax || isKeyword;
 }
 
 @visibleForTesting

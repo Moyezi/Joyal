@@ -90,9 +90,9 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 ## Independent Lyrics Stages
 
-- DeepSeek 歌曲高潮时间轴由 `流光` 和 `浮名` 舞台按需复用。进入有同步歌词的任一已实现独立舞台时可以触发分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用“小Jo同学”的 secure-storage API Key、endpoint 和模型设置。`流光` 用时间轴控制外扩圆环，`浮名` 用时间轴放大与高潮区间重叠的歌词行。
+- DeepSeek 歌曲高潮时间轴由 `流光` 和 `浮名` 舞台按需复用。进入有同步歌词的任一已实现独立舞台时可以触发分析；只发送歌曲名、歌手、专辑、歌曲时长和带时间歌词，复用“小Jo同学”的 secure-storage API Key、endpoint 和模型设置。`流光` 用时间轴控制普通 token 的外扩圆环；AI 识别出的歌词关键词即使不在高潮区间也保留自身语义色外扩圆环。`浮名` 用时间轴放大与高潮区间重叠的歌词行。
 - 高潮结果通过 `SongHighlightRepository` 按服务器 scope 与歌曲缓存；`lyricsAnalysisHash` 包含歌曲元数据、时长、歌词文本及行时间，模型或 hash 改变时重新分析。缓存可以在 API Key 被移除或离线后继续读取。
-- DeepSeek 时间段必须经 `normalizeHighlightSegments()` 排序、歌曲时长裁剪、重叠合并并最多保留 3 段。未配置 Key、无同步歌词、分析中或分析失败时不显示圆环；文字揭示、自适应柔光和末词呼吸保持可用。不要用启发式高频圆环作为失败回退。
+- DeepSeek 时间段必须经 `normalizeHighlightSegments()` 排序、歌曲时长裁剪、重叠合并并最多保留 3 段。未配置 Key、无同步歌词、分析中或分析失败时不显示普通 token 的高潮圆环；已有 AI 配色缓存中的关键词圆环、文字揭示、自适应柔光和末词呼吸保持可用。不要用启发式高频圆环作为失败回退。
 
 - The independent lyrics stage selector is persisted through `lyrics_personalization_provider.dart`. The stable default scrolling renderer remains available.
 - `流光` is implemented as its own renderer in `lib/widgets/lyrics_stage/flowing_light_lyrics_stage.dart`. It displays only the active line, splitting Chinese into graphemes and Latin runs into whole words. Use a deterministic scattered layout: common lines form 3–4 vertical rows with about 2–3 tokens per row, irregular spacing and offsets, and normally distributed token rotation clamped to ±20°. Untimed lyrics and disabled word-by-word display keep the same scattered layout but reveal statically.
@@ -106,9 +106,10 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 - `浮名` 在当前句完成后到下一条非空同步歌词之间只为长空档加入轻柔手持镜头漂移：短空档保持静止，长空档延迟渐入并在下一句前渐出，以数像素平移和极小旋转营造呼吸感。复用现有 frame controller，不新增常驻 ticker；暂停播放、舞台隐藏、设置遮挡或 reduced motion 时停止该运动。
 - `浮名` 的当前字打印印章保持清晰硬边，不使用 `MaskFilter.blur`；关键词印章使用关键词语义色，其他印章使用配置的 `stamp` 色，峰值 alpha 为解析后印章颜色 alpha 的 0.8 倍，并随印章脉冲淡出。空白 grapheme 和所有 Unicode 标点符号不绘制印章。默认滚动歌词仍可保留自身的模糊打印印章。已唱/未唱字形必须通过逐 grapheme 的 TextSpan 颜色区分，不能再用 glyph 选区矩形裁剪整段亮色 TextPainter；紧行距或字体 ink bounds 溢出时，后者会误揭示下一视觉行的字顶。当前句切成已唱句时，复用镜头转场把非关键词字从当前色平滑过渡到已唱灰色，关键词色保持不变。
 - “AI 文字配色”开关显示在默认滚动、`流光`与`浮名`的歌词个性化“文字”栏。开启时按当前歌曲缓存或请求 DeepSeek；请求含 title、album、artist 与纯歌词行，不含歌曲/服务器 ID、凭据、服务地址或媒体/封面 URL。AI 结合歌词语义、情绪走向和歌曲氛围返回基础 `primary`/`stamp`，并从歌词原文提取最多 20 个（提示词要求 10～20 个）关键词，为浅色/深色主题分别派生专属文字色；协议会丢弃不存在于歌词、重复或格式无效的关键词，并修正所有文字色的背景对比度。
-- 三个效果让普通当前字或单词使用 AI `primary`，并在下一字或单词开始后约 280 ms 内退回各渲染器原本的默认歌词色；关键词只在实际唱到后使用其语义色，之后持续保留，不退回默认色。默认滚动与`浮名`的已唱非当前句也保留关键词语义色，未唱关键词仍使用渲染器默认色。无逐字时间时，默认滚动与`流光`可静态显示当前句关键词色。默认滚动的当前字前沿光晕和模糊打印印章跟随当前解析色；`流光`的当前文字与高光光晕跟随当前解析色，并按原始歌词字符范围匹配关键词以保留 token 间被布局省略的空白，高潮时间轴覆盖的关键词外扩圆环也使用其语义色，非关键词圆环继续使用 `stamp`；`浮名`当前 grapheme 使用当前解析色，关键词处的清晰打印印章使用其语义色，非关键词印章继续使用 `stamp`。关闭、无有效缓存或请求失败时完整保留默认配色；不新增 ticker。
+- 三个效果让普通当前字或单词使用 AI `primary`，并在下一字或单词开始后约 280 ms 内退回各渲染器原本的默认歌词色；关键词只在实际唱到后使用其语义色，之后持续保留，不退回默认色。默认滚动与`浮名`的已唱非当前句也保留关键词语义色，未唱关键词仍使用渲染器默认色。无逐字时间时，默认滚动与`流光`可静态显示当前句关键词色。默认滚动的当前字前沿光晕和模糊打印印章跟随当前解析色；`流光`的当前文字与高光光晕跟随当前解析色，并按原始歌词字符范围匹配关键词以保留 token 间被布局省略的空白，关键词无论是否处于高潮区间都显示自身语义色外扩圆环，非关键词只在高潮区间显示 `stamp` 圆环；`浮名`当前 grapheme 使用当前解析色，关键词处的清晰打印印章使用其语义色，非关键词印章继续使用 `stamp`。关闭、无有效缓存或请求失败时完整保留默认配色；不新增 ticker。
 - AI 歌词配色是三个渲染器共享的领域能力，不属于 `浮名`。`LyricsScreen` 负责订阅 `lyricsAiPaletteProvider`、按当前明暗主题解析基础色和关键词色，再注入默认滚动、`流光`和`浮名`；渲染器只可依赖 UI 层的 `lyric_semantic_colors.dart` 做文本单元匹配，不得直接依赖配色 model、provider、缓存或 DeepSeek service。
 - 配色模块按职责拆分：`lyrics_ai_palette.dart` 只定义缓存模型与包含歌词内容的 metadata hash，`lyrics_ai_palette_protocol.dart` 负责请求体、提示词、关键词响应校验和对比度修正，`deepseek_lyrics_ai_palette_service.dart` 只负责网络传输，`lyrics_ai_palette_repository.dart` 只负责派生色缓存，`lyrics_ai_palette_provider.dart` 负责配置/缓存/生成编排与开关激活结果。提示词协议版本变化或歌词内容变化必须使旧缓存失效；旧 `floating_name_palette_*` 缓存读取后迁移为 `lyrics_ai_palette_*`。
+- 小Jo同学的“配色”栏只扫描当前服务器、当前曲库已有的 AI 歌词配色缓存，按生成时间倒序展示浅/深主题基础色、关键词和模型，并支持单首或全部清除；打开管理页不得触发 DeepSeek 请求，清理配色不得删除标签、高潮时间轴或歌词缓存。
 - Cache `浮名` text layout by lyrics identity, viewport, font family, and its independent `floatingNameFontSize`. Cull blocks outside the camera viewport and reuse each block's laid-out `TextPainter`; do not measure visible blocks again on every playback tick. Camera animation must stop when covered, hidden, or reduced motion is enabled.
 - `流光` and `浮名` share `lib/widgets/lyrics_stage/lyrics_stage_shell.dart` for the full-screen composition, overlaid song header, and pinch gesture. Keep renderer-specific animation and painting inside each renderer.
 - `群唱` remains planned. Its disabled `待完成` entry stays visible in the lyrics personalization drawer, and selecting it must not persist an unavailable renderer.

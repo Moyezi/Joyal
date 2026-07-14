@@ -41,6 +41,12 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - `cachedSongHighlightProvider` is the read-only source for now-playing progress markers.
 - Clearing one or all climax records deletes only `SongHighlightRepository` timelines. Never delete classification tags or lyrics cache with that action.
 
+## Lyrics AI Palette Cache Management
+
+- `recognizedLyricsAiPalettesProvider` scans current-library song IDs in the active server scope, reads only local `LyricsAiPaletteRepository` records, and sorts them by `generatedAt` descending. Opening `小Jo同学` must never generate a palette or fetch lyrics.
+- The `配色` tab shows each cached song's light/dark `primary` and `stamp` colors, keyword colors, model, and generation date. It supports clearing one record or all visible records.
+- Palette deletion removes both current `lyrics_ai_palette_*` and legacy `floating_name_palette_*` files. It must not delete classification tags, climax timelines, or lyrics caches.
+
 ## Manual Correction
 
 - Song detail classification tags support lightweight manual correction.
@@ -56,7 +62,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Settings path: 设置 -> 小Jo同学.
 - Only the discovery page title-bar icon opens it. Do not restore the former
   classification-status card below `为你发现`.
-- The screen has separate tag, climax, and service tabs. Keep tag classification and manual correction available.
+- The screen has separate tag, climax, lyric-palette, and service tabs. Keep tag classification and manual correction available.
 - Show the selected tag, climax, or service tab as a gray rounded capsule; suppress any sharp rectangular press/splash backing when switching tabs.
 - Keep the `你的音乐整理台` header icon container square (currently `60 x 60`) so the pulse mark is not visually compressed.
 - Before first classification, if no API key exists, show configuration guidance.
