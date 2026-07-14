@@ -38,7 +38,7 @@ void main() {
     expect(user['content'], isNot(contains('cover-1')));
     expect(user['content'], isNot(contains('duration')));
     expect(system['content'], isNot(contains('ornament')));
-    expect(system['content'], contains('文字色和高光光晕色'));
+    expect(system['content'], contains('高光光晕色'));
     expect(system['content'], contains('圆形光环颜色'));
   });
 

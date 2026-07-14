@@ -505,9 +505,7 @@ class _TimedLyricText extends ConsumerWidget {
       return Text(
         line.text.isEmpty ? ' ' : line.text,
         textAlign: textAlign,
-        style: highlightColor == null
-            ? style
-            : style.copyWith(color: highlightColor),
+        style: style,
       );
     }
     final position = ref.watch(
@@ -521,19 +519,20 @@ class _TimedLyricText extends ConsumerWidget {
       curve: Curves.linear,
       builder: (context, microseconds, child) {
         final animatedPosition = Duration(microseconds: microseconds.round());
-        final activeColor = highlightColor ?? style.color!;
         final pendingColor = style.color!.withValues(alpha: 0.24);
+        final glyphs = _timedGlyphsForLine(line);
         return Text.rich(
           TextSpan(
             children: [
-              for (final word in line.words)
-                ..._glyphSpans(
-                  word,
-                  animatedPosition,
-                  style,
-                  pendingColor,
-                  activeColor,
-                  motionEnabled,
+              for (var index = 0; index < glyphs.length; index++)
+                _glyphSpan(
+                  glyphs[index],
+                  nextStart: _nextVisibleGlyphStart(glyphs, index),
+                  position: animatedPosition,
+                  style: style,
+                  pendingColor: pendingColor,
+                  aiPrimaryColor: highlightColor,
+                  motionEnabled: motionEnabled,
                 ),
             ],
           ),
@@ -543,64 +542,125 @@ class _TimedLyricText extends ConsumerWidget {
     );
   }
 
-  List<InlineSpan> _glyphSpans(
-    LyricWord word,
-    Duration position,
-    TextStyle style,
-    Color pendingColor,
-    Color activeColor,
-    bool motionEnabled,
-  ) {
+  InlineSpan _glyphSpan(
+    _TimedGlyph glyph, {
+    required Duration? nextStart,
+    required Duration position,
+    required TextStyle style,
+    required Color pendingColor,
+    required Color? aiPrimaryColor,
+    required bool motionEnabled,
+  }) {
+    final rawProgress = lyricGlyphProgress(
+      glyph.word,
+      position,
+      glyphIndex: glyph.index,
+      glyphCount: glyph.count,
+    );
+    final progress = Curves.easeOutCubic.transform(rawProgress);
+    final aiIntensity =
+        aiPrimaryColor == null ||
+            glyph.start == null ||
+            glyph.text.trim().isEmpty
+        ? 0.0
+        : lyricAiColorIntensity(
+            position: position,
+            start: glyph.start!,
+            nextStart: nextStart,
+          );
+    final defaultColor = Color.lerp(pendingColor, style.color!, progress)!;
+    final glyphColor = aiPrimaryColor == null
+        ? defaultColor
+        : Color.lerp(defaultColor, aiPrimaryColor, aiIntensity)!;
+    final effectColor = aiPrimaryColor == null
+        ? style.color!
+        : Color.lerp(style.color!, aiPrimaryColor, aiIntensity)!;
+    final frontier = (1 - (rawProgress * 2 - 1).abs()).clamp(0.0, 1.0);
+    final shadows = <Shadow>[
+      ...?style.shadows,
+      if (frontier > 0.02)
+        Shadow(
+          color: effectColor.withValues(alpha: 0.42 * frontier),
+          blurRadius: 12 * frontier,
+        ),
+    ];
+    final glyphStyle = style.copyWith(color: glyphColor, shadows: shadows);
+    final effectEnabled = motionEnabled && glyph.text.trim().isNotEmpty;
+    final fontSize = glyphStyle.fontSize ?? 28;
+    final bounceOffset = effectEnabled
+        ? lyricPrintGlyphBounceOffset(rawProgress, fontSize)
+        : 0.0;
+    final stampPulse = effectEnabled ? lyricPrintStampPulse(rawProgress) : 0.0;
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: Transform.translate(
+        offset: Offset(0, bounceOffset),
+        transformHitTests: false,
+        child: CustomPaint(
+          painter: _DefaultLyricPrintStampPainter(
+            color: effectColor,
+            fontSize: fontSize,
+            pulse: stampPulse,
+          ),
+          child: Text(glyph.text, style: glyphStyle),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimedGlyph {
+  final LyricWord word;
+  final String text;
+  final int index;
+  final int count;
+  final Duration? start;
+
+  const _TimedGlyph({
+    required this.word,
+    required this.text,
+    required this.index,
+    required this.count,
+    required this.start,
+  });
+}
+
+List<_TimedGlyph> _timedGlyphsForLine(LyricLine line) {
+  final result = <_TimedGlyph>[];
+  for (final word in line.words) {
     final glyphs = word.text.characters.toList(growable: false);
-    if (glyphs.isEmpty) return const [];
-    return List<InlineSpan>.generate(glyphs.length, (glyphIndex) {
-      final rawProgress = lyricGlyphProgress(
-        word,
-        position,
-        glyphIndex: glyphIndex,
-        glyphCount: glyphs.length,
-      );
-      final progress = Curves.easeOutCubic.transform(rawProgress);
-      final frontier = (1 - (rawProgress * 2 - 1).abs()).clamp(0.0, 1.0);
-      final shadows = <Shadow>[
-        ...?style.shadows,
-        if (frontier > 0.02)
-          Shadow(
-            color: activeColor.withValues(alpha: 0.42 * frontier),
-            blurRadius: 12 * frontier,
-          ),
-      ];
-      final glyph = glyphs[glyphIndex];
-      final glyphStyle = style.copyWith(
-        color: Color.lerp(pendingColor, activeColor, progress),
-        shadows: shadows,
-      );
-      final effectEnabled = motionEnabled && glyph.trim().isNotEmpty;
-      final fontSize = glyphStyle.fontSize ?? 28;
-      final bounceOffset = effectEnabled
-          ? lyricPrintGlyphBounceOffset(rawProgress, fontSize)
-          : 0.0;
-      final stampPulse = effectEnabled
-          ? lyricPrintStampPulse(rawProgress)
-          : 0.0;
-      return WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: Transform.translate(
-          offset: Offset(0, bounceOffset),
-          transformHitTests: false,
-          child: CustomPaint(
-            painter: _DefaultLyricPrintStampPainter(
-              color: activeColor,
-              fontSize: fontSize,
-              pulse: stampPulse,
-            ),
-            child: Text(glyph, style: glyphStyle),
-          ),
+    for (var index = 0; index < glyphs.length; index++) {
+      result.add(
+        _TimedGlyph(
+          word: word,
+          text: glyphs[index],
+          index: index,
+          count: glyphs.length,
+          start: _glyphStart(word, index, glyphs.length),
         ),
       );
-    });
+    }
   }
+  return result;
+}
+
+Duration? _glyphStart(LyricWord word, int index, int count) {
+  final start = word.start;
+  if (start == null) return null;
+  final end = word.end;
+  if (end == null || end <= start || count <= 1) return start;
+  return start +
+      Duration(microseconds: (end - start).inMicroseconds * index ~/ count);
+}
+
+Duration? _nextVisibleGlyphStart(List<_TimedGlyph> glyphs, int index) {
+  for (var next = index + 1; next < glyphs.length; next++) {
+    if (glyphs[next].text.trim().isNotEmpty && glyphs[next].start != null) {
+      return glyphs[next].start;
+    }
+  }
+  return null;
 }
 
 class _DefaultLyricPrintStampPainter extends CustomPainter {

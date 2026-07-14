@@ -23,6 +23,35 @@ void main() {
     expect(lyricPrintStampPulse(1), 0);
   });
 
+  test('AI color fades to the default color after the next glyph starts', () {
+    const start = Duration(seconds: 1);
+    const nextStart = Duration(seconds: 2);
+    expect(
+      lyricAiColorIntensity(
+        position: const Duration(milliseconds: 1500),
+        start: start,
+        nextStart: nextStart,
+      ),
+      1,
+    );
+    expect(
+      lyricAiColorIntensity(
+        position: const Duration(milliseconds: 2140),
+        start: start,
+        nextStart: nextStart,
+      ),
+      closeTo(0.5, 0.005),
+    );
+    expect(
+      lyricAiColorIntensity(
+        position: const Duration(milliseconds: 2280),
+        start: start,
+        nextStart: nextStart,
+      ),
+      0,
+    );
+  });
+
   testWidgets('default timed lyrics render glyph effects inline', (
     tester,
   ) async {

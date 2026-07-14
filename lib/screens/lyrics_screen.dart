@@ -256,6 +256,7 @@ class _FlowingLightStageHostState
         ),
         fontFamily: preferences.effectiveFontFamily,
         fontSize: preferences.floatingNameFontSize,
+        aiColorEnabled: preferences.aiColorEnabled,
         wordByWordEnabled: preferences.wordByWordEnabled,
         stageVisible: widget.stageVisible,
         positionUpdatesEnabled:

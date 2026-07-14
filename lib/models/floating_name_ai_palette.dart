@@ -4,7 +4,7 @@ import 'package:crypto/crypto.dart';
 
 import 'song.dart';
 
-const int floatingNameAiPalettePromptVersion = 3;
+const int floatingNameAiPalettePromptVersion = 4;
 
 class FloatingNameAiColors {
   final int primary;

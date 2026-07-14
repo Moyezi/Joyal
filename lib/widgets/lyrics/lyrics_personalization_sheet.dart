@@ -35,11 +35,7 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
     final currentLyrics = currentSong == null
         ? null
         : ref.watch(lyricsProvider(currentSong));
-    final aiColorSupported =
-        preferences.stageMode == LyricsStageMode.defaultScroll ||
-        preferences.stageMode == LyricsStageMode.flowingLight;
-    final aiPaletteState =
-        aiColorSupported && preferences.aiColorEnabled && currentSong != null
+    final aiPaletteState = preferences.aiColorEnabled && currentSong != null
         ? ref.watch(
             floatingNameAiPaletteProvider(
               FloatingNameAiPaletteRequest(currentSong),
@@ -415,30 +411,26 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                         color: context.secondaryColor,
                       ),
                     ),
-                    if (aiColorSupported) ...[
-                      const SizedBox(height: 16),
-                      LyricsToggleTile(
-                        title: 'AI 文字配色',
-                        subtitle: aiPaletteState?.isLoading == true
-                            ? '正在根据歌名、专辑和歌手生成配色'
-                            : aiPaletteState?.asData?.value != null
-                            ? '当前歌曲已使用 AI 配色；关闭后恢复默认'
-                            : preferences.stageMode ==
-                                  LyricsStageMode.flowingLight
-                            ? '高光文字与光晕使用 primary，高潮圆环使用 stamp'
-                            : '当前高亮歌词使用歌曲专属 primary 配色',
-                        value: preferences.aiColorEnabled,
-                        isLoading: aiPaletteState?.isLoading == true,
-                        onChanged: (enabled) => unawaited(
-                          _setAiColorEnabled(
-                            context,
-                            ref,
-                            currentSong,
-                            enabled,
-                          ),
-                        ),
+                    const SizedBox(height: 16),
+                    LyricsToggleTile(
+                      title: 'AI 文字配色',
+                      subtitle: aiPaletteState?.isLoading == true
+                          ? '正在根据歌名、专辑和歌手生成配色'
+                          : aiPaletteState?.asData?.value != null
+                          ? '当前歌曲已使用 AI 配色；关闭后恢复默认'
+                          : switch (preferences.stageMode) {
+                              LyricsStageMode.flowingLight =>
+                                '当前字与光晕使用 primary，高潮圆环使用 stamp',
+                              LyricsStageMode.floatingName =>
+                                '当前字使用 primary，打印印章使用 stamp',
+                              _ => '当前高亮字使用歌曲专属 primary 配色',
+                            },
+                      value: preferences.aiColorEnabled,
+                      isLoading: aiPaletteState?.isLoading == true,
+                      onChanged: (enabled) => unawaited(
+                        _setAiColorEnabled(context, ref, currentSong, enabled),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),

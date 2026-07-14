@@ -222,6 +222,39 @@ void main() {
     expect(floatingNameGlyphBounceOffset(1.5, 40), closeTo(-4, 0.001));
   });
 
+  test('floating name fades the previous AI glyph over 280 milliseconds', () {
+    const line = LyricLine(
+      text: '浮名',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 3),
+    );
+
+    expect(
+      floatingNamePreviousAiColorOpacity(
+        line: line,
+        position: const Duration(seconds: 2),
+        activeGlyphIndex: 1,
+      ),
+      1,
+    );
+    expect(
+      floatingNamePreviousAiColorOpacity(
+        line: line,
+        position: const Duration(seconds: 2, milliseconds: 140),
+        activeGlyphIndex: 1,
+      ),
+      closeTo(0.5, 0.005),
+    );
+    expect(
+      floatingNamePreviousAiColorOpacity(
+        line: line,
+        position: const Duration(seconds: 2, milliseconds: 280),
+        activeGlyphIndex: 1,
+      ),
+      0,
+    );
+  });
+
   test('floating name skips print stamps for spaces and punctuation', () {
     for (final grapheme in [
       ' ',

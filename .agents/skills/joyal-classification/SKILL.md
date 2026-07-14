@@ -17,7 +17,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Do not store the key in SQLite, JSON, logs, crash reports, or Git.
 - Classification requests send only textual song metadata.
 - Lyrics climax analysis reuses the same secure-storage API key and saved endpoint/model settings, but has its own service and derived-data cache; requests contain only title, artist, album, duration, and timed lyric text.
-- 默认滚动与`流光`的 AI 文字配色 also reuses that secure-storage API key and saved endpoint/model settings, but sends only title, album, and artist. Keep it in `DeepSeekFloatingNamePaletteService` / `FloatingNameAiPaletteRepository` / `floatingNameAiPaletteProvider`; cache only the derived colors, metadata hash, model, prompt version, and generation time. The legacy internal names remain stable even though `浮名` no longer consumes the palette.
+- 默认滚动、`流光`与`浮名`的 AI 文字配色 also reuses that secure-storage API key and saved endpoint/model settings, but sends only title, album, and artist. Keep it in `DeepSeekFloatingNamePaletteService` / `FloatingNameAiPaletteRepository` / `floatingNameAiPaletteProvider`; cache only the derived colors, metadata hash, model, prompt version, and generation time.
 - Keep climax analysis separate from `DeepSeekClassificationService` and the classification store: `DeepSeekHighlightService` owns the request, `SongHighlightProvider` owns lazy orchestration, and `SongHighlightRepository` stores only the derived timeline. Never persist or log the API key with that timeline.
 - If no API key is configured, guide the user to configuration. Do not describe the feature as already connected.
 

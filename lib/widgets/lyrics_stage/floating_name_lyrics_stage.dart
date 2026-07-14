@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/floating_name_ai_palette.dart';
 import '../../models/lyrics.dart';
 import '../../models/song.dart';
 import '../../models/song_highlight.dart';
+import '../../providers/floating_name_ai_palette_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/song_highlight_provider.dart';
 import '../../services/audio_player_service.dart';
@@ -29,6 +31,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
+  final bool aiColorEnabled;
   final bool wordByWordEnabled;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -44,6 +47,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
+    required this.aiColorEnabled,
     required this.wordByWordEnabled,
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -61,6 +65,20 @@ class FloatingNameLyricsStage extends ConsumerWidget {
           error: (_, _) => null,
           loading: () => null,
         );
+    final aiPalette = aiColorEnabled
+        ? ref
+              .watch(
+                floatingNameAiPaletteProvider(
+                  FloatingNameAiPaletteRequest(song),
+                ),
+              )
+              .maybeWhen(data: (palette) => palette, orElse: () => null)
+        : null;
+    final aiColors = aiPalette == null
+        ? null
+        : Theme.of(context).brightness == Brightness.dark
+        ? aiPalette.dark
+        : aiPalette.light;
     return LyricsStageShell(
       title: title,
       artist: artist,
@@ -78,6 +96,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
               fontFamily: fontFamily,
               fontSize: fontSize,
               wordByWordEnabled: wordByWordEnabled,
+              aiColors: aiColors,
               positionUpdatesEnabled: positionUpdatesEnabled,
               highlightSignature: highlightTimeline?.segments
                   .map(
@@ -102,6 +121,7 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
+  final FloatingNameAiColors? aiColors;
   final bool positionUpdatesEnabled;
   final String? highlightSignature;
   final List<SongHighlightSegment> highlightSegments;
@@ -114,6 +134,7 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
+    required this.aiColors,
     required this.positionUpdatesEnabled,
     required this.highlightSignature,
     required this.highlightSegments,
@@ -227,6 +248,7 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
         fallbackPosition: _fallbackPosition,
         isPlaying: isPlaying,
         activeColor: widget.activeColor,
+        aiColors: widget.aiColors,
         wordByWordEnabled: widget.wordByWordEnabled,
         motionEnabled: _motionEnabled,
         cameraAnimation: _cameraController,
@@ -366,6 +388,24 @@ double floatingNameWaitingCameraStrength({
 @visibleForTesting
 double floatingNameGlyphBounceOffset(double progress, double fontSize) {
   return lyricPrintGlyphBounceOffset(progress, fontSize);
+}
+
+@visibleForTesting
+double floatingNamePreviousAiColorOpacity({
+  required LyricLine line,
+  required Duration position,
+  required int activeGlyphIndex,
+}) {
+  if (activeGlyphIndex <= 0) return 0;
+  final glyphs = line.text.characters.toList(growable: false);
+  if (activeGlyphIndex >= glyphs.length) return 0;
+  final timings = _timingsForLine(line, glyphs);
+  final elapsed = position - timings[activeGlyphIndex].start;
+  if (elapsed.isNegative) return 0;
+  const transition = Duration(milliseconds: 280);
+  if (elapsed >= transition) return 0;
+  final progress = elapsed.inMicroseconds / transition.inMicroseconds;
+  return 1 - Curves.easeInOutSine.transform(progress.clamp(0.0, 1.0));
 }
 
 /// A three-column snake keeps the article moving sideways as well as down.
@@ -715,6 +755,7 @@ class _FloatingNamePainter extends CustomPainter {
   final ValueListenable<Duration> fallbackPosition;
   final bool isPlaying;
   final Color activeColor;
+  final FloatingNameAiColors? aiColors;
   final bool wordByWordEnabled;
   final bool motionEnabled;
   final Animation<double> cameraAnimation;
@@ -728,6 +769,7 @@ class _FloatingNamePainter extends CustomPainter {
     required this.fallbackPosition,
     required this.isPlaying,
     required this.activeColor,
+    required this.aiColors,
     required this.wordByWordEnabled,
     required this.motionEnabled,
     required this.cameraAnimation,
@@ -874,6 +916,12 @@ class _FloatingNamePainter extends CustomPainter {
         motionEnabled &&
         activeGlyphIndex >= 0 &&
         activeGlyphIndex < block.glyphBoxes.length;
+    final aiPrimary = aiColors == null ? null : Color(aiColors!.primary);
+    final hasAiActiveGlyph =
+        aiPrimary != null &&
+        wordByWordEnabled &&
+        activeGlyphIndex >= 0 &&
+        activeGlyphIndex < block.glyphBoxes.length;
     // Color each grapheme directly. Clipping a fully bright TextPainter with
     // selection rectangles can expose the tops of glyphs on the next visual
     // row when a font's ink bounds overlap tight line metrics.
@@ -882,17 +930,40 @@ class _FloatingNamePainter extends CustomPainter {
           typedCount: typedCount,
           revealedColor: activeColor,
           pendingColor: activeColor.withValues(alpha: 0.11),
-          liftedGlyphIndex: shouldBounce ? activeGlyphIndex : null,
+          liftedGlyphIndex: shouldBounce || hasAiActiveGlyph
+              ? activeGlyphIndex
+              : null,
         )
         .paint(canvas, block.origin);
 
-    if (!shouldBounce) return;
+    if (hasAiActiveGlyph && motionEnabled && activeGlyphIndex > 0) {
+      final previousOpacity = floatingNamePreviousAiColorOpacity(
+        line: block.line,
+        position: audioService?.position ?? fallbackPosition.value,
+        activeGlyphIndex: activeGlyphIndex,
+      );
+      if (previousOpacity > 0) {
+        _paintGlyphWithOpacity(
+          canvas,
+          block,
+          glyphIndex: activeGlyphIndex - 1,
+          color: aiPrimary,
+          opacity: previousOpacity,
+        );
+      }
+    }
+
+    if (!shouldBounce && !hasAiActiveGlyph) return;
     final fontSize = block.style.fontSize ?? 28;
-    final bounceOffset = floatingNameGlyphBounceOffset(progress, fontSize);
+    final bounceOffset = shouldBounce
+        ? floatingNameGlyphBounceOffset(progress, fontSize)
+        : 0.0;
+    final glyphColor = hasAiActiveGlyph ? aiPrimary : activeColor;
     block
-        .painterForActiveGlyph(glyphIndex: activeGlyphIndex, color: activeColor)
+        .painterForActiveGlyph(glyphIndex: activeGlyphIndex, color: glyphColor)
         .paint(canvas, block.origin.translate(0, bounceOffset));
 
+    if (!shouldBounce) return;
     if (!floatingNameGraphemeGetsPrintStamp(block.glyphs[activeGlyphIndex])) {
       return;
     }
@@ -906,12 +977,30 @@ class _FloatingNamePainter extends CustomPainter {
       width: stampWidth,
       height: fontSize * 0.56,
     ).translate(0, -fontSize * 0.18 * pulse);
+    final stampColor = aiColors == null ? activeColor : Color(aiColors!.stamp);
     final stampPaint = Paint()
-      ..color = activeColor.withValues(alpha: activeColor.a * 0.8 * pulse);
+      ..color = stampColor.withValues(alpha: stampColor.a * 0.8 * pulse);
     canvas.drawRRect(
       RRect.fromRectAndRadius(stampRect, Radius.circular(fontSize * 0.06)),
       stampPaint,
     );
+  }
+
+  void _paintGlyphWithOpacity(
+    Canvas canvas,
+    _FloatingBlock block, {
+    required int glyphIndex,
+    required Color color,
+    required double opacity,
+  }) {
+    canvas.saveLayer(
+      block.bounds.inflate(block.style.fontSize ?? 28),
+      Paint()..color = Colors.white.withValues(alpha: opacity),
+    );
+    block
+        .painterForActiveGlyph(glyphIndex: glyphIndex, color: color)
+        .paint(canvas, block.origin);
+    canvas.restore();
   }
 
   void _paintBlockText(Canvas canvas, _FloatingBlock block, Color color) {
@@ -926,6 +1015,7 @@ class _FloatingNamePainter extends CustomPainter {
         oldDelegate.audioService != audioService ||
         oldDelegate.isPlaying != isPlaying ||
         oldDelegate.activeColor != activeColor ||
+        oldDelegate.aiColors != aiColors ||
         oldDelegate.wordByWordEnabled != wordByWordEnabled ||
         oldDelegate.motionEnabled != motionEnabled;
   }
