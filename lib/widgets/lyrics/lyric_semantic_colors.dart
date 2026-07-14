@@ -7,21 +7,31 @@ import 'package:flutter/material.dart';
 /// overwritten by one of its shorter words.
 List<Color?> lyricSemanticColorsForUnits(
   List<String> units,
-  Map<String, Color> keywordColors,
-) {
+  Map<String, Color> keywordColors, {
+  String? sourceText,
+}) {
   if (units.isEmpty || keywordColors.isEmpty) {
     return List<Color?>.filled(units.length, null, growable: false);
   }
 
   final starts = <int>[];
   final ends = <int>[];
-  final buffer = StringBuffer();
+  final source = (sourceText ?? units.join()).toLowerCase();
+  var searchFrom = 0;
   for (final unit in units) {
-    starts.add(buffer.length);
-    buffer.write(unit);
-    ends.add(buffer.length);
+    final normalizedUnit = unit.toLowerCase();
+    final locatedStart = sourceText == null
+        ? searchFrom
+        : source.indexOf(normalizedUnit, searchFrom);
+    if (locatedStart < 0) {
+      starts.add(-1);
+      ends.add(-1);
+      continue;
+    }
+    starts.add(locatedStart);
+    ends.add(locatedStart + normalizedUnit.length);
+    searchFrom = locatedStart + normalizedUnit.length;
   }
-  final source = buffer.toString().toLowerCase();
   final result = List<Color?>.filled(units.length, null);
   final entries = keywordColors.entries.toList(growable: false)
     ..sort((a, b) => b.key.runes.length.compareTo(a.key.runes.length));
@@ -40,6 +50,7 @@ List<Color?> lyricSemanticColorsForUnits(
       }
       for (var index = 0; index < units.length; index++) {
         if (result[index] != null) continue;
+        if (starts[index] < 0) continue;
         if (ends[index] > matchStart && starts[index] < matchEnd) {
           result[index] = entry.value;
         }

@@ -387,24 +387,6 @@ double floatingNameGlyphBounceOffset(double progress, double fontSize) {
   return lyricPrintGlyphBounceOffset(progress, fontSize);
 }
 
-@visibleForTesting
-double floatingNamePreviousAiColorOpacity({
-  required LyricLine line,
-  required Duration position,
-  required int activeGlyphIndex,
-}) {
-  if (activeGlyphIndex <= 0) return 0;
-  final glyphs = line.text.characters.toList(growable: false);
-  if (activeGlyphIndex >= glyphs.length) return 0;
-  final timings = _timingsForLine(line, glyphs);
-  final elapsed = position - timings[activeGlyphIndex].start;
-  if (elapsed.isNegative) return 0;
-  const transition = Duration(milliseconds: 280);
-  if (elapsed >= transition) return 0;
-  final progress = elapsed.inMicroseconds / transition.inMicroseconds;
-  return 1 - Curves.easeInOutSine.transform(progress.clamp(0.0, 1.0));
-}
-
 /// A three-column snake keeps the article moving sideways as well as down.
 /// Adjacent lyric lines travel across a row before the camera turns into the
 /// next row, so the composition is not limited to one vertical strip.
@@ -657,6 +639,7 @@ class _FloatingBlock {
     required int typedCount,
     required Color revealedColor,
     required Color pendingColor,
+    required List<Color?> semanticColors,
     int? liftedGlyphIndex,
   }) {
     final resolvedCount = typedCount.clamp(0, glyphs.length);
@@ -664,6 +647,7 @@ class _FloatingBlock {
       resolvedCount,
       revealedColor.toARGB32(),
       pendingColor.toARGB32(),
+      Object.hashAll(semanticColors.map((color) => color?.toARGB32())),
       liftedGlyphIndex,
     );
     if (_typedPainterKey == key && _typedPainter != null) {
@@ -677,6 +661,7 @@ class _FloatingBlock {
         typedCount: resolvedCount,
         revealedColor: revealedColor,
         pendingColor: pendingColor,
+        semanticColors: semanticColors,
         hiddenGlyphIndex: liftedGlyphIndex,
       ),
       maxWidth: maxWidth,
@@ -715,6 +700,7 @@ TextSpan floatingNameRevealSpan({
   required int typedCount,
   required Color revealedColor,
   required Color pendingColor,
+  List<Color?> semanticColors = const [],
   int? hiddenGlyphIndex,
 }) {
   final resolvedCount = typedCount.clamp(0, glyphs.length);
@@ -728,7 +714,9 @@ TextSpan floatingNameRevealSpan({
             color: index == hiddenGlyphIndex
                 ? Colors.transparent
                 : index < resolvedCount
-                ? revealedColor
+                ? index < semanticColors.length
+                      ? semanticColors[index] ?? revealedColor
+                      : revealedColor
                 : pendingColor,
           ),
         ),
@@ -904,7 +892,23 @@ class _FloatingNamePainter extends CustomPainter {
         : distance <= 2
         ? 0.072
         : 0.035;
-    _paintBlockText(canvas, block, activeColor.withValues(alpha: opacity));
+    final defaultColor = activeColor.withValues(alpha: opacity);
+    if (!passed || aiKeywordColors.isEmpty) {
+      _paintBlockText(canvas, block, defaultColor);
+      return;
+    }
+    final semanticColors = lyricSemanticColorsForUnits(
+      block.glyphs,
+      aiKeywordColors,
+    );
+    block
+        .painterForTypedPrefix(
+          typedCount: block.glyphs.length,
+          revealedColor: defaultColor,
+          pendingColor: defaultColor,
+          semanticColors: semanticColors,
+        )
+        .paint(canvas, block.origin);
   }
 
   void _paintActiveBlock(Canvas canvas, _FloatingBlock block, double progress) {
@@ -938,28 +942,12 @@ class _FloatingNamePainter extends CustomPainter {
           typedCount: typedCount,
           revealedColor: activeColor,
           pendingColor: activeColor.withValues(alpha: 0.11),
+          semanticColors: semanticColors,
           liftedGlyphIndex: shouldBounce || hasAiActiveGlyph
               ? activeGlyphIndex
               : null,
         )
         .paint(canvas, block.origin);
-
-    if (hasAiActiveGlyph && motionEnabled && activeGlyphIndex > 0) {
-      final previousOpacity = floatingNamePreviousAiColorOpacity(
-        line: block.line,
-        position: audioService?.position ?? fallbackPosition.value,
-        activeGlyphIndex: activeGlyphIndex,
-      );
-      if (previousOpacity > 0) {
-        _paintGlyphWithOpacity(
-          canvas,
-          block,
-          glyphIndex: activeGlyphIndex - 1,
-          color: semanticColors[activeGlyphIndex - 1] ?? aiPrimary,
-          opacity: previousOpacity,
-        );
-      }
-    }
 
     if (!shouldBounce && !hasAiActiveGlyph) return;
     final fontSize = block.style.fontSize ?? 28;
@@ -992,23 +980,6 @@ class _FloatingNamePainter extends CustomPainter {
       RRect.fromRectAndRadius(stampRect, Radius.circular(fontSize * 0.06)),
       stampPaint,
     );
-  }
-
-  void _paintGlyphWithOpacity(
-    Canvas canvas,
-    _FloatingBlock block, {
-    required int glyphIndex,
-    required Color color,
-    required double opacity,
-  }) {
-    canvas.saveLayer(
-      block.bounds.inflate(block.style.fontSize ?? 28),
-      Paint()..color = Colors.white.withValues(alpha: opacity),
-    );
-    block
-        .painterForActiveGlyph(glyphIndex: glyphIndex, color: color)
-        .paint(canvas, block.origin);
-    canvas.restore();
   }
 
   void _paintBlockText(Canvas canvas, _FloatingBlock block, Color color) {

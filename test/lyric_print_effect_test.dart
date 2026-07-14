@@ -51,6 +51,18 @@ void main() {
     );
   });
 
+  test('semantic keyword color stays after the next glyph starts', () {
+    expect(
+      lyricAiColorIntensity(
+        position: const Duration(seconds: 4),
+        start: const Duration(seconds: 1),
+        nextStart: const Duration(seconds: 2),
+        persist: true,
+      ),
+      1,
+    );
+  });
+
   testWidgets('default timed lyrics render glyph effects inline', (
     tester,
   ) async {

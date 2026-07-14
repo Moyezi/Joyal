@@ -366,7 +366,7 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
                             highlightColor: isActive
                                 ? widget.aiPrimaryColor
                                 : null,
-                            keywordColors: isActive
+                            keywordColors: active >= 0 && lineIndex <= active
                                 ? widget.aiKeywordColors
                                 : const {},
                             positionUpdatesEnabled:
@@ -495,7 +495,7 @@ class _TimedLyricText extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hasWordTiming = line.words.any((word) => word.start != null);
     if (!enabled || !isActive || !hasWordTiming || !positionUpdatesEnabled) {
-      if (isActive && keywordColors.isNotEmpty) {
+      if (keywordColors.isNotEmpty) {
         final glyphs = line.text.characters.toList(growable: false);
         final colors = lyricSemanticColorsForUnits(glyphs, keywordColors);
         return Text.rich(
@@ -583,6 +583,7 @@ class _TimedLyricText extends ConsumerWidget {
             position: position,
             start: glyph.start!,
             nextStart: nextStart,
+            persist: semanticColor != null,
           );
     final defaultColor = Color.lerp(pendingColor, style.color!, progress)!;
     final glyphColor = resolvedAiColor == null

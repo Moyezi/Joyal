@@ -252,4 +252,22 @@ void main() {
       0,
     );
   });
+
+  test('flowing light keyword token keeps its semantic color', () {
+    const token = FlowingLightToken(
+      text: '光',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 2),
+      isLatinWord: false,
+    );
+    expect(
+      flowingLightTokenAiColorIntensity(
+        token,
+        const Duration(seconds: 4),
+        nextStart: const Duration(seconds: 2),
+        persist: true,
+      ),
+      1,
+    );
+  });
 }

@@ -179,9 +179,21 @@ void main() {
         ['glove', ' ', 'love'],
         const {'love': love},
       );
+      final flowingLatin = lyricSemanticColorsForUnits(
+        ['hold', 'me', 'close'],
+        const {'me close': love},
+        sourceText: 'hold me close',
+      );
+      final unmatchedFlowingUnit = lyricSemanticColorsForUnits(
+        ['hold', 'missing', 'close'],
+        const {'me close': love},
+        sourceText: 'hold me close',
+      );
 
       expect(chinese, [moon, moon, null, null]);
       expect(latin, [null, null, love]);
+      expect(flowingLatin, [null, love, love]);
+      expect(unmatchedFlowingUnit, [null, null, love]);
     },
   );
 }

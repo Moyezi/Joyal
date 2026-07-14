@@ -364,6 +364,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
     final semanticColors = lyricSemanticColorsForUnits(
       displayPieces,
       aiKeywordColors,
+      sourceText: line.text,
     );
     final ambientMotionEnabled =
         positionUpdatesEnabled && !MediaQuery.disableAnimationsOf(context);
@@ -782,6 +783,7 @@ class _FlowingLightTokenView extends StatelessWidget {
             token,
             position,
             nextStart: nextStart,
+            persist: semanticColor != null,
           );
     final color = resolvedAiColor == null
         ? defaultColor
@@ -859,11 +861,13 @@ double flowingLightTokenAiColorIntensity(
   FlowingLightToken token,
   Duration position, {
   Duration? nextStart,
+  bool persist = false,
 }) {
   return lyricAiColorIntensity(
     position: position,
     start: token.start,
     nextStart: nextStart,
+    persist: persist,
   );
 }
 

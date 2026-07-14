@@ -21,15 +21,17 @@ double lyricPrintStampPulse(double progress) {
   return 1 - Curves.easeOutCubic.transform(phase.clamp(0.0, 1.0));
 }
 
-/// Keeps the current glyph/token in its AI color, then fades it back to the
-/// renderer's default color after the next glyph/token starts.
+/// Keeps the current glyph/token in its AI color, then optionally fades it
+/// back to the renderer's default color after the next glyph/token starts.
 double lyricAiColorIntensity({
   required Duration position,
   required Duration start,
   Duration? nextStart,
+  bool persist = false,
   Duration transition = const Duration(milliseconds: 280),
 }) {
   if (position < start) return 0;
+  if (persist) return 1;
   if (nextStart == null || position <= nextStart) return 1;
   if (transition <= Duration.zero) return 0;
   final elapsed = position - nextStart;

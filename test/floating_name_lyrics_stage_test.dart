@@ -222,39 +222,6 @@ void main() {
     expect(floatingNameGlyphBounceOffset(1.5, 40), closeTo(-4, 0.001));
   });
 
-  test('floating name fades the previous AI glyph over 280 milliseconds', () {
-    const line = LyricLine(
-      text: '浮名',
-      start: Duration(seconds: 1),
-      end: Duration(seconds: 3),
-    );
-
-    expect(
-      floatingNamePreviousAiColorOpacity(
-        line: line,
-        position: const Duration(seconds: 2),
-        activeGlyphIndex: 1,
-      ),
-      1,
-    );
-    expect(
-      floatingNamePreviousAiColorOpacity(
-        line: line,
-        position: const Duration(seconds: 2, milliseconds: 140),
-        activeGlyphIndex: 1,
-      ),
-      closeTo(0.5, 0.005),
-    );
-    expect(
-      floatingNamePreviousAiColorOpacity(
-        line: line,
-        position: const Duration(seconds: 2, milliseconds: 280),
-        activeGlyphIndex: 1,
-      ),
-      0,
-    );
-  });
-
   test('floating name skips print stamps for spaces and punctuation', () {
     for (final grapheme in [
       ' ',
@@ -357,6 +324,27 @@ void main() {
       children.skip(3).map((child) => child.style!.color),
       everyElement(pending),
     );
+  });
+
+  test('floating name keeps revealed keyword colors only', () {
+    const keyword = Color(0xFFCC6633);
+    const revealed = Color(0xFFFFFFFF);
+    const pending = Color(0x1CFFFFFF);
+    final span = floatingNameRevealSpan(
+      glyphs: const ['月', '光', '落'],
+      style: const TextStyle(fontSize: 42),
+      typedCount: 2,
+      revealedColor: revealed,
+      pendingColor: pending,
+      semanticColors: const [keyword, keyword, null],
+    );
+    final children = span.children!.cast<TextSpan>().toList(growable: false);
+
+    expect(children.map((child) => child.style!.color), [
+      keyword,
+      keyword,
+      pending,
+    ]);
   });
 
   test('floating name lays out every visual row of a long lyric', () {
