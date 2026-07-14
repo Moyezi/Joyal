@@ -26,21 +26,19 @@ class LyricsAiPaletteRequest {
   final Song song;
   final LyricsData lyrics;
   final String metadataHash;
-  final bool forceRefresh;
 
-  LyricsAiPaletteRequest(this.song, this.lyrics, {this.forceRefresh = false})
+  LyricsAiPaletteRequest(this.song, this.lyrics)
     : metadataHash = lyricsAiPaletteMetadataHash(song, lyrics);
 
   @override
   bool operator ==(Object other) {
     return other is LyricsAiPaletteRequest &&
         other.song.id == song.id &&
-        other.metadataHash == metadataHash &&
-        other.forceRefresh == forceRefresh;
+        other.metadataHash == metadataHash;
   }
 
   @override
-  int get hashCode => Object.hash(song.id, metadataHash, forceRefresh);
+  int get hashCode => Object.hash(song.id, metadataHash);
 }
 
 final lyricsAiPaletteRepositoryProvider = Provider<LyricsAiPaletteRepository>((
@@ -95,24 +93,25 @@ final deepSeekLyricsAiPaletteServiceProvider =
 
 final lyricsAiPaletteProvider = FutureProvider.autoDispose
     .family<LyricsAiPalette?, LyricsAiPaletteRequest>((ref, request) async {
-      final api = ref.watch(subsonicApiProvider);
-      final classification = ref.watch(
-        musicClassificationProvider.select(
-          (state) => (
-            settings: state.settings,
-            isLoading: state.isLoading,
-            hasApiKey: state.hasApiKey,
+      final keepAliveLink = ref.keepAlive();
+      try {
+        final api = ref.watch(subsonicApiProvider);
+        final classification = ref.watch(
+          musicClassificationProvider.select(
+            (state) => (
+              settings: state.settings,
+              isLoading: state.isLoading,
+              hasApiKey: state.hasApiKey,
+            ),
           ),
-        ),
-      );
-      if (api == null || classification.isLoading) return null;
+        );
+        if (api == null || classification.isLoading) return null;
 
-      final scope = AppCacheService.instance.serverScope(
-        api.baseUrl,
-        api.username,
-      );
-      final repository = ref.read(lyricsAiPaletteRepositoryProvider);
-      if (!request.forceRefresh) {
+        final scope = AppCacheService.instance.serverScope(
+          api.baseUrl,
+          api.username,
+        );
+        final repository = ref.read(lyricsAiPaletteRepositoryProvider);
         final cached = await repository.load(scope, request.song.id);
         if (cached != null &&
             cached.matches(
@@ -122,24 +121,26 @@ final lyricsAiPaletteProvider = FutureProvider.autoDispose
             )) {
           return cached;
         }
+
+        if (!classification.hasApiKey) return null;
+        final apiKey = await ref
+            .read(musicClassificationRepositoryProvider)
+            .readApiKey();
+        if (apiKey == null || apiKey.isEmpty) return null;
+
+        final palette = await ref
+            .read(deepSeekLyricsAiPaletteServiceProvider)
+            .generate(
+              apiKey: apiKey,
+              settings: classification.settings,
+              song: request.song,
+              lyrics: request.lyrics,
+            );
+        await repository.save(scope, request.song.id, palette);
+        return palette;
+      } finally {
+        keepAliveLink.close();
       }
-
-      if (!classification.hasApiKey) return null;
-      final apiKey = await ref
-          .read(musicClassificationRepositoryProvider)
-          .readApiKey();
-      if (apiKey == null || apiKey.isEmpty) return null;
-
-      final palette = await ref
-          .read(deepSeekLyricsAiPaletteServiceProvider)
-          .generate(
-            apiKey: apiKey,
-            settings: classification.settings,
-            song: request.song,
-            lyrics: request.lyrics,
-          );
-      await repository.save(scope, request.song.id, palette);
-      return palette;
     });
 
 enum LyricsAiPaletteActivationResult {
@@ -218,6 +219,7 @@ class LyricsAiPaletteController {
     refreshing.state = true;
     LyricsAiPalette? previousPalette;
     LyricsAiPaletteRepository? repository;
+    LyricsAiPaletteRequest? refreshRequest;
     String? scope;
     var cacheDeleted = false;
     try {
@@ -239,26 +241,19 @@ class LyricsAiPaletteController {
       await currentRepository.delete(currentScope, song.id);
       cacheDeleted = true;
 
-      final forcedRequest = LyricsAiPaletteRequest(
-        song,
-        lyrics,
-        forceRefresh: true,
-      );
-      _ref.invalidate(lyricsAiPaletteProvider(forcedRequest));
-      final palette = await _ref.read(
-        lyricsAiPaletteProvider(forcedRequest).future,
-      );
+      final request = LyricsAiPaletteRequest(song, lyrics);
+      refreshRequest = request;
+      _ref.invalidate(lyricsAiPaletteProvider(request));
+      final palette = await _ref.read(lyricsAiPaletteProvider(request).future);
       if (palette == null) {
         throw StateError('AI palette generation returned no palette');
       }
-      _ref.invalidate(
-        lyricsAiPaletteProvider(LyricsAiPaletteRequest(song, lyrics)),
-      );
       _ref.invalidate(recognizedLyricsAiPalettesProvider);
       return LyricsAiPaletteActivationResult.applied;
     } catch (_) {
       if (cacheDeleted && previousPalette != null) {
         await repository!.save(scope!, song.id, previousPalette);
+        _ref.invalidate(lyricsAiPaletteProvider(refreshRequest!));
         _ref.invalidate(recognizedLyricsAiPalettesProvider);
       }
       return LyricsAiPaletteActivationResult.generationFailed;

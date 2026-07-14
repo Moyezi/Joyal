@@ -46,6 +46,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - `recognizedLyricsAiPalettesProvider` scans current-library song IDs in the active server scope, reads only local `LyricsAiPaletteRepository` records, and sorts them by `generatedAt` descending. Opening `小Jo同学` must never generate a palette or fetch lyrics.
 - The `配色` tab shows each cached song's light/dark `primary` and `stamp` colors, keyword colors, model, and generation date. It supports clearing one record or all visible records.
 - Palette deletion removes both current `lyrics_ai_palette_*` and legacy `floating_name_palette_*` files. It must not delete classification tags, climax timelines, or lyrics caches.
+- For lyrics-page palette refresh, back up then delete the current/legacy palette caches and reuse the normal `lyricsAiPaletteProvider` request identity; do not create a separate force-refresh family instance. Keep the async provider alive only until cache/network work finishes, restore the backup on failure, and invalidate the recognized palette list after success.
 
 ## Manual Correction
 

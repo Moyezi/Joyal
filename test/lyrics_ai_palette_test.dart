@@ -140,97 +140,85 @@ void main() {
   });
 
   test(
-    'forced AI palette requests do not share the cached request identity',
-    () {
-      final cached = LyricsAiPaletteRequest(song, lyrics);
-      final refreshed = LyricsAiPaletteRequest(
-        song,
-        lyrics,
-        forceRefresh: true,
+    'refresh deletes the existing palette then uses normal acquisition',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'joyal_lyrics_ai_palette_refresh_',
       );
+      AppCacheService.debugCacheDirectoryOverride = directory;
+      addTearDown(() async {
+        AppCacheService.debugCacheDirectoryOverride = null;
+        if (await directory.exists()) await directory.delete(recursive: true);
+      });
 
-      expect(cached, isNot(refreshed));
-      expect(cached.forceRefresh, isFalse);
-      expect(refreshed.forceRefresh, isTrue);
+      const api = SubsonicApi(
+        baseUrl: 'https://music.example.test',
+        username: 'jo',
+        password: 'secret',
+      );
+      final scope = AppCacheService.instance.serverScope(
+        api.baseUrl,
+        api.username,
+      );
+      final repository = LyricsAiPaletteRepository(AppCacheService.instance);
+      final oldPalette = LyricsAiPalette(
+        light: const LyricsAiColors(primary: 0xFF111111, stamp: 0xFF222222),
+        dark: const LyricsAiColors(primary: 0xFFEEEEEE, stamp: 0xFFDDDDDD),
+        metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
+        model: 'deepseek-chat',
+        promptVersion: lyricsAiPalettePromptVersion,
+        generatedAt: DateTime.utc(2026, 7, 13),
+      );
+      final newPalette = LyricsAiPalette(
+        light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
+        dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
+        metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
+        model: 'deepseek-chat',
+        promptVersion: lyricsAiPalettePromptVersion,
+        generatedAt: DateTime.utc(2026, 7, 14),
+      );
+      await repository.save(scope, song.id, oldPalette);
+
+      var cacheWasEmptyDuringGeneration = false;
+      final apiKeyRepository = _ApiKeyRepository();
+      final paletteService = _InspectingPaletteService(
+        beforeGenerate: () async {
+          cacheWasEmptyDuringGeneration =
+              await repository.load(scope, song.id) == null;
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+        },
+        result: newPalette,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          subsonicApiProvider.overrideWithValue(api),
+          lyricsProvider.overrideWith((ref, requestedSong) async => lyrics),
+          lyricsAiPaletteRepositoryProvider.overrideWithValue(repository),
+          musicClassificationRepositoryProvider.overrideWithValue(
+            apiKeyRepository,
+          ),
+          musicClassificationProvider.overrideWith(
+            (ref) => _ConfiguredClassificationNotifier(apiKeyRepository),
+          ),
+          deepSeekLyricsAiPaletteServiceProvider.overrideWithValue(
+            paletteService,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(lyricsAiPaletteControllerProvider)
+          .refresh(song);
+
+      expect(result, LyricsAiPaletteActivationResult.applied);
+      expect(cacheWasEmptyDuringGeneration, isTrue);
+      expect(
+        (await repository.load(scope, song.id))?.toJson(),
+        newPalette.toJson(),
+      );
     },
   );
-
-  test('refresh deletes the existing palette before generation', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'joyal_lyrics_ai_palette_refresh_',
-    );
-    AppCacheService.debugCacheDirectoryOverride = directory;
-    addTearDown(() async {
-      AppCacheService.debugCacheDirectoryOverride = null;
-      if (await directory.exists()) await directory.delete(recursive: true);
-    });
-
-    const api = SubsonicApi(
-      baseUrl: 'https://music.example.test',
-      username: 'jo',
-      password: 'secret',
-    );
-    final scope = AppCacheService.instance.serverScope(
-      api.baseUrl,
-      api.username,
-    );
-    final repository = LyricsAiPaletteRepository(AppCacheService.instance);
-    final oldPalette = LyricsAiPalette(
-      light: const LyricsAiColors(primary: 0xFF111111, stamp: 0xFF222222),
-      dark: const LyricsAiColors(primary: 0xFFEEEEEE, stamp: 0xFFDDDDDD),
-      metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
-      model: 'deepseek-chat',
-      promptVersion: lyricsAiPalettePromptVersion,
-      generatedAt: DateTime.utc(2026, 7, 13),
-    );
-    final newPalette = LyricsAiPalette(
-      light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
-      dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
-      metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
-      model: 'deepseek-chat',
-      promptVersion: lyricsAiPalettePromptVersion,
-      generatedAt: DateTime.utc(2026, 7, 14),
-    );
-    await repository.save(scope, song.id, oldPalette);
-
-    var cacheWasEmptyDuringGeneration = false;
-    final apiKeyRepository = _ApiKeyRepository();
-    final paletteService = _InspectingPaletteService(
-      beforeGenerate: () async {
-        cacheWasEmptyDuringGeneration =
-            await repository.load(scope, song.id) == null;
-      },
-      result: newPalette,
-    );
-    final container = ProviderContainer(
-      overrides: [
-        subsonicApiProvider.overrideWithValue(api),
-        lyricsProvider.overrideWith((ref, requestedSong) async => lyrics),
-        lyricsAiPaletteRepositoryProvider.overrideWithValue(repository),
-        musicClassificationRepositoryProvider.overrideWithValue(
-          apiKeyRepository,
-        ),
-        musicClassificationProvider.overrideWith(
-          (ref) => _ConfiguredClassificationNotifier(apiKeyRepository),
-        ),
-        deepSeekLyricsAiPaletteServiceProvider.overrideWithValue(
-          paletteService,
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    final result = await container
-        .read(lyricsAiPaletteControllerProvider)
-        .refresh(song);
-
-    expect(result, LyricsAiPaletteActivationResult.applied);
-    expect(cacheWasEmptyDuringGeneration, isTrue);
-    expect(
-      (await repository.load(scope, song.id))?.toJson(),
-      newPalette.toJson(),
-    );
-  });
 
   test('repository migrates the renderer-specific legacy cache name', () async {
     final directory = await Directory.systemTemp.createTemp(
