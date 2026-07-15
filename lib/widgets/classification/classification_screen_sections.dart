@@ -186,6 +186,94 @@ class RecordsLoading extends StatelessWidget {
   }
 }
 
+class RecordsSearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  const RecordsSearchField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      textInputAction: TextInputAction.search,
+      onChanged: onChanged,
+      style: context.textBodyLarge.copyWith(fontWeight: FontWeight.w600),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: context.textBodyMedium,
+        prefixIcon: Icon(Icons.search_rounded, color: context.secondaryColor),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: '清空搜索',
+                onPressed: onClear,
+                icon: const Icon(Icons.close_rounded, size: 20),
+              ),
+        filled: true,
+        fillColor: context.surfaceColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    );
+  }
+}
+
+class EmptyRecordsSearch extends StatelessWidget {
+  final String query;
+  final VoidCallback onClear;
+
+  const EmptyRecordsSearch({
+    super.key,
+    required this.query,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingLG,
+        vertical: AppTheme.spacingXL,
+      ),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 42,
+            color: context.secondaryColor,
+          ),
+          const SizedBox(height: AppTheme.spacingSM),
+          Text('没有找到相关记录', style: context.textTitleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '没有与“$query”匹配的歌曲、歌手或专辑',
+            textAlign: TextAlign.center,
+            style: context.textBodySmall,
+          ),
+          const SizedBox(height: AppTheme.spacingSM),
+          TextButton(onPressed: onClear, child: const Text('清空搜索')),
+        ],
+      ),
+    );
+  }
+}
+
 class TaskStatusPanel extends StatelessWidget {
   final String statusText;
   final String detailText;

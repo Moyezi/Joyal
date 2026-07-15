@@ -28,11 +28,15 @@ class _MusicClassificationScreenState
   final _apiKeyController = TextEditingController();
   final _apiUrlController = TextEditingController();
   final _modelController = TextEditingController();
+  final _highlightSearchController = TextEditingController();
+  final _paletteSearchController = TextEditingController();
   late final TabController _tabController;
   bool _obscureApiKey = true;
   bool _initializedFields = false;
   bool _highlightsRequested = false;
   bool _palettesRequested = false;
+  String _highlightSearchQuery = '';
+  String _paletteSearchQuery = '';
   int _batchSize = 20;
   bool _wifiOnly = true;
   bool _notificationsEnabled = true;
@@ -62,6 +66,8 @@ class _MusicClassificationScreenState
     _apiKeyController.dispose();
     _apiUrlController.dispose();
     _modelController.dispose();
+    _highlightSearchController.dispose();
+    _paletteSearchController.dispose();
     super.dispose();
   }
 
@@ -203,14 +209,18 @@ class _MusicClassificationScreenState
   }
 
   Future<void> _deleteAllHighlights(
-    List<RecognizedSongHighlight> entries,
-  ) async {
+    List<RecognizedSongHighlight> entries, {
+    bool filtered = false,
+  }) async {
     if (entries.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除全部高潮记录'),
-        content: Text('将清除 ${entries.length} 首歌曲的本地高潮识别结果。标签分类不会受影响。'),
+        title: Text(filtered ? '清除筛选出的高潮记录' : '清除全部高潮记录'),
+        content: Text(
+          '将清除${filtered ? '当前筛选出的' : ''} ${entries.length} 首歌曲的本地高潮识别结果。'
+          '标签分类不会受影响。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -218,7 +228,7 @@ class _MusicClassificationScreenState
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('全部清除'),
+            child: Text(filtered ? '清除筛选结果' : '全部清除'),
           ),
         ],
       ),
@@ -238,7 +248,9 @@ class _MusicClassificationScreenState
     }
     ref.invalidate(songHighlightProvider);
     ref.invalidate(recognizedSongHighlightsProvider);
-    if (mounted) showAppToast(context, '全部高潮记录已清除');
+    if (mounted) {
+      showAppToast(context, filtered ? '筛选出的高潮记录已清除' : '全部高潮记录已清除');
+    }
   }
 
   Future<void> _deleteLyricsPalette(RecognizedLyricsAiPalette entry) async {
@@ -275,15 +287,17 @@ class _MusicClassificationScreenState
   }
 
   Future<void> _deleteAllLyricsPalettes(
-    List<RecognizedLyricsAiPalette> entries,
-  ) async {
+    List<RecognizedLyricsAiPalette> entries, {
+    bool filtered = false,
+  }) async {
     if (entries.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('清除全部歌词配色'),
+        title: Text(filtered ? '清除筛选出的歌词配色' : '清除全部歌词配色'),
         content: Text(
-          '将清除 ${entries.length} 首歌曲的本地 AI 歌词配色。标签、高潮记录和歌词缓存不会受影响。',
+          '将清除${filtered ? '当前筛选出的' : ''} ${entries.length} 首歌曲的本地 AI 歌词配色。'
+          '标签、高潮记录和歌词缓存不会受影响。',
         ),
         actions: [
           TextButton(
@@ -292,7 +306,7 @@ class _MusicClassificationScreenState
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('全部清除'),
+            child: Text(filtered ? '清除筛选结果' : '全部清除'),
           ),
         ],
       ),
@@ -309,7 +323,9 @@ class _MusicClassificationScreenState
         .deleteAll(scope, entries.map((entry) => entry.song.id));
     ref.invalidate(lyricsAiPaletteProvider);
     ref.invalidate(recognizedLyricsAiPalettesProvider);
-    if (mounted) showAppToast(context, '全部歌词配色已清除');
+    if (mounted) {
+      showAppToast(context, filtered ? '筛选出的歌词配色已清除' : '全部歌词配色已清除');
+    }
   }
 
   @override
@@ -521,6 +537,10 @@ class _MusicClassificationScreenState
   }
 
   Widget _buildHighlightRecords(List<RecognizedSongHighlight> entries) {
+    final visibleEntries = entries
+        .where((entry) => _songMatchesSearch(entry.song, _highlightSearchQuery))
+        .toList(growable: false);
+    final hasSearch = _highlightSearchQuery.trim().isNotEmpty;
     return CustomScrollView(
       key: const ValueKey('highlights-data'),
       slivers: [
@@ -532,30 +552,55 @@ class _MusicClassificationScreenState
             AppTheme.spacingMD,
           ),
           sliver: SliverToBoxAdapter(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('高潮记录', style: context.textTitleLarge),
-                      const SizedBox(height: 4),
-                      Text(
-                        entries.isEmpty
-                            ? '还没有本地识别记录'
-                            : '已识别 ${entries.length} 首，按最近识别排序',
-                        style: context.textBodySmall,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('高潮记录', style: context.textTitleLarge),
+                          const SizedBox(height: 4),
+                          Text(
+                            entries.isEmpty
+                                ? '还没有本地识别记录'
+                                : hasSearch
+                                ? '${visibleEntries.length}/${entries.length} 首符合搜索'
+                                : '已识别 ${entries.length} 首，按最近识别排序',
+                            style: context.textBodySmall,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    if (visibleEntries.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => _deleteAllHighlights(
+                          visibleEntries,
+                          filtered: hasSearch,
+                        ),
+                        icon: const Icon(Icons.delete_sweep_outlined),
+                        label: Text(hasSearch ? '清除筛选' : '全部清除'),
+                      ),
+                  ],
                 ),
-                if (entries.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () => _deleteAllHighlights(entries),
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                    label: const Text('全部清除'),
+                if (entries.isNotEmpty) ...[
+                  const SizedBox(height: AppTheme.spacingMD),
+                  RecordsSearchField(
+                    key: const ValueKey('highlights-search-field'),
+                    controller: _highlightSearchController,
+                    hintText: '搜索高潮记录中的歌曲、歌手或专辑',
+                    onChanged: (value) {
+                      setState(() => _highlightSearchQuery = value);
+                    },
+                    onClear: () {
+                      _highlightSearchController.clear();
+                      setState(() => _highlightSearchQuery = '');
+                    },
                   ),
+                ],
               ],
             ),
           ),
@@ -565,12 +610,25 @@ class _MusicClassificationScreenState
             padding: EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
             sliver: SliverToBoxAdapter(child: EmptyHighlights()),
           )
+        else if (visibleEntries.isEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverToBoxAdapter(
+              child: EmptyRecordsSearch(
+                query: _highlightSearchQuery.trim(),
+                onClear: () {
+                  _highlightSearchController.clear();
+                  setState(() => _highlightSearchQuery = '');
+                },
+              ),
+            ),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
-                final entry = entries[index];
+                final entry = visibleEntries[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingSM),
                   child: HighlightSongCard(
@@ -579,7 +637,7 @@ class _MusicClassificationScreenState
                     onDelete: () => _deleteHighlight(entry),
                   ),
                 );
-              }, childCount: entries.length),
+              }, childCount: visibleEntries.length),
             ),
           ),
         const SliverPadding(
@@ -623,6 +681,10 @@ class _MusicClassificationScreenState
   }
 
   Widget _buildPaletteRecords(List<RecognizedLyricsAiPalette> entries) {
+    final visibleEntries = entries
+        .where((entry) => _songMatchesSearch(entry.song, _paletteSearchQuery))
+        .toList(growable: false);
+    final hasSearch = _paletteSearchQuery.trim().isNotEmpty;
     return CustomScrollView(
       key: const ValueKey('palettes-data'),
       slivers: [
@@ -634,30 +696,55 @@ class _MusicClassificationScreenState
             AppTheme.spacingMD,
           ),
           sliver: SliverToBoxAdapter(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('AI 歌词配色', style: context.textTitleLarge),
-                      const SizedBox(height: 4),
-                      Text(
-                        entries.isEmpty
-                            ? '还没有本地生成记录'
-                            : '已生成 ${entries.length} 首，按最近生成排序',
-                        style: context.textBodySmall,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('AI 歌词配色', style: context.textTitleLarge),
+                          const SizedBox(height: 4),
+                          Text(
+                            entries.isEmpty
+                                ? '还没有本地生成记录'
+                                : hasSearch
+                                ? '${visibleEntries.length}/${entries.length} 首符合搜索'
+                                : '已生成 ${entries.length} 首，按最近生成排序',
+                            style: context.textBodySmall,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    if (visibleEntries.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => _deleteAllLyricsPalettes(
+                          visibleEntries,
+                          filtered: hasSearch,
+                        ),
+                        icon: const Icon(Icons.delete_sweep_outlined),
+                        label: Text(hasSearch ? '清除筛选' : '全部清除'),
+                      ),
+                  ],
                 ),
-                if (entries.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () => _deleteAllLyricsPalettes(entries),
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                    label: const Text('全部清除'),
+                if (entries.isNotEmpty) ...[
+                  const SizedBox(height: AppTheme.spacingMD),
+                  RecordsSearchField(
+                    key: const ValueKey('palettes-search-field'),
+                    controller: _paletteSearchController,
+                    hintText: '搜索配色记录中的歌曲、歌手或专辑',
+                    onChanged: (value) {
+                      setState(() => _paletteSearchQuery = value);
+                    },
+                    onClear: () {
+                      _paletteSearchController.clear();
+                      setState(() => _paletteSearchQuery = '');
+                    },
                   ),
+                ],
               ],
             ),
           ),
@@ -667,12 +754,25 @@ class _MusicClassificationScreenState
             padding: EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
             sliver: SliverToBoxAdapter(child: EmptyLyricsPalettes()),
           )
+        else if (visibleEntries.isEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
+            sliver: SliverToBoxAdapter(
+              child: EmptyRecordsSearch(
+                query: _paletteSearchQuery.trim(),
+                onClear: () {
+                  _paletteSearchController.clear();
+                  setState(() => _paletteSearchQuery = '');
+                },
+              ),
+            ),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingLG),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
-                final entry = entries[index];
+                final entry = visibleEntries[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingSM),
                   child: LyricsPaletteSongCard(
@@ -681,7 +781,7 @@ class _MusicClassificationScreenState
                     onDelete: () => _deleteLyricsPalette(entry),
                   ),
                 );
-              }, childCount: entries.length),
+              }, childCount: visibleEntries.length),
             ),
           ),
         const SliverPadding(
@@ -845,6 +945,18 @@ class _MusicClassificationScreenState
     final api = ref.read(subsonicApiProvider);
     if (api == null || song.coverArt.isEmpty) return '';
     return api.getCoverArtUrl(song.coverArt);
+  }
+
+  bool _songMatchesSearch(Song song, String query) {
+    final terms = query
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty);
+    if (terms.isEmpty) return true;
+    final searchable = '${song.title}\n${song.artist}\n${song.album}'
+        .toLowerCase();
+    return terms.every(searchable.contains);
   }
 
   String _statusText(MusicClassificationState state) {

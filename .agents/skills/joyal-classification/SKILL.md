@@ -39,6 +39,7 @@ description: "小Jo同学 tag-classification and climax-cache memory for Joyal M
 - Keep climax analysis lazy: entering an implemented independent lyrics stage with synchronized lyrics may analyze; opening `小Jo同学` or now playing must only read local cache.
 - `recognizedSongHighlightsProvider` scans current-library song IDs in the active server scope, keeps non-empty timelines, and sorts them by `analyzedAt` descending so older caches remain discoverable without an index migration.
 - `cachedSongHighlightProvider` is the read-only source for now-playing progress markers.
+- The climax and lyric-palette management tabs search their already-loaded local records by song title, artist, and album. Each tab keeps its own query; search must not fetch lyrics or start AI work. Batch clearing while filtered affects only the visible matches and must say so in the confirmation.
 - Clearing one or all climax records deletes only `SongHighlightRepository` timelines. Never delete classification tags or lyrics cache with that action.
 
 ## Lyrics AI Palette Cache Management
