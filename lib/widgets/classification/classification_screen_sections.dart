@@ -60,23 +60,32 @@ class JoHeader extends StatelessWidget {
               children: [
                 Text('你的音乐整理台', style: context.textTitleLarge),
                 const SizedBox(height: 3),
-                Text('标签、高潮与歌词配色，都在本机有迹可循。', style: context.textBodySmall),
+                Text('标签、高潮与歌词配色均保存在本机。', style: context.textBodySmall),
                 const SizedBox(height: AppTheme.spacingSM),
-                Wrap(
-                  spacing: AppTheme.spacingLG,
-                  runSpacing: 4,
+                Row(
                   children: [
-                    _HeaderMetric(
-                      label: '标签',
-                      value: '$classifiedCount/$totalCount',
+                    Expanded(
+                      flex: 5,
+                      child: _HeaderMetric(
+                        label: '标签',
+                        value: '$classifiedCount/$totalCount',
+                      ),
                     ),
-                    _HeaderMetric(
-                      label: '高潮',
-                      value: highlightCount?.toString() ?? '—',
+                    const SizedBox(width: AppTheme.spacingSM),
+                    Expanded(
+                      flex: 3,
+                      child: _HeaderMetric(
+                        label: '高潮',
+                        value: highlightCount?.toString() ?? '—',
+                      ),
                     ),
-                    _HeaderMetric(
-                      label: '配色',
-                      value: paletteCount?.toString() ?? '—',
+                    const SizedBox(width: AppTheme.spacingSM),
+                    Expanded(
+                      flex: 3,
+                      child: _HeaderMetric(
+                        label: '配色',
+                        value: paletteCount?.toString() ?? '—',
+                      ),
                     ),
                   ],
                 ),
@@ -96,18 +105,23 @@ class _HeaderMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RichText(
-      text: TextSpan(
-        style: context.textCaption,
-        children: [
-          TextSpan(text: '$label  '),
-          TextSpan(
-            text: value,
-            style: context.textTitleMedium.copyWith(
-              fontFeatures: const [FontFeature.tabularFigures()],
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: RichText(
+        maxLines: 1,
+        text: TextSpan(
+          style: context.textCaption,
+          children: [
+            TextSpan(text: '$label  '),
+            TextSpan(
+              text: value,
+              style: context.textTitleMedium.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -197,7 +211,26 @@ class TaskStatusPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(statusText, style: context.textTitleMedium),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  statusText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.textTitleMedium,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingSM),
+              Text(
+                detailText,
+                maxLines: 1,
+                style: context.textBodySmall.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppTheme.spacingSM),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -206,8 +239,6 @@ class TaskStatusPanel extends StatelessWidget {
               value: isRunning && progress <= 0 ? null : progress.clamp(0, 1),
             ),
           ),
-          const SizedBox(height: AppTheme.spacingSM),
-          Text(detailText, style: context.textBodySmall),
         ],
       ),
     );
@@ -658,27 +689,38 @@ String _formatPaletteDate(DateTime value) {
   return '${local.year}-$month-$day';
 }
 
-ButtonStyle classificationFilledPillButtonStyle(BuildContext context) {
+ButtonStyle classificationPrimaryActionButtonStyle(BuildContext context) {
   return FilledButton.styleFrom(
-    minimumSize: const Size(0, 56),
+    backgroundColor: context.surfaceHighlightColor,
+    foregroundColor: context.primaryColor,
+    disabledBackgroundColor: context.surfaceHighlightColor.withValues(
+      alpha: 0.52,
+    ),
+    disabledForegroundColor: context.secondaryColor.withValues(alpha: 0.62),
+    minimumSize: const Size(0, 50),
     padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingMD),
-    shape: const StadiumBorder(),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+    ),
+    elevation: 0,
     textStyle: context.textTitleMedium,
   );
 }
 
-ButtonStyle classificationOutlinedPillButtonStyle(
+ButtonStyle classificationSecondaryActionButtonStyle(
   BuildContext context, {
   Color? foregroundColor,
 }) {
-  final color = foregroundColor ?? context.primaryColor;
-  return OutlinedButton.styleFrom(
+  final color = foregroundColor ?? context.secondaryColor;
+  return TextButton.styleFrom(
     foregroundColor: color,
-    minimumSize: const Size(0, 56),
+    disabledForegroundColor: color.withValues(alpha: 0.38),
+    minimumSize: const Size(0, 42),
     padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingSM),
-    shape: const StadiumBorder(),
-    side: BorderSide(color: color, width: 1.2),
-    textStyle: context.textTitleMedium,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+    ),
+    textStyle: context.textBodyMedium.copyWith(fontWeight: FontWeight.w600),
   );
 }
 
@@ -753,8 +795,20 @@ class ClassificationSettingTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(title, style: context.textTitleMedium),
-      subtitle: Text(subtitle, style: context.textBodySmall),
+      title: Row(
+        children: [
+          Text(title, style: context.textTitleMedium),
+          const SizedBox(width: AppTheme.spacingSM),
+          Expanded(
+            child: Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: context.textBodySmall,
+            ),
+          ),
+        ],
+      ),
       trailing: trailing,
     );
   }

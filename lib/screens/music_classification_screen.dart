@@ -376,69 +376,123 @@ class _MusicClassificationScreenState
     return ListView(
       padding: const EdgeInsets.all(AppTheme.spacingLG),
       children: [
+        Text('标签整理', style: context.textTitleLarge),
+        const SizedBox(height: 4),
+        Text('流派、情绪、场景和语言标签，可在歌曲详情长按修正。', style: context.textBodySmall),
+        const SizedBox(height: AppTheme.spacingMD),
         TaskStatusPanel(
           statusText: _statusText(state),
-          detailText:
-              '已整理 ${state.classifiedCount} / $totalSongs 首 · 待整理 $pendingCount 首',
+          detailText: '${state.classifiedCount}/$totalSongs · 待 $pendingCount',
           progress: state.progress,
           isRunning: state.isRunning,
         ),
-        const SizedBox(height: AppTheme.spacingLG),
-        Text('标签整理', style: context.textTitleLarge),
-        const SizedBox(height: 4),
-        Text('保留原有的流派、情绪、场景和语言标签，可在歌曲详情中继续长按修正。', style: context.textBodySmall),
-        const SizedBox(height: AppTheme.spacingMD),
-        FilledButton.icon(
-          style: classificationFilledPillButtonStyle(context),
-          onPressed: state.isRunning ? null : () => _startClassification(),
-          icon: const Icon(Icons.auto_fix_high_rounded),
-          label: const ButtonLabel('整理待处理歌曲'),
-        ),
         const SizedBox(height: AppTheme.spacingSM),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(context),
-                onPressed: state.isRunning
-                    ? () =>
-                          ref.read(musicClassificationProvider.notifier).pause()
-                    : state.isPaused
-                    ? () => ref
-                          .read(musicClassificationProvider.notifier)
-                          .resume()
-                    : null,
-                child: ButtonLabel(state.isPaused ? '继续' : '暂停'),
+        Container(
+          padding: const EdgeInsets.all(AppTheme.spacingMD),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Text('整理操作', style: context.textTitleMedium),
+                  const SizedBox(width: AppTheme.spacingSM),
+                  Expanded(
+                    child: Text(
+                      '优先处理新增或有变化的歌曲',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textBodySmall,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: AppTheme.spacingSM),
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(context),
-                onPressed: state.isRunning || state.isPaused
-                    ? () => ref
-                          .read(musicClassificationProvider.notifier)
-                          .cancel()
-                    : null,
-                child: const ButtonLabel('取消'),
+              const SizedBox(height: AppTheme.spacingMD),
+              Row(
+                children: state.isRunning || state.isPaused
+                    ? [
+                        Expanded(
+                          flex: 5,
+                          child: FilledButton.icon(
+                            style: classificationPrimaryActionButtonStyle(
+                              context,
+                            ),
+                            onPressed: state.isRunning
+                                ? () => ref
+                                      .read(
+                                        musicClassificationProvider.notifier,
+                                      )
+                                      .pause()
+                                : () => ref
+                                      .read(
+                                        musicClassificationProvider.notifier,
+                                      )
+                                      .resume(),
+                            icon: Icon(
+                              state.isPaused
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.pause_rounded,
+                              size: 19,
+                            ),
+                            label: ButtonLabel(
+                              state.isPaused ? '继续整理' : '暂停整理',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spacingSM),
+                        Expanded(
+                          flex: 3,
+                          child: TextButton.icon(
+                            style: classificationSecondaryActionButtonStyle(
+                              context,
+                            ),
+                            onPressed: () => ref
+                                .read(musicClassificationProvider.notifier)
+                                .cancel(),
+                            icon: const Icon(Icons.close_rounded, size: 19),
+                            label: const ButtonLabel('取消'),
+                          ),
+                        ),
+                      ]
+                    : [
+                        Expanded(
+                          flex: 5,
+                          child: FilledButton.icon(
+                            style: classificationPrimaryActionButtonStyle(
+                              context,
+                            ),
+                            onPressed: () => _startClassification(),
+                            icon: const Icon(
+                              Icons.auto_fix_high_rounded,
+                              size: 20,
+                            ),
+                            label: const ButtonLabel('整理待处理歌曲'),
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spacingSM),
+                        Expanded(
+                          flex: 3,
+                          child: TextButton.icon(
+                            style: classificationSecondaryActionButtonStyle(
+                              context,
+                            ),
+                            onPressed: () => _startClassification(force: true),
+                            icon: const Icon(Icons.refresh_rounded, size: 19),
+                            label: const ButtonLabel('全部重整'),
+                          ),
+                        ),
+                      ],
               ),
-            ),
-            const SizedBox(width: AppTheme.spacingSM),
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(context),
-                onPressed: state.isRunning
-                    ? null
-                    : () => _startClassification(force: true),
-                child: const ButtonLabel('全部重分'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: AppTheme.spacingLG),
         PrivacyNote(
           icon: Icons.text_fields_rounded,
-          text: '标签整理只发送歌曲名、歌手和专辑等文字元数据，不上传音乐文件。',
+          text: '只发送歌曲文字信息，不上传音乐文件。',
         ),
       ],
     );
@@ -654,7 +708,7 @@ class _MusicClassificationScreenState
       children: [
         Text('DeepSeek 服务', style: context.textTitleLarge),
         const SizedBox(height: 4),
-        Text('标签整理、歌词高潮分析与 AI 歌词配色共用这套连接设置。', style: context.textBodySmall),
+        Text('标签、高潮与配色共用此连接。', style: context.textBodySmall),
         const SizedBox(height: AppTheme.spacingMD),
         ClassificationTextInput(
           controller: _apiKeyController,
@@ -686,7 +740,7 @@ class _MusicClassificationScreenState
         const SizedBox(height: AppTheme.spacingSM),
         ClassificationSettingTile(
           title: '每批处理数量',
-          subtitle: '默认 20 首，并发请求固定为 1',
+          subtitle: '并发固定为 1',
           trailing: DropdownButton<int>(
             value: _batchSize,
             underline: const SizedBox.shrink(),
@@ -711,70 +765,77 @@ class _MusicClassificationScreenState
           value: _notificationsEnabled,
           onChanged: (value) => setState(() => _notificationsEnabled = value),
         ),
-        const SizedBox(height: AppTheme.spacingMD),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(context),
-                onPressed: state.isTestingConnection ? null : _testConnection,
-                child: state.isTestingConnection
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const ButtonLabel('测试连接'),
-              ),
-            ),
-            const SizedBox(width: AppTheme.spacingSM),
-            Expanded(
-              child: FilledButton(
-                style: classificationFilledPillButtonStyle(context),
-                onPressed: _save,
-                child: const ButtonLabel('保存配置'),
-              ),
-            ),
-          ],
-        ),
         const SizedBox(height: AppTheme.spacingSM),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(
-                  context,
-                  foregroundColor: context.favoriteRedColor,
-                ),
-                onPressed: () async {
-                  await ref
-                      .read(musicClassificationProvider.notifier)
-                      .clearApiKey();
-                  if (mounted) showAppToast(context, 'API Key 已清除');
-                },
-                child: const ButtonLabel('清除 API Key'),
+        Container(
+          padding: const EdgeInsets.all(AppTheme.spacingMD),
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton.icon(
+                style: classificationPrimaryActionButtonStyle(context),
+                onPressed: _save,
+                icon: const Icon(Icons.check_rounded, size: 20),
+                label: const ButtonLabel('保存服务配置'),
               ),
-            ),
-            const SizedBox(width: AppTheme.spacingSM),
-            Expanded(
-              child: OutlinedButton(
-                style: classificationOutlinedPillButtonStyle(context),
-                onPressed: () async {
-                  await ref
-                      .read(musicClassificationProvider.notifier)
-                      .restoreDefaults();
-                  if (!mounted) return;
-                  setState(() => _initializedFields = false);
-                  showAppToast(context, '已恢复默认配置');
-                },
-                child: const ButtonLabel('恢复默认'),
+              const SizedBox(height: AppTheme.spacingSM),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      style: classificationSecondaryActionButtonStyle(context),
+                      onPressed: state.isTestingConnection
+                          ? null
+                          : _testConnection,
+                      child: state.isTestingConnection
+                          ? const SizedBox.square(
+                              dimension: 17,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const ButtonLabel('测试连接'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      style: classificationSecondaryActionButtonStyle(context),
+                      onPressed: () async {
+                        await ref
+                            .read(musicClassificationProvider.notifier)
+                            .restoreDefaults();
+                        if (!mounted) return;
+                        setState(() => _initializedFields = false);
+                        showAppToast(context, '已恢复默认配置');
+                      },
+                      child: const ButtonLabel('恢复默认'),
+                    ),
+                  ),
+                  Expanded(
+                    child: TextButton(
+                      style: classificationSecondaryActionButtonStyle(
+                        context,
+                        foregroundColor: context.favoriteRedColor,
+                      ),
+                      onPressed: () async {
+                        await ref
+                            .read(musicClassificationProvider.notifier)
+                            .clearApiKey();
+                        if (mounted) showAppToast(context, 'API Key 已清除');
+                      },
+                      child: const ButtonLabel('清除密钥'),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const SizedBox(height: AppTheme.spacingLG),
         const PrivacyNote(
           icon: Icons.shield_outlined,
-          text: 'API Key 只存放在系统安全存储中，不会写入高潮记录或分类缓存。',
+          text: 'API Key 仅存安全存储，不写入任何识别缓存。',
         ),
       ],
     );
