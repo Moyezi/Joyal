@@ -359,6 +359,73 @@ double floatingNameWaitingCameraStrength({
   return Curves.easeInOutSine.transform(math.min(entrance, exit));
 }
 
+/// Repeats a quiet print-stamp pulse at the end of a completed lyric while
+/// the typewriter is waiting for the next timed line.
+///
+/// Between lyrics, only gaps of at least 3.6 seconds qualify. The cadence
+/// starts as soon as the current line completes rather than waiting 3.6
+/// seconds into the gap, and clears shortly before the next line so its
+/// transition stays clean. The final lyric also keeps the waiting cadence.
+@visibleForTesting
+double floatingNameWaitingStampPulse({
+  required LyricLine line,
+  required LyricLine? nextLine,
+  required Duration position,
+}) {
+  final glyphs = line.text.characters.toList(growable: false);
+  if (glyphs.every((glyph) => glyph.trim().isEmpty)) return 0;
+  final lineStart = line.start ?? line.words.firstOrNull?.start;
+  if (lineStart == null) return 0;
+  final waitStart = _timingsForLine(line, glyphs).lastOrNull?.end ?? lineStart;
+
+  const minimumGap = Duration(milliseconds: 3600);
+  const exitLead = Duration(milliseconds: 180);
+  const cycle = Duration(milliseconds: 1150);
+  const visible = Duration(milliseconds: 620);
+  final pulseStart = waitStart;
+  if (position < pulseStart) return 0;
+
+  if (nextLine != null) {
+    final nextStart = nextLine.start ?? nextLine.words.firstOrNull?.start;
+    if (nextStart == null || nextStart - waitStart < minimumGap) return 0;
+    final pulseEnd = nextStart - exitLead;
+    if (pulseEnd <= pulseStart || position >= pulseEnd) return 0;
+  }
+
+  final elapsedMicros = (position - pulseStart).inMicroseconds;
+  final phaseMicros = elapsedMicros % cycle.inMicroseconds;
+  if (phaseMicros >= visible.inMicroseconds) return 0;
+  final phase = phaseMicros / visible.inMicroseconds;
+  return 1 - Curves.easeOutCubic.transform(phase.clamp(0.0, 1.0));
+}
+
+@visibleForTesting
+int floatingNameLastStampableGraphemeIndex(List<String> glyphs) {
+  for (var index = glyphs.length - 1; index >= 0; index--) {
+    if (floatingNameGraphemeGetsPrintStamp(glyphs[index])) return index;
+  }
+  return -1;
+}
+
+@visibleForTesting
+Color floatingNameWaitingStampColor({
+  required List<String> glyphs,
+  required List<Color?> semanticColors,
+  required Color activeColor,
+  required Color? aiStampColor,
+}) {
+  final precedingIndex = floatingNameLastStampableGraphemeIndex(glyphs);
+  final precedingSemanticColor =
+      precedingIndex >= 0 && precedingIndex < semanticColors.length
+      ? semanticColors[precedingIndex]
+      : null;
+  return floatingNamePrintStampColor(
+    activeColor: activeColor,
+    aiStampColor: aiStampColor,
+    semanticColor: precedingSemanticColor,
+  );
+}
+
 ({double dx, double dy, double rotation}) _waitingCameraDrift(
   double cycle,
   double strength,
@@ -812,10 +879,11 @@ class _FloatingNamePainter extends CustomPainter {
     final toScale = _cameraScale(current, size);
     final scale = ui.lerpDouble(fromScale, toScale, transition)!;
     final position = audioService?.position ?? fallbackPosition.value;
+    final nextTimedLine = _nextTimedNonEmptyLine();
     final waitingStrength = motionEnabled
         ? floatingNameWaitingCameraStrength(
             line: current.line,
-            nextLine: _nextTimedNonEmptyLine(),
+            nextLine: nextTimedLine,
             position: position,
           )
         : 0.0;
@@ -844,7 +912,13 @@ class _FloatingNamePainter extends CustomPainter {
     for (final block in layout.blocks) {
       if (!block.bounds.inflate(110).overlaps(visibleWorld)) continue;
       if (block.index == activeIndex) {
-        _paintActiveBlock(canvas, block, printProgress);
+        _paintActiveBlock(
+          canvas,
+          block,
+          printProgress,
+          position: position,
+          nextLine: nextTimedLine,
+        );
       } else {
         _paintInactiveBlock(canvas, block);
       }
@@ -943,7 +1017,13 @@ class _FloatingNamePainter extends CustomPainter {
         .paint(canvas, block.origin);
   }
 
-  void _paintActiveBlock(Canvas canvas, _FloatingBlock block, double progress) {
+  void _paintActiveBlock(
+    Canvas canvas,
+    _FloatingBlock block,
+    double progress, {
+    required Duration position,
+    required LyricLine? nextLine,
+  }) {
     final typedCount = floatingNameTypedGraphemeCount(
       progress,
       block.glyphs.length,
@@ -981,42 +1061,92 @@ class _FloatingNamePainter extends CustomPainter {
         )
         .paint(canvas, block.origin);
 
-    if (!shouldBounce && !hasAiActiveGlyph) return;
     final fontSize = block.style.fontSize ?? 28;
-    final bounceOffset = shouldBounce
-        ? floatingNameGlyphBounceOffset(progress, fontSize)
-        : 0.0;
-    final glyphColor = hasAiActiveGlyph ? aiPrimary : activeColor;
-    block
-        .painterForActiveGlyph(glyphIndex: activeGlyphIndex, color: glyphColor)
-        .paint(canvas, block.origin.translate(0, bounceOffset));
-
-    if (!shouldBounce) return;
-    if (!floatingNameGraphemeGetsPrintStamp(block.glyphs[activeGlyphIndex])) {
-      return;
+    if (shouldBounce || hasAiActiveGlyph) {
+      final bounceOffset = shouldBounce
+          ? floatingNameGlyphBounceOffset(progress, fontSize)
+          : 0.0;
+      final glyphColor = hasAiActiveGlyph ? aiPrimary : activeColor;
+      block
+          .painterForActiveGlyph(
+            glyphIndex: activeGlyphIndex,
+            color: glyphColor,
+          )
+          .paint(canvas, block.origin.translate(0, bounceOffset));
     }
-    final box = block.glyphBoxes[activeGlyphIndex];
-    if (box == Rect.zero) return;
-    final pulse = lyricPrintStampPulse(progress);
-    if (pulse <= 0) return;
-    final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
-    final stampRect = Rect.fromCenter(
-      center: block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
-      width: stampWidth,
-      height: fontSize * 0.56,
-    ).translate(0, -fontSize * 0.18 * pulse);
-    final semanticColor = activeGlyphIndex < semanticColors.length
-        ? semanticColors[activeGlyphIndex]
-        : null;
-    final stampColor = floatingNamePrintStampColor(
-      activeColor: activeColor,
-      aiStampColor: aiStampColor,
-      semanticColor: semanticColor,
+
+    if (shouldBounce &&
+        floatingNameGraphemeGetsPrintStamp(block.glyphs[activeGlyphIndex])) {
+      final box = block.glyphBoxes[activeGlyphIndex];
+      final pulse = lyricPrintStampPulse(progress);
+      if (box != Rect.zero && pulse > 0) {
+        final stampWidth = math.max(box.width * 0.86, fontSize * 0.34);
+        final stampRect = Rect.fromCenter(
+          center:
+              block.origin + Offset(box.center.dx, box.top - fontSize * 0.10),
+          width: stampWidth,
+          height: fontSize * 0.56,
+        ).translate(0, -fontSize * 0.18 * pulse);
+        final semanticColor = activeGlyphIndex < semanticColors.length
+            ? semanticColors[activeGlyphIndex]
+            : null;
+        final stampColor = floatingNamePrintStampColor(
+          activeColor: activeColor,
+          aiStampColor: aiStampColor,
+          semanticColor: semanticColor,
+        );
+        _paintPrintStamp(canvas, stampRect, stampColor, pulse, fontSize);
+      }
+    }
+
+    final waitingPulse = wordByWordEnabled && motionEnabled && isPlaying
+        ? floatingNameWaitingStampPulse(
+            line: block.line,
+            nextLine: nextLine,
+            position: position,
+          )
+        : 0.0;
+    if (waitingPulse <= 0) return;
+    final lastBox = block.glyphBoxes.lastWhere(
+      (box) => box != Rect.zero,
+      orElse: () => Rect.zero,
     );
+    if (lastBox == Rect.zero) return;
+    final waitingRect = Rect.fromCenter(
+      center:
+          block.origin +
+          Offset(
+            lastBox.right + fontSize * 0.19,
+            lastBox.center.dy - fontSize * 0.12,
+          ),
+      width: fontSize * 0.26,
+      height: fontSize * 0.48,
+    ).translate(0, -fontSize * 0.08 * waitingPulse);
+    _paintPrintStamp(
+      canvas,
+      waitingRect,
+      floatingNameWaitingStampColor(
+        glyphs: block.glyphs,
+        semanticColors: semanticColors,
+        activeColor: activeColor,
+        aiStampColor: aiStampColor,
+      ),
+      waitingPulse,
+      fontSize,
+    );
+  }
+
+  void _paintPrintStamp(
+    Canvas canvas,
+    Rect rect,
+    Color color,
+    double pulse,
+    double fontSize,
+  ) {
     final stampPaint = Paint()
-      ..color = stampColor.withValues(alpha: stampColor.a * 0.8 * pulse);
+      ..color = color.withValues(alpha: color.a * 0.8 * pulse);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(stampRect, Radius.circular(fontSize * 0.06)),
+      RRect.fromRectAndRadius(rect, Radius.circular(fontSize * 0.06)),
       stampPaint,
     );
   }

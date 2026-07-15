@@ -303,6 +303,163 @@ void main() {
     );
   });
 
+  test('floating name repeats a stamp while waiting for the next lyric', () {
+    const current = LyricLine(
+      text: '上一句',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 4),
+    );
+    const next = LyricLine(text: '下一句', start: Duration(seconds: 8));
+
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: next,
+        position: const Duration(seconds: 4),
+      ),
+      1,
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: next,
+        position: const Duration(seconds: 4, milliseconds: 300),
+      ),
+      greaterThan(0),
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: next,
+        position: const Duration(seconds: 5, milliseconds: 650),
+      ),
+      greaterThan(0),
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: next,
+        position: const Duration(seconds: 7, milliseconds: 900),
+      ),
+      0,
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: null,
+        position: const Duration(seconds: 4),
+      ),
+      1,
+    );
+  });
+
+  test('floating name keeps the waiting stamp after the final lyric', () {
+    const finalLine = LyricLine(
+      text: '最后一句',
+      start: Duration(seconds: 10),
+      end: Duration(seconds: 14),
+    );
+
+    expect(
+      floatingNameWaitingStampPulse(
+        line: finalLine,
+        nextLine: null,
+        position: const Duration(seconds: 13, milliseconds: 999),
+      ),
+      0,
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: finalLine,
+        nextLine: null,
+        position: const Duration(seconds: 14),
+      ),
+      1,
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: finalLine,
+        nextLine: null,
+        position: const Duration(seconds: 14, milliseconds: 300),
+      ),
+      greaterThan(0),
+    );
+  });
+
+  test('floating name skips waiting stamp when the lyric gap is too short', () {
+    const current = LyricLine(
+      text: '上一句',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 4),
+    );
+    const next = LyricLine(
+      text: '下一句',
+      start: Duration(seconds: 4, milliseconds: 450),
+    );
+
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: next,
+        position: const Duration(seconds: 4, milliseconds: 350),
+      ),
+      0,
+    );
+  });
+
+  test('floating name starts waiting stamp at the 3.6 second gap boundary', () {
+    const current = LyricLine(
+      text: '上一句',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 4),
+    );
+    const exactlyLongEnough = LyricLine(
+      text: '下一句',
+      start: Duration(seconds: 7, milliseconds: 600),
+    );
+    const justTooShort = LyricLine(
+      text: '下一句',
+      start: Duration(seconds: 7, milliseconds: 599),
+    );
+
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: exactlyLongEnough,
+        position: const Duration(seconds: 4),
+      ),
+      1,
+    );
+    expect(
+      floatingNameWaitingStampPulse(
+        line: current,
+        nextLine: justTooShort,
+        position: const Duration(seconds: 4),
+      ),
+      0,
+    );
+  });
+
+  test('floating name waiting stamp inherits the preceding keyword color', () {
+    const keyword = Color(0xFFCC6633);
+    const active = Color(0xFFFFFFFF);
+    const stamp = Color(0xFF778899);
+    final glyphs = '月光。'.characters.toList(growable: false);
+    const semanticColors = <Color?>[keyword, keyword, null];
+    final precedingIndex = floatingNameLastStampableGraphemeIndex(glyphs);
+
+    expect(precedingIndex, 1);
+    expect(
+      floatingNameWaitingStampColor(
+        glyphs: glyphs,
+        semanticColors: semanticColors,
+        activeColor: active,
+        aiStampColor: stamp,
+      ),
+      keyword,
+    );
+  });
+
   test('floating name reveal colors glyphs without rectangular clipping', () {
     const revealed = Color(0xFFFFFFFF);
     const pending = Color(0x1CFFFFFF);
