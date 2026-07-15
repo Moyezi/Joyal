@@ -164,6 +164,16 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
     _snapController.forward(from: 0);
   }
 
+  void _centerCanvas(List<Song> songs, Song? currentSong) {
+    if (_cells.isEmpty || songs.isEmpty) return;
+    final currentIndex = currentSong == null
+        ? -1
+        : songs.indexWhere((song) => song.id == currentSong.id);
+    HapticFeedback.lightImpact();
+    _lastDragFocusIndex = null;
+    _animateToIndex(currentIndex < 0 ? 0 : currentIndex);
+  }
+
   int? _nearestVisibleIndex(Size size) {
     final visible = _visibleIndices(size, overscan: 260);
     final candidates = visible.isEmpty
@@ -327,6 +337,7 @@ class _LibraryCanvasScreenState extends ConsumerState<LibraryCanvasScreen>
                         ),
                         songCount: songs.length,
                         onBack: () => Navigator.maybePop(context),
+                        onCenter: () => _centerCanvas(songs, currentSong),
                       ),
                     ),
                   ],
@@ -613,6 +624,7 @@ class _CanvasHeader extends StatelessWidget {
   final Alignment alignment;
   final int songCount;
   final VoidCallback onBack;
+  final VoidCallback onCenter;
 
   const _CanvasHeader({
     required this.heroTag,
@@ -620,6 +632,7 @@ class _CanvasHeader extends StatelessWidget {
     required this.alignment,
     required this.songCount,
     required this.onBack,
+    required this.onCenter,
   });
 
   @override
@@ -638,6 +651,7 @@ class _CanvasHeader extends StatelessWidget {
         ),
         const Spacer(),
         Container(
+          key: const ValueKey('library-canvas-title'),
           padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
           decoration: BoxDecoration(
             color: const Color(0xD924272A),
@@ -682,7 +696,15 @@ class _CanvasHeader extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        const SizedBox(width: 48),
+        IconButton.filledTonal(
+          tooltip: '回中',
+          onPressed: onCenter,
+          style: IconButton.styleFrom(
+            backgroundColor: const Color(0xCC24272A),
+            foregroundColor: Colors.white,
+          ),
+          icon: const Icon(Icons.center_focus_strong_rounded),
+        ),
       ],
     );
   }

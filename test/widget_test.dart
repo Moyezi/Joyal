@@ -52,6 +52,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(LibraryCanvasScreen), findsOneWidget);
+    expect(find.byTooltip('回中'), findsOneWidget);
+    final canvasCenter = tester.getCenter(find.byType(LibraryCanvasScreen));
+    final titleCenter = tester.getCenter(
+      find.byKey(const ValueKey('library-canvas-title')),
+    );
+    expect(titleCenter.dx, moreOrLessEquals(canvasCenter.dx, epsilon: 0.1));
+    expect(
+      tester.getCenter(find.byTooltip('回中')).dx,
+      greaterThan(titleCenter.dx),
+    );
 
     final inwardLeft = await tester.createGesture(pointer: 13);
     final inwardRight = await tester.createGesture(pointer: 14);
