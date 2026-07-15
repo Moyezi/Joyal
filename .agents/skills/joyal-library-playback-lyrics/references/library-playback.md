@@ -25,6 +25,7 @@
 - Build `LibraryCanvasScreen` from the full `libraryProvider.songs` collection while rendering only the visible spatial neighborhood.
 - Center-card play starts the full library queue at that song; toggling the already-current song may use play/pause. “下一首播放” calls `PlayerNotifier.playNext()`.
 - Drive the center-card action icon and tooltip from whether that card is the current playing song: show pause only while actively playing, otherwise play. Select this state inside the action subtree so playback changes do not rebuild the whole canvas.
+- The canvas recenter control locates the current playing song by stable song ID. If there is no current song or it is absent from the library, animate to index `0`, the canvas's logical origin.
 - Keep playback actions on cards, but do not embed a MiniPlayer capsule in the canvas route.
 - Read [infinite canvas and chrome](../../joyal-visual-glass-theme/references/infinite-canvas-chrome.md) when changing canvas geometry, cover-depth transitions, or rendering performance.
 
