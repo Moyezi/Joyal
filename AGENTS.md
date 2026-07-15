@@ -1,6 +1,6 @@
 # Joyal Music 项目摘要
 
-本文件只保留项目级摘要和 skill 索引。详细项目记忆已拆到 `.agents/skills/*/SKILL.md`；做非平凡改动前，先读取相关 skill。任务范围不清时，先读 `.agents/skills/joyal-project-core/SKILL.md`。
+本文件只保留项目级摘要和 skill 索引。详细项目记忆位于 `.agents/skills/*/SKILL.md`，较大的主题由入口 `SKILL.md` 再路由到同目录 `references/`；做非平凡改动前，先完整读取入口文件，再只读取与任务相关的 reference。任务范围不清时，先读 `.agents/skills/joyal-project-core/SKILL.md`。
 
 ## 项目定位
 

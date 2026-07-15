@@ -59,5 +59,6 @@ The visual direction is minimal, immersive, cool black/white/gray, large-radius,
 - When external dependencies are involved, such as vendor SDKs, accounts, or remote services, clearly distinguish "reserved/bridged" from "actually integrated".
 - The user often reviews UI by real-device screenshots. After UI changes, prefer producing an arm64 release APK for review when feasible.
 - Keep project memory concise. Preserve constraints, paths, commands, and known pitfalls that affect implementation decisions; remove stale logs and facts that can be read directly from code.
+- Keep each entry `SKILL.md` focused on core contracts and task routing. When one skill accumulates several stable subdomains, move details into directly linked `references/` files and state exactly when each should be read. Keep one canonical owner for cross-skill rules and link to it instead of copying the same memory into multiple skills.
 - Keep one cohesive responsibility per source file. Treat roughly 800 lines as a review signal (excluding generated code and data): split screens into orchestration, domain renderers, settings surfaces, and reusable controls along stable dependency boundaries instead of hiding a monolith behind `part` files.
 - After a non-trivial refactor, update the owning skill's file routing and remove descriptions of symbols or paths that no longer exist.
