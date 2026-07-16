@@ -164,9 +164,13 @@ class _LyricsPositionedList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeIndex = ref.watch(
-      playerProvider.select((state) => activeLyricIndex(data, state.position)),
-    );
+    final activeIndex = positionUpdatesEnabled
+        ? ref.watch(
+            playerProvider.select(
+              (state) => activeLyricIndex(data, state.position),
+            ),
+          )
+        : activeLyricIndex(data, ref.read(playerProvider).position);
     final stageMode = ref.watch(
       lyricsPersonalizationProvider.select((state) => state.stageMode),
     );
@@ -241,7 +245,7 @@ class _FlowingLightStageHostState
 
   Future<void> _openSettings() async {
     if (_settingsSheetOpen || !mounted) return;
-    _settingsSheetOpen = true;
+    setState(() => _settingsSheetOpen = true);
     HapticFeedback.mediumImpact();
     widget.onSettingsSheetVisibilityChanged?.call(true);
     try {
@@ -254,7 +258,11 @@ class _FlowingLightStageHostState
       );
     } finally {
       widget.onSettingsSheetVisibilityChanged?.call(false);
-      _settingsSheetOpen = false;
+      if (mounted) {
+        setState(() => _settingsSheetOpen = false);
+      } else {
+        _settingsSheetOpen = false;
+      }
     }
   }
 

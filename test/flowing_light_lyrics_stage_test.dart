@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:joyal_music/models/lyrics.dart';
+import 'package:joyal_music/models/song.dart';
+import 'package:joyal_music/providers/player_provider.dart';
+import 'package:joyal_music/providers/song_highlight_provider.dart';
 import 'package:joyal_music/widgets/lyrics_stage/flowing_light_lyrics_stage.dart';
 
 void main() {
@@ -131,12 +136,30 @@ void main() {
     final second = flowingLightPlacementsForTokens('陪伴三个季节'.split(''));
 
     expect(
-      first.map((item) => item.rotationDegrees),
-      orderedEquals(second.map((item) => item.rotationDegrees)),
-    );
-    expect(
-      first.map((item) => item.rowShift),
-      orderedEquals(second.map((item) => item.rowShift)),
+      first.map(
+        (item) => (
+          item.row,
+          item.rotationDegrees,
+          item.horizontalJitter,
+          item.verticalJitter,
+          item.scale,
+          item.gapAfter,
+          item.rowShift,
+        ),
+      ),
+      orderedEquals(
+        second.map(
+          (item) => (
+            item.row,
+            item.rotationDegrees,
+            item.horizontalJitter,
+            item.verticalJitter,
+            item.scale,
+            item.gapAfter,
+            item.rowShift,
+          ),
+        ),
+      ),
     );
   });
 
@@ -148,6 +171,100 @@ void main() {
       expect(flowingLightEntranceScale(1), 1);
     },
   );
+
+  test('flowing light reveal follows the original 520ms entrance window', () {
+    const token = FlowingLightToken(
+      text: '光',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 2),
+      isLatinWord: false,
+    );
+
+    expect(
+      flowingLightTokenRevealProgress(token, const Duration(milliseconds: 999)),
+      0,
+    );
+    expect(
+      flowingLightTokenRevealProgress(
+        token,
+        const Duration(milliseconds: 1260),
+      ),
+      closeTo(0.5, 0.0001),
+    );
+    expect(
+      flowingLightTokenRevealProgress(
+        token,
+        const Duration(milliseconds: 1520),
+      ),
+      1,
+    );
+  });
+
+  test('flowing light classifies reusable token visual layers', () {
+    const token = FlowingLightToken(
+      text: '流',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 2),
+      isLatinWord: false,
+    );
+    const nextStart = Duration(seconds: 2);
+
+    expect(
+      flowingLightTokenVisualPhase(
+        token: token,
+        highlightEnd: nextStart,
+        position: const Duration(milliseconds: 900),
+        nextStart: nextStart,
+        hasSemanticColor: false,
+        keepBreathing: false,
+      ),
+      FlowingLightTokenVisualPhase.pending,
+    );
+    expect(
+      flowingLightTokenVisualPhase(
+        token: token,
+        highlightEnd: nextStart,
+        position: const Duration(milliseconds: 1750),
+        nextStart: nextStart,
+        hasSemanticColor: false,
+        keepBreathing: false,
+      ),
+      FlowingLightTokenVisualPhase.holding,
+    );
+    expect(
+      flowingLightTokenVisualPhase(
+        token: token,
+        highlightEnd: nextStart,
+        position: const Duration(milliseconds: 2250),
+        nextStart: nextStart,
+        hasSemanticColor: false,
+        keepBreathing: false,
+      ),
+      FlowingLightTokenVisualPhase.animating,
+    );
+    expect(
+      flowingLightTokenVisualPhase(
+        token: token,
+        highlightEnd: nextStart,
+        position: nextStart + flowingLightGlowFadeOutDuration,
+        nextStart: nextStart,
+        hasSemanticColor: false,
+        keepBreathing: false,
+      ),
+      FlowingLightTokenVisualPhase.settled,
+    );
+    expect(
+      flowingLightTokenVisualPhase(
+        token: token,
+        highlightEnd: nextStart,
+        position: const Duration(seconds: 8),
+        nextStart: null,
+        hasSemanticColor: false,
+        keepBreathing: true,
+      ),
+      FlowingLightTokenVisualPhase.animating,
+    );
+  });
 
   test('flowing light glow fades after the next token appears', () {
     const hold = Duration(seconds: 1);
@@ -365,4 +482,196 @@ void main() {
       1,
     );
   });
+
+  testWidgets('hidden flowing light stage leaves no active frame ticker', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final player = _FlowingLightTestPlayerNotifier();
+    await tester.pumpWidget(_flowingLightTestApp(player));
+    await tester.pumpAndSettle();
+
+    expect(tester.binding.transientCallbackCount, 0);
+    player.setPosition(const Duration(seconds: 1));
+    await tester.pump();
+    expect(tester.binding.transientCallbackCount, 0);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion keeps flowing light stage frame-silent', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final player = _FlowingLightTestPlayerNotifier();
+    await tester.pumpWidget(
+      _flowingLightTestApp(
+        player,
+        positionUpdatesEnabled: true,
+        disableAnimations: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(
+      find.descendant(
+        of: find.byType(FlowingLightLyricsStage),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Opacity && widget.opacity == 0,
+        ),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(flowingLightStaticHighlightKey), findsOneWidget);
+    player.setPosition(const Duration(seconds: 1));
+    await tester.pump();
+    expect(tester.binding.transientCallbackCount, 0);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(tester.binding.transientCallbackCount, 0);
+    await tester.pumpWidget(
+      _flowingLightTestApp(
+        player,
+        activeIndex: 1,
+        positionUpdatesEnabled: true,
+        disableAnimations: true,
+      ),
+    );
+    await tester.pump();
+    expect(tester.binding.transientCallbackCount, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reusable token layers survive playback position frames', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final player = _FlowingLightTestPlayerNotifier(
+      const Duration(milliseconds: 750),
+    );
+    await tester.pumpWidget(
+      _flowingLightTestApp(player, positionUpdatesEnabled: true),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+
+    final holdingLayer = find.byKey(flowingLightHoldingTokenLayerKey(0));
+    expect(holdingLayer, findsOneWidget);
+    final originalHoldingElement = tester.element(holdingLayer);
+    final originalHoldingWidget = tester.widget<RepaintBoundary>(holdingLayer);
+
+    player.setPosition(const Duration(milliseconds: 800));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(tester.element(holdingLayer), same(originalHoldingElement));
+    expect(
+      tester.widget<RepaintBoundary>(holdingLayer),
+      same(originalHoldingWidget),
+    );
+
+    player.setPosition(const Duration(milliseconds: 1800));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    final settledLayer = find.byKey(flowingLightSettledTokenLayerKey(0));
+    expect(settledLayer, findsOneWidget);
+    final originalElement = tester.element(settledLayer);
+    final originalWidget = tester.widget<RepaintBoundary>(settledLayer);
+
+    player.setPosition(const Duration(milliseconds: 1900));
+    await tester.pump(const Duration(milliseconds: 16));
+
+    expect(tester.element(settledLayer), same(originalElement));
+    expect(tester.widget<RepaintBoundary>(settledLayer), same(originalWidget));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+}
+
+void _noop() {}
+
+Widget _flowingLightTestApp(
+  _FlowingLightTestPlayerNotifier player, {
+  int activeIndex = 0,
+  bool positionUpdatesEnabled = false,
+  bool disableAnimations = false,
+}) {
+  return ProviderScope(
+    overrides: [
+      audioPlayerServiceProvider.overrideWith((ref) => null),
+      playerProvider.overrideWith((ref) => player),
+      songHighlightProvider.overrideWith((ref, request) async => null),
+    ],
+    child: MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(disableAnimations: disableAnimations),
+        child: Scaffold(
+          body: FlowingLightLyricsStage(
+            data: const LyricsData(
+              synced: true,
+              lines: [
+                LyricLine(
+                  text: '流光',
+                  start: Duration.zero,
+                  end: Duration(seconds: 2),
+                  words: [
+                    LyricWord(
+                      text: '流光',
+                      start: Duration.zero,
+                      end: Duration(seconds: 2),
+                    ),
+                  ],
+                ),
+                LyricLine(
+                  text: '如昼',
+                  start: Duration(seconds: 2),
+                  end: Duration(seconds: 4),
+                  words: [
+                    LyricWord(
+                      text: '如昼',
+                      start: Duration(seconds: 2),
+                      end: Duration(seconds: 4),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            song: const Song(
+              id: 'flowing-light-test',
+              parent: 'album',
+              title: '流光',
+              album: '测试专辑',
+              artist: '测试歌手',
+              duration: 2,
+              coverArt: '',
+              contentType: 'audio/flac',
+              suffix: 'flac',
+            ),
+            activeIndex: activeIndex,
+            title: '流光',
+            artist: '测试歌手',
+            activeColor: Colors.white,
+            fontFamily: null,
+            fontSize: 36,
+            effectColor: Colors.cyan,
+            wordByWordEnabled: true,
+            stageVisible: false,
+            positionUpdatesEnabled: positionUpdatesEnabled,
+            onOpenSettings: _noop,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _FlowingLightTestPlayerNotifier extends PlayerNotifier {
+  _FlowingLightTestPlayerNotifier([Duration position = Duration.zero])
+    : super(null, const FlutterSecureStorage()) {
+    state = PlaybackState(position: position);
+  }
+
+  void setPosition(Duration position) {
+    state = state.copyWith(position: position);
+  }
 }

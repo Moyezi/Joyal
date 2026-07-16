@@ -11,7 +11,7 @@ import '../lyrics/lyric_print_effect.dart';
 import '../lyrics/lyric_semantic_colors.dart';
 import 'lyrics_stage_shell.dart';
 
-class FlowingLightLyricsStage extends ConsumerWidget {
+class FlowingLightLyricsStage extends ConsumerStatefulWidget {
   final LyricsData data;
   final Song song;
   final int activeIndex;
@@ -46,55 +46,158 @@ class FlowingLightLyricsStage extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final resolvedIndex = activeIndex.clamp(0, data.lines.length - 1);
-    final activeLine = data.lines[resolvedIndex];
+  ConsumerState<FlowingLightLyricsStage> createState() =>
+      _FlowingLightLyricsStageState();
+}
+
+class _FlowingLightLyricsStageState
+    extends ConsumerState<FlowingLightLyricsStage> {
+  late SongHighlightRequest _highlightRequest;
+
+  @override
+  void initState() {
+    super.initState();
+    _highlightRequest = SongHighlightRequest(
+      song: widget.song,
+      lyrics: widget.data,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant FlowingLightLyricsStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.song, widget.song) ||
+        !identical(oldWidget.data, widget.data)) {
+      _highlightRequest = SongHighlightRequest(
+        song: widget.song,
+        lyrics: widget.data,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedIndex = widget.activeIndex.clamp(
+      0,
+      widget.data.lines.length - 1,
+    );
+    final activeLine = widget.data.lines[resolvedIndex];
     final highlightTimeline = ref
-        .watch(
-          songHighlightProvider(SongHighlightRequest(song: song, lyrics: data)),
-        )
+        .watch(songHighlightProvider(_highlightRequest))
         .when(
           data: (timeline) => timeline,
           error: (_, _) => null,
           loading: () => null,
         );
-    final resolvedEffectColor = effectColor ?? activeColor;
-    return LyricsStageShell(
-      title: title,
-      artist: artist,
-      foreground: activeColor,
-      onOpenSettings: onOpenSettings,
-      headerVisibleDuration: stageVisible ? const Duration(seconds: 5) : null,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 620),
-        reverseDuration: const Duration(milliseconds: 360),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final slide = Tween<Offset>(
-            begin: const Offset(0.08, 0.045),
-            end: Offset.zero,
-          ).animate(animation);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(position: slide, child: child),
-          );
-        },
-        child: _FlowingLightComposition(
-          key: ValueKey(resolvedIndex),
-          activeLine: activeLine,
-          activeColor: activeColor,
-          effectColor: resolvedEffectColor,
-          stampColor: resolvedEffectColor,
-          aiKeywordColors: aiKeywordColors,
-          fontFamily: fontFamily,
-          fontSize: fontSize,
-          wordByWordEnabled: wordByWordEnabled,
-          positionUpdatesEnabled: positionUpdatesEnabled,
-          isHighlightAt: highlightTimeline?.contains,
-        ),
-      ),
+    final resolvedEffectColor = widget.effectColor ?? widget.activeColor;
+    final composition = _FlowingLightComposition(
+      key: ValueKey(resolvedIndex),
+      activeLine: activeLine,
+      activeColor: widget.activeColor,
+      effectColor: resolvedEffectColor,
+      stampColor: resolvedEffectColor,
+      aiKeywordColors: widget.aiKeywordColors,
+      fontFamily: widget.fontFamily,
+      fontSize: widget.fontSize,
+      wordByWordEnabled: widget.wordByWordEnabled,
+      positionUpdatesEnabled: widget.positionUpdatesEnabled,
+      isHighlightAt: highlightTimeline?.contains,
     );
+    final lineTransitionsEnabled =
+        widget.positionUpdatesEnabled &&
+        !MediaQuery.disableAnimationsOf(context);
+    return LyricsStageShell(
+      title: widget.title,
+      artist: widget.artist,
+      foreground: widget.activeColor,
+      onOpenSettings: widget.onOpenSettings,
+      headerVisibleDuration: widget.stageVisible
+          ? const Duration(seconds: 5)
+          : null,
+      child: lineTransitionsEnabled
+          ? _buildAnimatedLine(composition)
+          : composition,
+    );
+  }
+
+  Widget _buildAnimatedLine(Widget composition) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 620),
+      reverseDuration: const Duration(milliseconds: 360),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0.08, 0.045),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: slide,
+            child: _FlowingLightTransitionTickerMode(
+              animation: animation,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: composition,
+    );
+  }
+}
+
+/// Keeps the outgoing line visually retained while its switch transition
+/// continues, without leaving a second lyric animation clock running.
+class _FlowingLightTransitionTickerMode extends StatefulWidget {
+  final Animation<double> animation;
+  final Widget child;
+
+  const _FlowingLightTransitionTickerMode({
+    required this.animation,
+    required this.child,
+  });
+
+  @override
+  State<_FlowingLightTransitionTickerMode> createState() =>
+      _FlowingLightTransitionTickerModeState();
+}
+
+class _FlowingLightTransitionTickerModeState
+    extends State<_FlowingLightTransitionTickerMode> {
+  late bool _enabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabled = widget.animation.status != AnimationStatus.reverse;
+    widget.animation.addStatusListener(_handleStatus);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlowingLightTransitionTickerMode oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animation == widget.animation) return;
+    oldWidget.animation.removeStatusListener(_handleStatus);
+    _enabled = widget.animation.status != AnimationStatus.reverse;
+    widget.animation.addStatusListener(_handleStatus);
+  }
+
+  void _handleStatus(AnimationStatus status) {
+    final enabled = status != AnimationStatus.reverse;
+    if (_enabled == enabled || !mounted) return;
+    setState(() => _enabled = enabled);
+  }
+
+  @override
+  void dispose() {
+    widget.animation.removeStatusListener(_handleStatus);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TickerMode(enabled: _enabled, child: widget.child);
   }
 }
 
@@ -321,11 +424,11 @@ Duration flowingLightHighlightEndForToken(
 
 bool _isWhitespace(String glyph) => glyph.trim().isEmpty;
 
-bool _isLatinWordGlyph(String glyph) {
-  return RegExp(r"^[A-Za-z0-9À-ÖØ-öø-ÿ'’_-]$").hasMatch(glyph);
-}
+final RegExp _latinWordGlyphPattern = RegExp(r"^[A-Za-z0-9À-ÖØ-öø-ÿ'’_-]$");
 
-class _FlowingLightActiveLine extends ConsumerWidget {
+bool _isLatinWordGlyph(String glyph) => _latinWordGlyphPattern.hasMatch(glyph);
+
+class _FlowingLightActiveLine extends ConsumerStatefulWidget {
   final LyricLine line;
   final Color activeColor;
   final Color effectColor;
@@ -351,98 +454,292 @@ class _FlowingLightActiveLine extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = flowingLightTokensForLine(line);
+  ConsumerState<_FlowingLightActiveLine> createState() =>
+      _FlowingLightActiveLineState();
+}
+
+class _FlowingLightActiveLineState
+    extends ConsumerState<_FlowingLightActiveLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rotationController;
+  late final ValueNotifier<Duration> _fallbackPosition;
+  bool _ambientMotionRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: flowingLightRotationCycleDuration,
+    );
+    _fallbackPosition = ValueNotifier(ref.read(playerProvider).position);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlowingLightActiveLine oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.positionUpdatesEnabled && widget.positionUpdatesEnabled) {
+      _fallbackPosition.value = ref.read(playerProvider).position;
+    }
+  }
+
+  void _syncAmbientMotion(bool enabled) {
+    if (_ambientMotionRunning == enabled) return;
+    _ambientMotionRunning = enabled;
+    if (enabled) {
+      _rotationController.repeat();
+    } else {
+      _rotationController.stop();
+      _rotationController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _fallbackPosition.dispose();
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = flowingLightTokensForLine(widget.line);
     final hasWordTiming = tokens.isNotEmpty;
     final displayPieces = hasWordTiming
         ? tokens.map((token) => token.text).toList(growable: false)
-        : _flowingLightDisplayPieces(line.text);
+        : _flowingLightDisplayPieces(widget.line.text);
     final placements = flowingLightPlacementsForTokens(displayPieces);
     final semanticColors = lyricSemanticColorsForUnits(
       displayPieces,
-      aiKeywordColors,
-      sourceText: line.text,
+      widget.aiKeywordColors,
+      sourceText: widget.line.text,
     );
+    final animationsDisabled = MediaQuery.disableAnimationsOf(context);
     final ambientMotionEnabled =
-        positionUpdatesEnabled && !MediaQuery.disableAnimationsOf(context);
+        widget.positionUpdatesEnabled && !animationsDisabled;
     final shouldTrack =
-        positionUpdatesEnabled && wordByWordEnabled && hasWordTiming;
-    final position = shouldTrack
-        ? ref.watch(playerProvider.select((state) => state.position))
-        : ref.read(playerProvider).position;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(end: position.inMicroseconds.toDouble()),
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.linear,
-      builder: (context, microseconds, _) {
-        final animatedPosition = Duration(microseconds: microseconds.round());
-        final style = Theme.of(context).textTheme.headlineLarge!.copyWith(
-          fontSize: fontSize,
-          height: 1.12,
-          fontFamily: fontFamily,
-          fontWeight: FontWeight.w800,
-          color: activeColor,
-          shadows: [
-            Shadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              offset: const Offset(0, 2),
-              blurRadius: 8,
+        ambientMotionEnabled && widget.wordByWordEnabled && hasWordTiming;
+    final audioService = shouldTrack
+        ? ref.watch(audioPlayerServiceProvider)
+        : null;
+    if (shouldTrack && audioService == null) {
+      ref.listen(
+        playerProvider.select((state) => state.position),
+        (_, next) => _fallbackPosition.value = next,
+      );
+    }
+    _syncAmbientMotion(ambientMotionEnabled && displayPieces.isNotEmpty);
+
+    final frozenPosition = ref.read(playerProvider).position;
+    double? sampledRotationValue;
+    Duration? sampledPosition;
+    Duration readPosition() {
+      if (!shouldTrack) return frozenPosition;
+      final rotationValue = _rotationController.value;
+      if (sampledPosition == null || sampledRotationValue != rotationValue) {
+        sampledRotationValue = rotationValue;
+        sampledPosition = audioService?.position ?? _fallbackPosition.value;
+      }
+      return sampledPosition!;
+    }
+
+    final Listenable? frameListenable = ambientMotionEnabled
+        ? _rotationController
+        : null;
+    final style = Theme.of(context).textTheme.headlineLarge!.copyWith(
+      fontSize: widget.fontSize,
+      height: 1.12,
+      fontFamily: widget.fontFamily,
+      fontWeight: FontWeight.w800,
+      color: widget.activeColor,
+      shadows: [
+        Shadow(
+          color: Colors.black.withValues(alpha: 0.18),
+          offset: const Offset(0, 2),
+          blurRadius: 8,
+        ),
+      ],
+    );
+
+    if (!widget.wordByWordEnabled || !hasWordTiming || animationsDisabled) {
+      return _ScatteredFlowingLightLayout(
+        placements: placements,
+        fontSize: widget.fontSize,
+        children: [
+          for (var index = 0; index < displayPieces.length; index++)
+            _FlowingLightRockingRotation(
+              animation: _rotationController,
+              baseRotationDegrees: placements[index].rotationDegrees,
+              tokenIndex: index,
+              revealProgress: 1,
+              enabled: ambientMotionEnabled,
+              child:
+                  animationsDisabled &&
+                      widget.wordByWordEnabled &&
+                      hasWordTiming &&
+                      index == tokens.length - 1
+                  ? KeyedSubtree(
+                      key: flowingLightStaticHighlightKey,
+                      child: _buildStaticHighlightedToken(
+                        index: index,
+                        tokens: tokens,
+                        semanticColors: semanticColors,
+                        style: style,
+                      ),
+                    )
+                  : RepaintBoundary(
+                      child: Text(
+                        displayPieces[index],
+                        style: style.copyWith(
+                          color: semanticColors[index] ?? widget.activeColor,
+                        ),
+                      ),
+                    ),
             ),
-          ],
-        );
-        if (!wordByWordEnabled || !hasWordTiming) {
-          return _ScatteredFlowingLightLayout(
+        ],
+      );
+    }
+
+    return _ScatteredFlowingLightLayout(
+      placements: placements,
+      fontSize: widget.fontSize,
+      children: [
+        for (var index = 0; index < tokens.length; index++)
+          _buildAnimatedToken(
+            index: index,
+            tokens: tokens,
             placements: placements,
-            fontSize: fontSize,
+            semanticColors: semanticColors,
+            style: style,
+            frameListenable: frameListenable,
+            readPosition: readPosition,
             ambientMotionEnabled: ambientMotionEnabled,
-            revealProgresses: List<double>.filled(displayPieces.length, 1),
-            children: [
-              for (var index = 0; index < displayPieces.length; index++)
-                Text(
-                  displayPieces[index],
-                  style: style.copyWith(
-                    color: semanticColors[index] ?? activeColor,
-                  ),
-                ),
-            ],
-          );
-        }
-        return _ScatteredFlowingLightLayout(
-          placements: placements,
-          fontSize: fontSize,
-          ambientMotionEnabled: ambientMotionEnabled,
-          revealProgresses: [
-            for (final token in tokens)
-              flowingLightTokenRevealProgress(token, animatedPosition),
-          ],
-          children: [
-            for (var index = 0; index < tokens.length; index++)
-              _FlowingLightTokenView(
-                token: tokens[index],
-                highlightEnd: flowingLightHighlightEndForToken(
-                  tokens,
-                  index,
-                  lineEnd: line.end,
-                ),
-                position: animatedPosition,
-                style: style,
-                defaultColor: activeColor,
-                effectColor: effectColor,
-                semanticColor: semanticColors[index],
-                nextStart: index + 1 < tokens.length
-                    ? tokens[index + 1].start
-                    : null,
-                ringColor: flowingLightEntranceRingColor(
-                  fallbackColor: stampColor,
-                  semanticColor: semanticColors[index],
-                ),
-                keepBreathing: index == tokens.length - 1,
-                breathingEnabled: ambientMotionEnabled,
-                isClimax: isHighlightAt?.call(tokens[index].start) ?? false,
-              ),
-          ],
-        );
-      },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildStaticHighlightedToken({
+    required int index,
+    required List<FlowingLightToken> tokens,
+    required List<Color?> semanticColors,
+    required TextStyle style,
+  }) {
+    final token = tokens[index];
+    final semanticColor = semanticColors[index];
+    final highlightEnd = flowingLightHighlightEndForToken(
+      tokens,
+      index,
+      lineEnd: widget.line.end,
+    );
+    return _FlowingLightTokenView(
+      token: token,
+      highlightEnd: highlightEnd,
+      position: highlightEnd + flowingLightGlowFadeOutDuration,
+      reveal: 1,
+      style: style,
+      defaultColor: widget.activeColor,
+      effectColor: widget.effectColor,
+      semanticColor: semanticColor,
+      nextStart: null,
+      ringColor: flowingLightEntranceRingColor(
+        fallbackColor: widget.stampColor,
+        semanticColor: semanticColor,
+      ),
+      keepBreathing: true,
+      breathingEnabled: false,
+      isClimax: widget.isHighlightAt?.call(token.start) ?? false,
+    );
+  }
+
+  Widget _buildAnimatedToken({
+    required int index,
+    required List<FlowingLightToken> tokens,
+    required List<FlowingLightTokenPlacement> placements,
+    required List<Color?> semanticColors,
+    required TextStyle style,
+    required Listenable? frameListenable,
+    required Duration Function() readPosition,
+    required bool ambientMotionEnabled,
+  }) {
+    final token = tokens[index];
+    final semanticColor = semanticColors[index];
+    final nextStart = index + 1 < tokens.length
+        ? tokens[index + 1].start
+        : null;
+    final highlightEnd = flowingLightHighlightEndForToken(
+      tokens,
+      index,
+      lineEnd: widget.line.end,
+    );
+    final isClimax = widget.isHighlightAt?.call(token.start) ?? false;
+    final horizontalPadding = token.isLatinWord ? 4.0 : 0.5;
+    final pendingChild = Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: Opacity(opacity: 0, child: Text(token.text, style: style)),
+    );
+    final settledColor = semanticColor ?? widget.activeColor;
+    final settledScale =
+        flowingLightClimaxKeywordTextScale(
+          isClimax: isClimax,
+          isKeyword: semanticColor != null,
+        ) *
+        flowingLightTimelineTokenScale(token);
+    final settledChild = RepaintBoundary(
+      key: flowingLightSettledTokenLayerKey(index),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+        child: Transform.scale(
+          scale: settledScale,
+          child: Text(token.text, style: style.copyWith(color: settledColor)),
+        ),
+      ),
+    );
+    final holdingChild = RepaintBoundary(
+      key: flowingLightHoldingTokenLayerKey(index),
+      child: _FlowingLightTokenView(
+        token: token,
+        highlightEnd: highlightEnd,
+        position: token.start + flowingLightTokenEntranceDuration,
+        reveal: 1,
+        style: style,
+        defaultColor: widget.activeColor,
+        effectColor: widget.effectColor,
+        semanticColor: semanticColor,
+        nextStart: nextStart,
+        ringColor: flowingLightEntranceRingColor(
+          fallbackColor: widget.stampColor,
+          semanticColor: semanticColor,
+        ),
+        keepBreathing: index == tokens.length - 1,
+        breathingEnabled: ambientMotionEnabled,
+        isClimax: isClimax,
+      ),
+    );
+    return _FlowingLightAnimatedToken(
+      frameListenable: frameListenable,
+      rotationAnimation: _rotationController,
+      readPosition: readPosition,
+      token: token,
+      tokenIndex: index,
+      baseRotationDegrees: placements[index].rotationDegrees,
+      highlightEnd: highlightEnd,
+      style: style,
+      defaultColor: widget.activeColor,
+      effectColor: widget.effectColor,
+      semanticColor: semanticColor,
+      nextStart: nextStart,
+      ringColor: flowingLightEntranceRingColor(
+        fallbackColor: widget.stampColor,
+        semanticColor: semanticColor,
+      ),
+      keepBreathing: index == tokens.length - 1,
+      breathingEnabled: ambientMotionEnabled,
+      rockingEnabled: ambientMotionEnabled,
+      isClimax: isClimax,
+      pendingChild: pendingChild,
+      holdingChild: holdingChild,
+      settledChild: settledChild,
     );
   }
 }
@@ -470,76 +767,28 @@ List<String> _flowingLightDisplayPieces(String text) {
   return pieces;
 }
 
-class _ScatteredFlowingLightLayout extends StatefulWidget {
+class _ScatteredFlowingLightLayout extends StatelessWidget {
   final List<FlowingLightTokenPlacement> placements;
   final List<Widget> children;
-  final List<double> revealProgresses;
   final double fontSize;
-  final bool ambientMotionEnabled;
 
   const _ScatteredFlowingLightLayout({
     required this.placements,
     required this.children,
-    required this.revealProgresses,
     required this.fontSize,
-    required this.ambientMotionEnabled,
-  }) : assert(placements.length == children.length),
-       assert(revealProgresses.length == children.length);
-
-  @override
-  State<_ScatteredFlowingLightLayout> createState() =>
-      _ScatteredFlowingLightLayoutState();
-}
-
-class _ScatteredFlowingLightLayoutState
-    extends State<_ScatteredFlowingLightLayout>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rotationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: flowingLightRotationCycleDuration,
-    );
-    _syncAmbientMotion();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ScatteredFlowingLightLayout oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.ambientMotionEnabled != widget.ambientMotionEnabled) {
-      _syncAmbientMotion();
-    }
-  }
-
-  void _syncAmbientMotion() {
-    if (widget.ambientMotionEnabled) {
-      _rotationController.repeat();
-    } else {
-      _rotationController.stop();
-      _rotationController.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _rotationController.dispose();
-    super.dispose();
-  }
+  }) : assert(placements.length == children.length);
 
   @override
   Widget build(BuildContext context) {
-    if (widget.children.isEmpty) return const SizedBox.shrink();
+    if (children.isEmpty) return const SizedBox.shrink();
     final rows = <List<int>>[];
-    for (var index = 0; index < widget.placements.length; index++) {
-      while (rows.length <= widget.placements[index].row) {
+    for (var index = 0; index < placements.length; index++) {
+      while (rows.length <= placements[index].row) {
         rows.add(<int>[]);
       }
-      rows[widget.placements[index].row].add(index);
+      rows[placements[index].row].add(index);
     }
-    final composition = Padding(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 22),
       child: FittedBox(
         fit: BoxFit.scaleDown,
@@ -548,12 +797,10 @@ class _ScatteredFlowingLightLayoutState
           children: [
             for (var row = 0; row < rows.length; row++) ...[
               if (row > 0)
-                SizedBox(
-                  height: widget.fontSize * (0.06 + (row.isOdd ? 0.09 : 0.02)),
-                ),
+                SizedBox(height: fontSize * (0.06 + (row.isOdd ? 0.09 : 0.02))),
               Transform.translate(
                 offset: Offset(
-                  widget.placements[rows[row].first].rowShift * widget.fontSize,
+                  placements[rows[row].first].rowShift * fontSize,
                   0,
                 ),
                 child: Row(
@@ -565,27 +812,16 @@ class _ScatteredFlowingLightLayoutState
                         padding: EdgeInsets.only(
                           right: index == rows[row].last
                               ? 0
-                              : widget.placements[index].gapAfter *
-                                    widget.fontSize,
+                              : placements[index].gapAfter * fontSize,
                         ),
                         child: Transform.translate(
                           offset: Offset(
-                            widget.placements[index].horizontalJitter *
-                                widget.fontSize,
-                            widget.placements[index].verticalJitter *
-                                widget.fontSize,
+                            placements[index].horizontalJitter * fontSize,
+                            placements[index].verticalJitter * fontSize,
                           ),
-                          child: _FlowingLightRockingRotation(
-                            animation: _rotationController,
-                            baseRotationDegrees:
-                                widget.placements[index].rotationDegrees,
-                            tokenIndex: index,
-                            revealProgress: widget.revealProgresses[index],
-                            enabled: widget.ambientMotionEnabled,
-                            child: Transform.scale(
-                              scale: widget.placements[index].scale,
-                              child: widget.children[index],
-                            ),
+                          child: Transform.scale(
+                            scale: placements[index].scale,
+                            child: children[index],
                           ),
                         ),
                       ),
@@ -597,7 +833,6 @@ class _ScatteredFlowingLightLayoutState
         ),
       ),
     );
-    return RepaintBoundary(child: composition);
   }
 }
 
@@ -620,6 +855,12 @@ class _FlowingLightRockingRotation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!enabled) {
+      return Transform.rotate(
+        angle: baseRotationDegrees * math.pi / 180,
+        child: child,
+      );
+    }
     return AnimatedBuilder(
       animation: animation,
       child: child,
@@ -643,6 +884,153 @@ class _FlowingLightRockingRotation extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+enum FlowingLightTokenVisualPhase { pending, animating, holding, settled }
+
+@visibleForTesting
+const Key flowingLightStaticHighlightKey = ValueKey<String>(
+  'flowing-light-static-highlight',
+);
+
+@visibleForTesting
+Key flowingLightSettledTokenLayerKey(int index) =>
+    ValueKey<String>('flowing-light-settled-token-$index');
+
+@visibleForTesting
+Key flowingLightHoldingTokenLayerKey(int index) =>
+    ValueKey<String>('flowing-light-holding-token-$index');
+
+/// Separates reusable token layers from the short reveal/glow window.
+@visibleForTesting
+FlowingLightTokenVisualPhase flowingLightTokenVisualPhase({
+  required FlowingLightToken token,
+  required Duration highlightEnd,
+  required Duration position,
+  required Duration? nextStart,
+  required bool hasSemanticColor,
+  required bool keepBreathing,
+}) {
+  if (position < token.start) return FlowingLightTokenVisualPhase.pending;
+  final entranceEnd = token.start + flowingLightTokenEntranceDuration;
+  if (position >= entranceEnd && position <= highlightEnd) {
+    return FlowingLightTokenVisualPhase.holding;
+  }
+  if (keepBreathing) return FlowingLightTokenVisualPhase.animating;
+
+  var settledAt = entranceEnd;
+  final glowSettledAt = highlightEnd + flowingLightGlowFadeOutDuration;
+  if (glowSettledAt > settledAt) settledAt = glowSettledAt;
+  if (!hasSemanticColor && nextStart != null) {
+    final colorSettledAt = nextStart + flowingLightEffectColorFadeDuration;
+    if (colorSettledAt > settledAt) settledAt = colorSettledAt;
+  }
+  return position >= settledAt
+      ? FlowingLightTokenVisualPhase.settled
+      : FlowingLightTokenVisualPhase.animating;
+}
+
+class _FlowingLightAnimatedToken extends StatelessWidget {
+  final Listenable? frameListenable;
+  final Animation<double> rotationAnimation;
+  final Duration Function() readPosition;
+  final FlowingLightToken token;
+  final int tokenIndex;
+  final double baseRotationDegrees;
+  final Duration highlightEnd;
+  final TextStyle style;
+  final Color defaultColor;
+  final Color effectColor;
+  final Color? semanticColor;
+  final Duration? nextStart;
+  final Color ringColor;
+  final bool keepBreathing;
+  final bool breathingEnabled;
+  final bool rockingEnabled;
+  final bool isClimax;
+  final Widget pendingChild;
+  final Widget holdingChild;
+  final Widget settledChild;
+
+  const _FlowingLightAnimatedToken({
+    required this.frameListenable,
+    required this.rotationAnimation,
+    required this.readPosition,
+    required this.token,
+    required this.tokenIndex,
+    required this.baseRotationDegrees,
+    required this.highlightEnd,
+    required this.style,
+    required this.defaultColor,
+    required this.effectColor,
+    required this.semanticColor,
+    required this.nextStart,
+    required this.ringColor,
+    required this.keepBreathing,
+    required this.breathingEnabled,
+    required this.rockingEnabled,
+    required this.isClimax,
+    required this.pendingChild,
+    required this.holdingChild,
+    required this.settledChild,
+  });
+
+  Widget _buildFrame() {
+    final position = readPosition();
+    final reveal = flowingLightTokenRevealProgress(token, position);
+    final visualPhase = flowingLightTokenVisualPhase(
+      token: token,
+      highlightEnd: highlightEnd,
+      position: position,
+      nextStart: nextStart,
+      hasSemanticColor: semanticColor != null,
+      keepBreathing: keepBreathing,
+    );
+    final visual = switch (visualPhase) {
+      FlowingLightTokenVisualPhase.pending => pendingChild,
+      FlowingLightTokenVisualPhase.holding => holdingChild,
+      FlowingLightTokenVisualPhase.settled => settledChild,
+      FlowingLightTokenVisualPhase.animating => _FlowingLightTokenView(
+        token: token,
+        highlightEnd: highlightEnd,
+        position: position,
+        reveal: reveal,
+        style: style,
+        defaultColor: defaultColor,
+        effectColor: effectColor,
+        semanticColor: semanticColor,
+        nextStart: nextStart,
+        ringColor: ringColor,
+        keepBreathing: keepBreathing,
+        breathingEnabled: breathingEnabled,
+        isClimax: isClimax,
+      ),
+    };
+    final swayDegrees = rockingEnabled
+        ? flowingLightTokenSwayDegrees(
+            phase: rotationAnimation.value,
+            tokenIndex: tokenIndex,
+            revealProgress: reveal,
+          )
+        : 0.0;
+    final rotationDegrees = (baseRotationDegrees + swayDegrees)
+        .clamp(
+          -flowingLightMaximumRotationDegrees,
+          flowingLightMaximumRotationDegrees,
+        )
+        .toDouble();
+    return Transform.rotate(
+      angle: rotationDegrees * math.pi / 180,
+      child: visual,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final frame = frameListenable;
+    if (frame == null) return _buildFrame();
+    return AnimatedBuilder(animation: frame, builder: (_, _) => _buildFrame());
   }
 }
 
@@ -672,6 +1060,7 @@ double flowingLightEntranceScale(double progress) {
 }
 
 const flowingLightGlowFadeOutDuration = Duration(milliseconds: 520);
+const flowingLightEffectColorFadeDuration = Duration(milliseconds: 280);
 
 double flowingLightAdaptiveGlowIntensity({
   required Duration elapsed,
@@ -712,6 +1101,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   final FlowingLightToken token;
   final Duration highlightEnd;
   final Duration position;
+  final double reveal;
   final TextStyle style;
   final Color defaultColor;
   final Color effectColor;
@@ -726,6 +1116,7 @@ class _FlowingLightTokenView extends StatelessWidget {
     required this.token,
     required this.highlightEnd,
     required this.position,
+    required this.reveal,
     required this.style,
     required this.defaultColor,
     required this.effectColor,
@@ -740,16 +1131,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final elapsedMicros = (position - token.start).inMicroseconds;
-    final reveal = flowingLightTokenRevealProgress(token, position);
-    final visible = elapsedMicros >= 0;
     final horizontalPadding = token.isLatinWord ? 4.0 : 0.5;
-    final text = Text(token.text, style: style);
-    if (!visible) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-        child: Opacity(opacity: 0, child: text),
-      );
-    }
     final scale = flowingLightEntranceScale(reveal);
     final highlightDurationMicros = math.max(
       1,
@@ -881,6 +1263,7 @@ double flowingLightTokenEffectColorIntensity(
     start: token.start,
     nextStart: nextStart,
     persist: persist,
+    transition: flowingLightEffectColorFadeDuration,
   );
 }
 
