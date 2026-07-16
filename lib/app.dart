@@ -88,6 +88,7 @@ class _MainShellState extends ConsumerState<MainShell>
   AndroidMediaBridge? _androidMediaBridge;
   final ValueNotifier<int> _libraryTabRequest = ValueNotifier<int>(0);
   final ValueNotifier<int> _libraryVisibilityRequest = ValueNotifier<int>(0);
+  final ValueNotifier<int> _homeVisibilityRequest = ValueNotifier<int>(0);
   final GlobalKey _bottomNavKey = GlobalKey();
 
   static const double _drawerWidthFactor = 0.70;
@@ -144,6 +145,9 @@ class _MainShellState extends ConsumerState<MainShell>
           if (_currentTab == 1) {
             _libraryVisibilityRequest.value++;
           }
+          if (_currentTab == 0) {
+            _homeVisibilityRequest.value++;
+          }
           if (_previousTab == null) return;
           setState(() {
             _previousTab = null;
@@ -179,6 +183,7 @@ class _MainShellState extends ConsumerState<MainShell>
       HomeScreen(
         onExclusionZoneChanged: _registerDrawerExclusion,
         onShowAllAlbums: _openLibraryAlbums,
+        visibilityRequest: _homeVisibilityRequest,
       ),
       LibraryScreen(
         tabRequest: _libraryTabRequest,
@@ -789,6 +794,7 @@ class _MainShellState extends ConsumerState<MainShell>
     _androidMediaBridge?.dispose();
     _drawerController.dispose();
     _tabTransitionController.dispose();
+    _homeVisibilityRequest.dispose();
     _libraryTabRequest.dispose();
     _libraryVisibilityRequest.dispose();
     _homePinchTracker.reset();

@@ -19,6 +19,7 @@ import '../providers/player_provider.dart';
 import '../utils/app_toast.dart';
 import '../utils/scroll_utils.dart';
 import '../widgets/album_cover.dart';
+import '../widgets/directional_anchor_reveal.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/page_custom_background.dart';
 import '../widgets/song_actions_sheet.dart';
@@ -104,10 +105,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final Animation<double> _libraryTabAnimation;
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
-  final ValueNotifier<_LibraryScrollDirection> _songsScrollDirection =
-      ValueNotifier(_LibraryScrollDirection.down);
-  final ValueNotifier<_LibraryScrollDirection> _albumsScrollDirection =
-      ValueNotifier(_LibraryScrollDirection.down);
+  final ValueNotifier<DirectionalAnchorScrollDirection> _songsScrollDirection =
+      ValueNotifier(DirectionalAnchorScrollDirection.down);
+  final ValueNotifier<DirectionalAnchorScrollDirection> _albumsScrollDirection =
+      ValueNotifier(DirectionalAnchorScrollDirection.down);
   final ValueNotifier<int> _cardVisibilityRequest = ValueNotifier<int>(0);
   bool _isRefreshing = false;
   _LibrarySongSort _songSort = _LibrarySongSort.fallback;
@@ -217,13 +218,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _updateScrollDirection(
     ScrollController controller,
-    ValueNotifier<_LibraryScrollDirection> direction,
+    ValueNotifier<DirectionalAnchorScrollDirection> direction,
   ) {
     switch (controller.position.userScrollDirection) {
       case ScrollDirection.reverse:
-        direction.value = _LibraryScrollDirection.down;
+        direction.value = DirectionalAnchorScrollDirection.down;
       case ScrollDirection.forward:
-        direction.value = _LibraryScrollDirection.up;
+        direction.value = DirectionalAnchorScrollDirection.up;
       case ScrollDirection.idle:
         break;
     }
@@ -686,7 +687,7 @@ class _SongsView extends ConsumerWidget {
   final List<Song> songs;
   final List<Song> playlist;
   final ScrollController controller;
-  final ValueListenable<_LibraryScrollDirection> scrollDirection;
+  final ValueListenable<DirectionalAnchorScrollDirection> scrollDirection;
   final Listenable visibilityRequest;
   final double topPadding;
 
@@ -735,7 +736,7 @@ class _SongsView extends ConsumerWidget {
       itemBuilder: (context, index) {
         final song = songs[index];
         final isStarred = starredIds.contains(song.id);
-        return _ViewportRevealCard(
+        return DirectionalAnchorReveal(
           key: ValueKey('library-song-reveal-${song.id}'),
           controller: controller,
           scrollDirection: scrollDirection,
@@ -777,7 +778,7 @@ class _SongsView extends ConsumerWidget {
 class _AlbumsView extends ConsumerWidget {
   final LibraryState state;
   final ScrollController controller;
-  final ValueListenable<_LibraryScrollDirection> scrollDirection;
+  final ValueListenable<DirectionalAnchorScrollDirection> scrollDirection;
   final Listenable visibilityRequest;
   final double topPadding;
 
@@ -817,7 +818,7 @@ class _AlbumsView extends ConsumerWidget {
         final cover = api == null || album.coverArt.isEmpty
             ? ''
             : api.getCoverArtUrl(album.coverArt);
-        return _ViewportRevealCard(
+        return DirectionalAnchorReveal(
           key: ValueKey('library-album-reveal-${album.id}'),
           controller: controller,
           scrollDirection: scrollDirection,
@@ -860,144 +861,6 @@ class _AlbumsView extends ConsumerWidget {
           ),
         );
       },
-    );
-  }
-}
-
-enum _LibraryScrollDirection { up, down }
-
-class _ViewportRevealCard extends StatefulWidget {
-  static const double _visibilityThreshold = .15;
-  static const Duration _duration = Duration(milliseconds: 520);
-  static const Curve _scaleCurve = Cubic(.2, .8, .2, 1);
-
-  final ScrollController controller;
-  final ValueListenable<_LibraryScrollDirection> scrollDirection;
-  final Listenable visibilityRequest;
-  final double topInset;
-  final double hiddenScale;
-  final Widget child;
-
-  const _ViewportRevealCard({
-    super.key,
-    required this.controller,
-    required this.scrollDirection,
-    required this.visibilityRequest,
-    required this.topInset,
-    required this.hiddenScale,
-    required this.child,
-  });
-
-  @override
-  State<_ViewportRevealCard> createState() => _ViewportRevealCardState();
-}
-
-class _ViewportRevealCardState extends State<_ViewportRevealCard> {
-  bool _isVisible = false;
-  bool _visibilityCheckScheduled = false;
-  Alignment _scaleAlignment = Alignment.topCenter;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_handleScroll);
-    widget.visibilityRequest.addListener(_handleVisibilityRequest);
-    _scheduleVisibilityCheck();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ViewportRevealCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_handleScroll);
-      widget.controller.addListener(_handleScroll);
-    }
-    if (oldWidget.visibilityRequest != widget.visibilityRequest) {
-      oldWidget.visibilityRequest.removeListener(_handleVisibilityRequest);
-      widget.visibilityRequest.addListener(_handleVisibilityRequest);
-    }
-    _scheduleVisibilityCheck();
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_handleScroll);
-    widget.visibilityRequest.removeListener(_handleVisibilityRequest);
-    super.dispose();
-  }
-
-  void _handleScroll() => _scheduleVisibilityCheck();
-
-  void _handleVisibilityRequest() => _scheduleVisibilityCheck();
-
-  void _scheduleVisibilityCheck() {
-    if (_visibilityCheckScheduled) return;
-    _visibilityCheckScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _visibilityCheckScheduled = false;
-      _updateVisibility();
-    });
-  }
-
-  void _updateVisibility() {
-    if (!mounted || !widget.controller.hasClients) return;
-    final renderObject = context.findRenderObject();
-    if (renderObject is! RenderBox || !renderObject.hasSize) return;
-    final mediaQuery = MediaQuery.maybeOf(context);
-    if (mediaQuery == null) return;
-
-    final origin = renderObject.localToGlobal(Offset.zero);
-    final cardRect = origin & renderObject.size;
-    final viewportRect = Rect.fromLTRB(
-      0,
-      widget.topInset,
-      mediaQuery.size.width,
-      mediaQuery.size.height,
-    );
-    final intersection = cardRect.intersect(viewportRect);
-    final cardArea = cardRect.width * cardRect.height;
-    final visibleArea = intersection.width <= 0 || intersection.height <= 0
-        ? 0.0
-        : intersection.width * intersection.height;
-    final visibleFraction = cardArea <= 0 ? 0.0 : visibleArea / cardArea;
-
-    // Match IntersectionObserver semantics: reveal after 15% enters, then keep
-    // the card visible until it has completely left the usable viewport.
-    final shouldBeVisible = _isVisible
-        ? visibleFraction > 0
-        : visibleFraction >= _ViewportRevealCard._visibilityThreshold;
-    if (shouldBeVisible == _isVisible) return;
-
-    setState(() {
-      if (shouldBeVisible) {
-        _scaleAlignment =
-            widget.scrollDirection.value == _LibraryScrollDirection.down
-            ? Alignment.topCenter
-            : Alignment.bottomCenter;
-      }
-      _isVisible = shouldBeVisible;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) {
-      return RepaintBoundary(child: widget.child);
-    }
-
-    return RepaintBoundary(
-      child: AnimatedOpacity(
-        opacity: _isVisible ? 1 : 0,
-        duration: _ViewportRevealCard._duration,
-        curve: Curves.easeOut,
-        child: AnimatedScale(
-          scale: _isVisible ? 1 : widget.hiddenScale,
-          alignment: _scaleAlignment,
-          duration: _ViewportRevealCard._duration,
-          curve: _ViewportRevealCard._scaleCurve,
-          child: widget.child,
-        ),
-      ),
     );
   }
 }

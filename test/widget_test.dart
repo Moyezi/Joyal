@@ -22,6 +22,7 @@ import 'package:joyal_music/services/buckets/image_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/meta_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/search_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/stream_cache_bucket.dart';
+import 'package:joyal_music/widgets/directional_anchor_reveal.dart';
 import 'package:joyal_music/widgets/glass_top_bar.dart';
 
 void main() {
@@ -320,6 +321,56 @@ void main() {
     expect(albumScale().alignment, Alignment.bottomCenter);
   });
 
+  testWidgets('Home cards reveal from both scroll anchors and titles fade', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        overrides: [
+          libraryProvider.overrideWith(
+            (ref) => _TestLibraryNotifier(_libraryWithCards()),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final dailyReveal = _revealWithKeyPrefix('home-daily-song-reveal-').first;
+    final albumReveal = _revealWithKeyPrefix('home-album-reveal-').first;
+    final dailyTitle = find.byKey(const ValueKey('home-daily-title-reveal'));
+
+    AnimatedScale dailyScale() => tester.widget<AnimatedScale>(
+      find.descendant(of: dailyReveal, matching: find.byType(AnimatedScale)),
+    );
+
+    expect(dailyScale().scale, 1);
+    expect(dailyScale().alignment, Alignment.topCenter);
+    expect(dailyScale().duration, const Duration(milliseconds: 520));
+    expect(
+      tester.widget<DirectionalAnchorReveal>(albumReveal).hiddenScale,
+      .68,
+    );
+
+    final titleOpacity = tester.widget<AnimatedOpacity>(
+      find.descendant(of: dailyTitle, matching: find.byType(AnimatedOpacity)),
+    );
+    expect(titleOpacity.opacity, 1);
+    expect(titleOpacity.duration, const Duration(milliseconds: 520));
+    expect(
+      find.descendant(of: dailyTitle, matching: find.byType(AnimatedScale)),
+      findsNothing,
+    );
+
+    await tester.drag(_homeCustomScrollView(), const Offset(0, -240));
+    await tester.pumpAndSettle();
+    expect(dailyScale().scale, .82);
+
+    await tester.drag(_homeCustomScrollView(), const Offset(0, 240));
+    await tester.pumpAndSettle();
+    expect(dailyScale().scale, 1);
+    expect(dailyScale().alignment, Alignment.bottomCenter);
+  });
+
   testWidgets('Home sidebar settings button opens settings hub', (
     tester,
   ) async {
@@ -449,6 +500,14 @@ Finder _homeCustomScrollView() {
     of: find.byType(HomeScreen),
     matching: find.byType(CustomScrollView),
   );
+}
+
+Finder _revealWithKeyPrefix(String prefix) {
+  return find.byWidgetPredicate((widget) {
+    if (widget is! DirectionalAnchorReveal) return false;
+    final key = widget.key;
+    return key is ValueKey<String> && key.value.startsWith(prefix);
+  });
 }
 
 ScrollableState _homeVerticalScrollable(WidgetTester tester) {

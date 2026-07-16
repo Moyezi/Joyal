@@ -22,7 +22,7 @@
 
 ## 双向锚点显现 (Directional Anchor Reveal)
 
-- `双向锚点显现` is the canonical name for the song/album viewport-entry effect in `library_screen.dart`; it changes paint only and never changes list/grid layout or the card UI design.
+- `双向锚点显现` is the canonical name for the song/album viewport-entry effect. Its shared implementation lives in `lib/widgets/directional_anchor_reveal.dart` and is used by `library_screen.dart` and selected home cards; it changes paint only and never changes list/grid layout or the card UI design.
 - Reveal after 15% enters the usable viewport. Fade from transparent while scaling songs from `0.82` and albums from `0.68` to `1` over 520 ms with `Cubic(0.2, 0.8, 0.2, 1)`; keep the card visible until it completely leaves, then reset so re-entry replays.
 - When scrolling down, grow from `Alignment.topCenter`; when scrolling up, grow from `Alignment.bottomCenter`.
 - The root shell pre-mounts the library off-screen. `app.dart` must increment `LibraryScreen.visibilityRequest` only after the main-tab slide settles so initially hidden cards remeasure without a vertical scroll.

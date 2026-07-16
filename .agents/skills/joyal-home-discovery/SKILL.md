@@ -21,6 +21,14 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 - Selection is stable by current date.
 - Pick 8 albums for the day.
 - "查看更多" switches to the library page and selects the album tab.
+- Daily recommendation song cards and random album cards reuse the shared
+  `DirectionalAnchorReveal`: reveal after 15% enters, use the main vertical
+  scroll direction for the top/bottom anchor, and reset only after fully exiting.
+- Daily recommendation and random album section titles use the same viewport
+  lifecycle but fade only; do not scale the title row or affect the home search
+  collapse animation.
+- `app.dart` requests a home reveal remeasure after the main-tab slide settles,
+  because the root shell keeps all main pages pre-mounted.
 - The home bottom copy is fixed as `----到底了----`.
 
 ## Recently Played Card Flow
@@ -88,6 +96,7 @@ description: "Home and discovery memory for Joyal Music. Use when changing home 
 ## Files To Check
 
 - Home orchestration: `home_screen.dart`.
+- Shared viewport reveal: `lib/widgets/directional_anchor_reveal.dart`.
 - Recently played renderer: `lib/widgets/home/recent_card_flow.dart`.
 - Discovery page: `hotlist_screen.dart`.
 - Cover Flow: `lib/widgets/discovery/discover_song_carousel.dart`.

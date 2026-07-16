@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/theme.dart';
@@ -14,6 +16,7 @@ import '../providers/listening_stats_provider.dart';
 import '../providers/page_background_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/album_cover.dart';
+import '../widgets/directional_anchor_reveal.dart';
 import '../widgets/frosted_glass.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/home/recent_card_flow.dart';
@@ -29,10 +32,12 @@ import 'search_screen.dart';
 class HomeScreen extends ConsumerStatefulWidget {
   final void Function(Rect)? onExclusionZoneChanged;
   final VoidCallback? onShowAllAlbums;
+  final Listenable? visibilityRequest;
   const HomeScreen({
     super.key,
     this.onExclusionZoneChanged,
     this.onShowAllAlbums,
+    this.visibilityRequest,
   });
 
   @override
@@ -53,6 +58,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ━━━ Animation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   late final AnimationController _animController;
   late final ScrollController _scrollController;
+  final ValueNotifier<DirectionalAnchorScrollDirection> _scrollDirection =
+      ValueNotifier(DirectionalAnchorScrollDirection.down);
+  final ValueNotifier<int> _cardVisibilityRequest = ValueNotifier<int>(0);
   final GlobalKey _recentListKey = GlobalKey();
   bool _exclusionRectPending = false;
   int? _dailySongsCacheKey;
@@ -74,14 +82,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _animController = AnimationController(duration: Duration.zero, vsync: this);
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+    widget.visibilityRequest?.addListener(_handlePageVisibilityRequest);
+  }
+
+  @override
+  void didUpdateWidget(covariant HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visibilityRequest != widget.visibilityRequest) {
+      oldWidget.visibilityRequest?.removeListener(_handlePageVisibilityRequest);
+      widget.visibilityRequest?.addListener(_handlePageVisibilityRequest);
+    }
   }
 
   @override
   void dispose() {
+    widget.visibilityRequest?.removeListener(_handlePageVisibilityRequest);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _scrollDirection.dispose();
+    _cardVisibilityRequest.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  void _handlePageVisibilityRequest() {
+    _cardVisibilityRequest.value++;
   }
 
   void _reportExclusionRect() {
@@ -113,6 +138,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
+    switch (_scrollController.position.userScrollDirection) {
+      case ScrollDirection.reverse:
+        _scrollDirection.value = DirectionalAnchorScrollDirection.down;
+      case ScrollDirection.forward:
+        _scrollDirection.value = DirectionalAnchorScrollDirection.up;
+      case ScrollDirection.idle:
+        break;
+    }
     final offset = _scrollController.offset;
     final progress = (offset / _totalRange).clamp(0.0, 1.0);
     _animController.value = progress;
@@ -293,23 +326,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
           if (dailySongs.isNotEmpty) ...[
             SliverToBoxAdapter(
-              child: _SectionTitle(
-                title: '每日推荐',
-                actionLabel: '查看更多',
-                onActionTap: () => _showDailyRecommendations(dailySongs),
+              child: DirectionalAnchorReveal(
+                key: const ValueKey('home-daily-title-reveal'),
+                controller: _scrollController,
+                scrollDirection: _scrollDirection,
+                visibilityRequest: _cardVisibilityRequest,
+                topInset: topBarExtent,
+                child: _SectionTitle(
+                  title: '每日推荐',
+                  actionLabel: '查看更多',
+                  onActionTap: () => _showDailyRecommendations(dailySongs),
+                ),
               ),
             ),
             SliverToBoxAdapter(
-              child: _DailyRecommendationsPreview(songs: dailySongs),
+              child: _DailyRecommendationsPreview(
+                songs: dailySongs,
+                controller: _scrollController,
+                scrollDirection: _scrollDirection,
+                visibilityRequest: _cardVisibilityRequest,
+                topInset: topBarExtent,
+              ),
             ),
           ],
 
           // ── 随机专辑（双列网格） ──
           SliverToBoxAdapter(
-            child: _SectionTitle(
-              title: '随机专辑',
-              actionLabel: '查看更多',
-              onActionTap: widget.onShowAllAlbums,
+            child: DirectionalAnchorReveal(
+              key: const ValueKey('home-random-albums-title-reveal'),
+              controller: _scrollController,
+              scrollDirection: _scrollDirection,
+              visibilityRequest: _cardVisibilityRequest,
+              topInset: topBarExtent,
+              child: _SectionTitle(
+                title: '随机专辑',
+                actionLabel: '查看更多',
+                onActionTap: widget.onShowAllAlbums,
+              ),
             ),
           ),
           SliverPadding(
@@ -323,9 +376,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
                 final a = randomAlbums[index];
-                return _AlbumGridCard(
-                  album: a,
-                  coverUrl: _coverUrl(a.coverArt),
+                return DirectionalAnchorReveal(
+                  key: ValueKey('home-album-reveal-${a.id}'),
+                  controller: _scrollController,
+                  scrollDirection: _scrollDirection,
+                  visibilityRequest: _cardVisibilityRequest,
+                  topInset: topBarExtent,
+                  hiddenScale: .68,
+                  child: _AlbumGridCard(
+                    album: a,
+                    coverUrl: _coverUrl(a.coverArt),
+                  ),
                 );
               }, childCount: randomAlbums.length),
             ),
@@ -525,8 +586,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
 class _DailyRecommendationsPreview extends ConsumerWidget {
   final List<Song> songs;
+  final ScrollController controller;
+  final ValueListenable<DirectionalAnchorScrollDirection> scrollDirection;
+  final Listenable visibilityRequest;
+  final double topInset;
 
-  const _DailyRecommendationsPreview({required this.songs});
+  const _DailyRecommendationsPreview({
+    required this.songs,
+    required this.controller,
+    required this.scrollDirection,
+    required this.visibilityRequest,
+    required this.topInset,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -541,16 +612,24 @@ class _DailyRecommendationsPreview extends ConsumerWidget {
       child: Column(
         children: [
           for (final entry in previewSongs.indexed)
-            QueueSongCard(
-              song: entry.$2,
-              index: entry.$1,
-              coverUrl: api == null || entry.$2.coverArt.isEmpty
-                  ? ''
-                  : api.getCoverArtUrl(entry.$2.coverArt),
-              isCurrent: entry.$2.id == currentSongId,
-              onTap: () => ref
-                  .read(playerProvider.notifier)
-                  .playPlaylist(songs, startIndex: entry.$1),
+            DirectionalAnchorReveal(
+              key: ValueKey('home-daily-song-reveal-${entry.$2.id}'),
+              controller: controller,
+              scrollDirection: scrollDirection,
+              visibilityRequest: visibilityRequest,
+              topInset: topInset,
+              hiddenScale: .82,
+              child: QueueSongCard(
+                song: entry.$2,
+                index: entry.$1,
+                coverUrl: api == null || entry.$2.coverArt.isEmpty
+                    ? ''
+                    : api.getCoverArtUrl(entry.$2.coverArt),
+                isCurrent: entry.$2.id == currentSongId,
+                onTap: () => ref
+                    .read(playerProvider.notifier)
+                    .playPlaylist(songs, startIndex: entry.$1),
+              ),
             ),
         ],
       ),
