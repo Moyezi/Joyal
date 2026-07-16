@@ -150,7 +150,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      autofocus: true,
+                      autofocus: false,
                       textInputAction: TextInputAction.search,
                       onChanged: _onChanged,
                       onSubmitted: (_) => _search(),

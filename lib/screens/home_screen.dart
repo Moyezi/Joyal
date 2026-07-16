@@ -22,6 +22,7 @@ import '../widgets/glass_top_bar.dart';
 import '../widgets/home/recent_card_flow.dart';
 import '../widgets/page_custom_background.dart';
 import '../widgets/play_queue_sheet.dart';
+import '../widgets/navigation/search_ripple_route.dart';
 import 'album_detail_screen.dart';
 import 'search_screen.dart';
 
@@ -63,6 +64,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   final ValueNotifier<int> _cardVisibilityRequest = ValueNotifier<int>(0);
   final GlobalKey _recentListKey = GlobalKey();
   bool _exclusionRectPending = false;
+  bool _searchRouteOpen = false;
   int? _dailySongsCacheKey;
   List<Song>? _dailySongsSource;
   List<Song> _dailySongsCache = const [];
@@ -164,6 +166,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
 
+  Future<void> _openSearchFromTopBar(Offset origin) async {
+    if (_searchRouteOpen) return;
+    _searchRouteOpen = true;
+    try {
+      await Navigator.of(context).push(
+        buildSearchRippleRoute<void>(
+          origin: origin,
+          builder: (_) => const SearchScreen(),
+        ),
+      );
+    } finally {
+      _searchRouteOpen = false;
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -203,9 +220,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             blurSigma: topBarBlur,
             tintOpacity: topBarOpacity,
             searchAnimation: _animController,
-            onSearchTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const SearchScreen())),
+            onSearchTapAt: _openSearchFromTopBar,
             child: _buildHeader(),
           ),
         ],

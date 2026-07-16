@@ -1,6 +1,6 @@
 ---
 name: joyal-navigation-shell
-description: "Navigation and shell memory for Joyal Music. Use when changing lib/app.dart, main tabs, GlassTopBar placement, HomeSidebar gestures or custom-image entry, the infinite library canvas route and Hero transition, MiniPlayer collapse/expand behavior, AppBottomNav, PlayQueueSheet entry points, or settings navigation."
+description: "Navigation and shell memory for Joyal Music. Use when changing lib/app.dart, main tabs, GlassTopBar placement or search actions, SearchScreen routing, HomeSidebar gestures or custom-image entry, the infinite library canvas route and Hero transition, MiniPlayer collapse/expand behavior, AppBottomNav, PlayQueueSheet entry points, or settings navigation."
 ---
 
 # Joyal Navigation Shell
@@ -8,11 +8,19 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 ## Main Navigation
 
 - The main navigation has only three pages: 首页, 曲库, 发现.
-- Search enters from the home search box or top-bar icon.
+- Search enters from the home search box or the top-bar actions on 首页, 曲库, and 发现.
 - Old tests may still assert the copy `主页`.
 - Main pages use a full-screen `Stack` background.
 - `GlassTopBar` is fixed over the status bar; content must avoid the top bar.
 - The library `TabBar` is an extra area below the top bar and must not shift the title or buttons.
+
+## Search Entry And Route
+
+- Top-bar search actions reveal `SearchScreen` as a circular ripple centered on the tapped button and collapse back to the same point on pop.
+- Reuse `SearchRippleIconButton` for ordinary title-row actions on 曲库 and 发现. The animated 首页 top-bar icon reports its center through `GlassTopBar.onSearchTapAt` and calls `buildSearchRippleRoute` directly.
+- Keep the ripple implementation in `lib/widgets/navigation/search_ripple_route.dart`; it owns the circular clip, subtle edge rings, transition timing, duplicate-route guard for its standard button, and the reduced-motion bypass.
+- Keep the large 首页 search box on its existing ordinary route unless the task explicitly asks to change it.
+- `SearchScreen` must not autofocus its text field on entry. Open the keyboard only after the user taps the field so it does not compete with the ripple transition.
 
 ## Root Shell
 
@@ -61,7 +69,8 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 
 ## Files To Check
 
-- Shell/navigation: `lib/app.dart`, `lib/widgets/navigation/main_shell_helpers.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
+- Shell/navigation: `lib/app.dart`, `lib/widgets/navigation/main_shell_helpers.dart`, `lib/widgets/navigation/search_ripple_route.dart`, `bottom_nav.dart`, `glass_top_bar.dart`.
+- Search page: `lib/screens/search_screen.dart`; top-bar entries also live in `home_screen.dart`, `library_screen.dart`, and `hotlist_screen.dart`.
 - Sidebar: `home_sidebar.dart`.
 - Infinite library canvas: `library_canvas_screen.dart`.
 - Shared pinch tracking: `lib/utils/two_finger_pinch_tracker.dart`.

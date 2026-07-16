@@ -21,10 +21,12 @@ import '../utils/scroll_utils.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/directional_anchor_reveal.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/navigation/search_ripple_route.dart';
 import '../widgets/page_custom_background.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
+import 'search_screen.dart';
 
 enum _LibrarySongSortField {
   addedAt('按添加时间排序'),
@@ -509,6 +511,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         onPressed: _locateCurrentSong,
                         icon: const Icon(Icons.my_location_rounded),
                       ),
+                    SearchRippleIconButton(
+                      pageBuilder: (_) => const SearchScreen(),
+                    ),
                     IconButton(
                       tooltip: '刷新曲库',
                       onPressed: _isRefreshing ? null : _refreshLibrary,

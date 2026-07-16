@@ -11,6 +11,7 @@ import 'package:joyal_music/providers/auth_provider.dart';
 import 'package:joyal_music/providers/library_provider.dart';
 import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/screens/home_screen.dart';
+import 'package:joyal_music/screens/hotlist_screen.dart';
 import 'package:joyal_music/screens/library_canvas_screen.dart';
 import 'package:joyal_music/screens/library_screen.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
@@ -177,6 +178,27 @@ void main() {
       expect(find.byIcon(Icons.search_rounded), findsNothing);
     },
   );
+
+  testWidgets('Discovery and library expose top-bar search actions', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+
+    expect(
+      find.descendant(
+        of: find.byType(HotlistScreen),
+        matching: find.byTooltip('搜索'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(LibraryScreen),
+        matching: find.byTooltip('搜索'),
+      ),
+      findsOneWidget,
+    );
+  });
 
   testWidgets('Discover tab no longer shows My floating action button', (
     tester,

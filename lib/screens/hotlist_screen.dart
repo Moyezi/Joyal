@@ -16,6 +16,7 @@ import '../widgets/discovery/discover_song_carousel.dart';
 import '../widgets/discovery/discovery_section_header.dart';
 import '../widgets/discovery/for_you_discovery_section.dart';
 import '../widgets/glass_top_bar.dart';
+import '../widgets/navigation/search_ripple_route.dart';
 import '../widgets/page_custom_background.dart';
 import '../widgets/play_queue_sheet.dart';
 import 'music_classification_screen.dart';
@@ -263,12 +264,8 @@ class _HotlistScreenState extends ConsumerState<HotlistScreen>
                     onPressed: _locateCurrentSong,
                     icon: const Icon(Icons.my_location_rounded),
                   ),
-                IconButton(
-                  tooltip: '搜索',
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SearchScreen()),
-                  ),
-                  icon: const Icon(Icons.search_rounded),
+                SearchRippleIconButton(
+                  pageBuilder: (_) => const SearchScreen(),
                 ),
                 IconButton(
                   tooltip: '小Jo同学',

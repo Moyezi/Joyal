@@ -9,13 +9,14 @@ import 'liquid_glass_overlay.dart';
 
 /// Shared fixed header used by the three primary navigation destinations.
 ///
-/// Optionally accepts [searchAnimation] + [onSearchTap] to render an
-/// animated search icon on the right side (used by HomeScreen).
+/// Optionally accepts [searchAnimation] with [onSearchTap] or [onSearchTapAt]
+/// to render an animated search icon on the right side (used by HomeScreen).
 class GlassTopBar extends ConsumerWidget {
   final double height;
   final Widget child;
   final Animation<double>? searchAnimation;
   final VoidCallback? onSearchTap;
+  final ValueChanged<Offset>? onSearchTapAt;
   final bool hasPageBackground;
   final double blurSigma;
   final double tintOpacity;
@@ -26,6 +27,7 @@ class GlassTopBar extends ConsumerWidget {
     required this.child,
     this.searchAnimation,
     this.onSearchTap,
+    this.onSearchTapAt,
     this.hasPageBackground = false,
     this.blurSigma = 10,
     this.tintOpacity = 0.46,
@@ -33,7 +35,9 @@ class GlassTopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final showSearch = searchAnimation != null && onSearchTap != null;
+    final showSearch =
+        searchAnimation != null &&
+        (onSearchTap != null || onSearchTapAt != null);
     final statusBarHeight = MediaQuery.viewPaddingOf(context).top;
     final totalHeight = height + statusBarHeight;
     final bg = Theme.of(context).scaffoldBackgroundColor;
@@ -115,13 +119,31 @@ class GlassTopBar extends ConsumerWidget {
                       opacity: p,
                       child: Transform.scale(
                         scale: 0.6 + 0.4 * p,
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.search_rounded,
-                            color: context.primaryColor,
+                        child: Builder(
+                          builder: (buttonContext) => IconButton(
+                            icon: Icon(
+                              Icons.search_rounded,
+                              color: context.primaryColor,
+                            ),
+                            onPressed: p > 0.01
+                                ? () {
+                                    final buttonBox = buttonContext
+                                        .findRenderObject();
+                                    if (onSearchTapAt != null &&
+                                        buttonBox is RenderBox &&
+                                        buttonBox.hasSize) {
+                                      onSearchTapAt!(
+                                        buttonBox.localToGlobal(
+                                          buttonBox.size.center(Offset.zero),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    onSearchTap?.call();
+                                  }
+                                : null,
+                            tooltip: '搜索',
                           ),
-                          onPressed: p > 0.01 ? onSearchTap : null,
-                          tooltip: '搜索',
                         ),
                       ),
                     );
