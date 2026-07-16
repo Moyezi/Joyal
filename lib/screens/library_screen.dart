@@ -101,6 +101,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   static const String _sortStorageKey = 'library_song_sort';
 
   late final TabController _tabController;
+  late final Animation<double> _libraryTabAnimation;
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
   final ValueNotifier<_LibraryScrollDirection> _songsScrollDirection =
@@ -127,8 +128,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _libraryTabAnimation = _tabController.animation!;
     _lastSettledLibraryTab = _tabController.index;
     _tabController.addListener(_handleLibraryTabStateChanged);
+    _libraryTabAnimation.addListener(_handleLibraryTabAnimationTick);
     _songsController.addListener(_handleSongsScroll);
     _albumsController.addListener(_handleAlbumsScroll);
     widget.tabRequest?.addListener(_handleTabRequest);
@@ -153,6 +156,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void dispose() {
     widget.tabRequest?.removeListener(_handleTabRequest);
     widget.visibilityRequest?.removeListener(_handlePageVisibilityRequest);
+    _libraryTabAnimation.removeListener(_handleLibraryTabAnimationTick);
     _tabController.removeListener(_handleLibraryTabStateChanged);
     _tabController.dispose();
     _songsController.removeListener(_handleSongsScroll);
@@ -166,6 +170,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _handlePageVisibilityRequest() {
+    _cardVisibilityRequest.value++;
+  }
+
+  void _handleLibraryTabAnimationTick() {
+    final tabPosition = _libraryTabAnimation.value;
+    if ((tabPosition - tabPosition.round()).abs() <= .001) return;
     _cardVisibilityRequest.value++;
   }
 
@@ -858,7 +868,7 @@ enum _LibraryScrollDirection { up, down }
 
 class _ViewportRevealCard extends StatefulWidget {
   static const double _visibilityThreshold = .15;
-  static const Duration _duration = Duration(milliseconds: 620);
+  static const Duration _duration = Duration(milliseconds: 520);
   static const Curve _scaleCurve = Cubic(.2, .8, .2, 1);
 
   final ScrollController controller;

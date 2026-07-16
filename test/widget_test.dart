@@ -245,6 +245,33 @@ void main() {
     },
   );
 
+  testWidgets('Library cards reveal before the tab transition settles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testLibraryScreen(_libraryWithCards()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('专辑  24'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
+
+    final albumReveal = find.byKey(
+      const ValueKey('library-album-reveal-album-0'),
+    );
+    final albumScale = tester.widget<AnimatedScale>(
+      find.descendant(of: albumReveal, matching: find.byType(AnimatedScale)),
+    );
+    final albumOpacity = tester.widget<AnimatedOpacity>(
+      find.descendant(of: albumReveal, matching: find.byType(AnimatedOpacity)),
+    );
+
+    expect(albumScale.scale, 1);
+    expect(albumScale.duration, const Duration(milliseconds: 520));
+    expect(albumOpacity.opacity, 1);
+    expect(albumOpacity.duration, const Duration(milliseconds: 520));
+  });
+
   testWidgets('Library song and album cards replay reveal from scroll edge', (
     tester,
   ) async {
