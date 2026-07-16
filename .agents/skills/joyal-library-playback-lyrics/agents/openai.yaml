@@ -1,4 +1,4 @@
 interface:
   display_name: "Joyal Library Playback Lyrics"
-  short_description: "Library, queue, playback, and lyrics rules."
-  default_prompt: "Use $joyal-library-playback-lyrics before changing library sync, playback, or lyrics."
+  short_description: "Library UI, card effects, playback, and lyrics rules."
+  default_prompt: "Use $joyal-library-playback-lyrics before changing library UI, 双向锚点显现, playback, or lyrics."

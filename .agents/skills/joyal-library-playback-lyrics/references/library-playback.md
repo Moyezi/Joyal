@@ -20,6 +20,15 @@
 - The library songs tab may progressively reveal items in the UI.
 - Playback, locating the current song, and queue construction must always use the full sorted list, not the visible subset.
 
+## 双向锚点显现 (Directional Anchor Reveal)
+
+- `双向锚点显现` is the canonical name for the song/album viewport-entry effect in `library_screen.dart`; it changes paint only and never changes list/grid layout or the card UI design.
+- Reveal after 15% enters the usable viewport. Fade from transparent while scaling songs from `0.82` and albums from `0.68` to `1` over 620 ms with `Cubic(0.2, 0.8, 0.2, 1)`; keep the card visible until it completely leaves, then reset so re-entry replays.
+- When scrolling down, grow from `Alignment.topCenter`; when scrolling up, grow from `Alignment.bottomCenter`.
+- The root shell pre-mounts the library off-screen. `app.dart` must increment `LibraryScreen.visibilityRequest` only after the main-tab slide settles so initially hidden cards remeasure without a vertical scroll.
+- Treat both tap and swipe changes inside the song/album `TabBarView` as activation. Listen for a settled `TabController` state (`indexIsChanging == false`, offset approximately zero, and changed index); do not rely only on `AnimationStatus`, which misses swipe-driven settling.
+- Preserve the regression coverage in `test/widget_test.dart`: pre-mounted cards must appear after main-tab entry and an inner-tab swipe, while vertical exit/re-entry must retain direction-aware anchors.
+
 ## Infinite Library Canvas Playback
 
 - Build `LibraryCanvasScreen` from the full `libraryProvider.songs` collection while rendering only the visible spatial neighborhood.

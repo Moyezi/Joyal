@@ -87,6 +87,7 @@ class _MainShellState extends ConsumerState<MainShell>
   int _tabDirection = 0;
   AndroidMediaBridge? _androidMediaBridge;
   final ValueNotifier<int> _libraryTabRequest = ValueNotifier<int>(0);
+  final ValueNotifier<int> _libraryVisibilityRequest = ValueNotifier<int>(0);
   final GlobalKey _bottomNavKey = GlobalKey();
 
   static const double _drawerWidthFactor = 0.70;
@@ -140,6 +141,9 @@ class _MainShellState extends ConsumerState<MainShell>
           value: 1.0,
         )..addStatusListener((status) {
           if (status != AnimationStatus.completed || !mounted) return;
+          if (_currentTab == 1) {
+            _libraryVisibilityRequest.value++;
+          }
           if (_previousTab == null) return;
           setState(() {
             _previousTab = null;
@@ -176,7 +180,10 @@ class _MainShellState extends ConsumerState<MainShell>
         onExclusionZoneChanged: _registerDrawerExclusion,
         onShowAllAlbums: _openLibraryAlbums,
       ),
-      LibraryScreen(tabRequest: _libraryTabRequest),
+      LibraryScreen(
+        tabRequest: _libraryTabRequest,
+        visibilityRequest: _libraryVisibilityRequest,
+      ),
       const HotlistScreen(),
     ];
   }
@@ -783,6 +790,7 @@ class _MainShellState extends ConsumerState<MainShell>
     _drawerController.dispose();
     _tabTransitionController.dispose();
     _libraryTabRequest.dispose();
+    _libraryVisibilityRequest.dispose();
     _homePinchTracker.reset();
     super.dispose();
   }

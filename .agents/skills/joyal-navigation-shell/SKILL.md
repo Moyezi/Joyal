@@ -19,6 +19,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - `lib/app.dart` pre-mounts the home, library, and discovery pages in a sliding stack.
 - Off-screen pages keep state.
 - Use `TickerMode`, `IgnorePointer`, and `ExcludeSemantics` to prevent background animation, interaction, and semantics.
+- After the main-tab slide settles on the library, increment `LibraryScreen.visibilityRequest`; the pre-mounted [`双向锚点显现`](../joyal-library-playback-lyrics/references/library-playback.md) cards otherwise remain in their off-screen hidden state.
 - Bottom navigation supports horizontal drag paging, cross-item selection vibration, and pages sliding in from the edge.
 - Keep shell state and route coordination in `lib/app.dart`; edge-Hero, startup mask, drawer presentation, and gesture recognizer helpers live in `lib/widgets/navigation/main_shell_helpers.dart`.
 

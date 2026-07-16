@@ -1,6 +1,6 @@
 ---
 name: joyal-library-playback-lyrics
-description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, the infinite library canvas, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, lyrics stage renderers, or MiniPlayer lyrics."
+description: "Library, playback, and lyrics memory for Joyal Music. Use when changing Navidrome credential restore, refreshLibrary, library sorting, the library song/album '双向锚点显现' card effect, the infinite library canvas, favorites, queue construction, PlayerNotifier, just_audio source sequences, listening stats, lyrics cache/prefetch, LyricsScreen, lyrics stage renderers, or MiniPlayer lyrics."
 ---
 
 # Joyal Library Playback Lyrics
@@ -19,7 +19,7 @@ description: "Library, playback, and lyrics memory for Joyal Music. Use when cha
 
 Read only the references needed for the task:
 
-- [Library and playback](references/library-playback.md): startup restore, refresh, sorting, infinite-canvas playback actions, favorites, queues, background playback, and listening stats.
+- [Library and playback](references/library-playback.md): startup restore, refresh, sorting, the library song/album `双向锚点显现` effect, infinite-canvas playback actions, favorites, queues, background playback, and listening stats.
 - [Lyrics data and screen](references/lyrics-data-screen.md): source priority, AMLL/OpenSubsonic parsing, cache/prefetch, screen orchestration, and the default renderer.
 - [Lyrics stage foundations](references/lyrics-stage-foundations.md): shared shell, route background ownership, header geometry, renderer lifecycle, and layout caching.
 - [Flowing Light stage](references/flowing-light-stage.md): `流光` scattered layout, token reveal/halo, climax ring presentation, and ambient rocking.

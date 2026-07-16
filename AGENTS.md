@@ -14,7 +14,7 @@ Joyal Music 是 Flutter iOS/Android 私人音乐播放器，连接用户自建 N
 - `.agents/skills/joyal-navigation-shell/SKILL.md`：主导航、根页面栈、`GlassTopBar`、侧边栏、MiniPlayer、Dock、设置入口。
 - `.agents/skills/joyal-home-discovery/SKILL.md`：首页每日推荐/随机专辑、发现页 Cover Flow、收藏歌曲、“为你发现”卡片和推荐种子。
 - `.agents/skills/joyal-visual-glass-theme/SKILL.md`：主题颜色、`ThemeContext`、页面背景、封面取色、`FrostedGlass`、液态玻璃、视觉性能。
-- `.agents/skills/joyal-library-playback-lyrics/SKILL.md`：凭据恢复、曲库刷新、排序、收藏、播放队列、听歌统计、歌词缓存和歌词页。
+- `.agents/skills/joyal-library-playback-lyrics/SKILL.md`：凭据恢复、曲库刷新、排序、歌曲/专辑“双向锚点显现”动效、收藏、播放队列、听歌统计、歌词缓存和歌词页。
 - `.agents/skills/joyal-classification/SKILL.md`：小Jo同学、标签分类、高潮缓存管理、DeepSeek 安全、固定词表和手动修正。
 - `.agents/skills/joyal-now-playing-selection/SKILL.md`：播放详情页、Hero 转场、波形进度、封面切歌、长按封面选曲模式。
 - `.agents/skills/joyal-settings-cache-release/SKILL.md`：设置、缓存/下载、`CachedDiskImage`、`AppCacheService`、验证命令、Release APK 构建坑点。

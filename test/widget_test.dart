@@ -6,11 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:joyal_music/app.dart';
 import 'package:joyal_music/models/album.dart';
+import 'package:joyal_music/models/song.dart';
 import 'package:joyal_music/providers/auth_provider.dart';
 import 'package:joyal_music/providers/library_provider.dart';
 import 'package:joyal_music/providers/player_provider.dart';
 import 'package:joyal_music/screens/home_screen.dart';
 import 'package:joyal_music/screens/library_canvas_screen.dart';
+import 'package:joyal_music/screens/library_screen.dart';
 import 'package:joyal_music/services/app_cache_service.dart';
 import 'package:joyal_music/services/cache_repository.dart';
 import 'package:joyal_music/services/buckets/album_cache_bucket.dart';
@@ -205,6 +207,92 @@ void main() {
     expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
   });
 
+  testWidgets(
+    'Pre-mounted library cards appear after tapping and swiping tabs',
+    (tester) async {
+      await tester.pumpWidget(
+        _testApp(
+          overrides: [
+            libraryProvider.overrideWith(
+              (ref) => _TestLibraryNotifier(_libraryWithCards()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('曲库').last);
+      await tester.pumpAndSettle();
+
+      final songScale = tester.widget<AnimatedScale>(
+        find.descendant(
+          of: find.byKey(const ValueKey('library-song-reveal-song-0')),
+          matching: find.byType(AnimatedScale),
+        ),
+      );
+      expect(songScale.scale, 1);
+
+      await tester.drag(find.byType(TabBarView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      final albumScale = tester.widget<AnimatedScale>(
+        find.descendant(
+          of: find.byKey(const ValueKey('library-album-reveal-album-0')),
+          matching: find.byType(AnimatedScale),
+        ),
+      );
+      expect(albumScale.scale, 1);
+    },
+  );
+
+  testWidgets('Library song and album cards replay reveal from scroll edge', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testLibraryScreen(_libraryWithCards()));
+    await tester.pumpAndSettle();
+
+    AnimatedScale songScale() => tester.widget<AnimatedScale>(
+      find.descendant(
+        of: find.byKey(const ValueKey('library-song-reveal-song-2')),
+        matching: find.byType(AnimatedScale),
+      ),
+    );
+
+    expect(songScale().scale, 1);
+    expect(songScale().alignment, Alignment.topCenter);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    expect(songScale().scale, .82);
+
+    await tester.drag(find.byType(ListView), const Offset(0, 300));
+    await tester.pumpAndSettle();
+    expect(songScale().scale, 1);
+    expect(songScale().alignment, Alignment.bottomCenter);
+
+    await tester.tap(find.text('专辑  24'));
+    await tester.pumpAndSettle();
+
+    AnimatedScale albumScale() => tester.widget<AnimatedScale>(
+      find.descendant(
+        of: find.byKey(const ValueKey('library-album-reveal-album-0')),
+        matching: find.byType(AnimatedScale),
+      ),
+    );
+
+    expect(albumScale().scale, 1);
+    expect(albumScale().alignment, Alignment.topCenter);
+
+    await tester.drag(find.byType(GridView), const Offset(0, -560));
+    await tester.pumpAndSettle();
+    expect(albumScale().scale, .68);
+
+    await tester.drag(find.byType(GridView), const Offset(0, 560));
+    await tester.pumpAndSettle();
+    expect(albumScale().scale, 1);
+    expect(albumScale().alignment, Alignment.bottomCenter);
+  });
+
   testWidgets('Home sidebar settings button opens settings hub', (
     tester,
   ) async {
@@ -318,6 +406,17 @@ Widget _testApp({List<dynamic> overrides = const []}) {
   );
 }
 
+Widget _testLibraryScreen(LibraryState library) {
+  return ProviderScope(
+    overrides: [
+      authProvider.overrideWith((ref) => _TestAuthNotifier()),
+      playerProvider.overrideWith((ref) => _TestPlayerNotifier()),
+      libraryProvider.overrideWith((ref) => _TestLibraryNotifier(library)),
+    ],
+    child: const MaterialApp(home: LibraryScreen()),
+  );
+}
+
 Finder _homeCustomScrollView() {
   return find.descendant(
     of: find.byType(HomeScreen),
@@ -382,5 +481,25 @@ LibraryState _libraryWithManyAlbums() {
         duration: 2400,
       ),
     ),
+  );
+}
+
+LibraryState _libraryWithCards() {
+  return LibraryState(
+    songs: List.generate(
+      30,
+      (index) => Song(
+        id: 'song-$index',
+        parent: 'album-${index ~/ 3}',
+        title: 'Song ${index.toString().padLeft(2, '0')}',
+        album: 'Album ${index ~/ 3}',
+        artist: 'Artist $index',
+        duration: 180,
+        coverArt: '',
+        contentType: 'audio/mpeg',
+        suffix: 'mp3',
+      ),
+    ),
+    albums: _libraryWithManyAlbums().albums,
   );
 }

@@ -10,6 +10,13 @@
 - Limit playback-position updates to the active word, progress control, or changed MiniPlayer lyric pair. Never rebuild whole pages, lyric lists, palettes, backgrounds, or glass surfaces per tick.
 - For tunable continuous effects, update in memory during drag and persist on release. `flowingHaloBackgroundProvider` defaults to 20 FPS and offers 5–60 FPS through `FlowingHaloBackgroundTile`.
 
+## Viewport Entry Effects
+
+- The library song/album effect is canonically named `双向锚点显现` (Directional Anchor Reveal); read its behavior contract in [library and playback](../../joyal-library-playback-lyrics/references/library-playback.md).
+- Coalesce card geometry checks to one post-frame check per rendered card, and call `setState` only when crossing the entry or full-exit boundary. Do not rebuild the whole library on every scroll tick.
+- Use one-shot visibility requests after the pre-mounted main page or inner `TabBarView` settles; do not poll horizontal transitions continuously.
+- Isolate each transform/opacity animation with `RepaintBoundary` and bypass it when `MediaQuery.disableAnimationsOf(context)` is true.
+
 ## Blur And Compositing
 
 - Do not create `BackdropFilter` when blur is ineffective or the mask is nearly opaque.

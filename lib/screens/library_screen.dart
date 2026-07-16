@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lpinyin/lpinyin.dart';
 
@@ -82,8 +83,9 @@ class _LibrarySongSort {
 
 class LibraryScreen extends ConsumerStatefulWidget {
   final ValueListenable<int>? tabRequest;
+  final Listenable? visibilityRequest;
 
-  const LibraryScreen({super.key, this.tabRequest});
+  const LibraryScreen({super.key, this.tabRequest, this.visibilityRequest});
 
   @override
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
@@ -101,6 +103,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final TabController _tabController;
   final ScrollController _songsController = ScrollController();
   final ScrollController _albumsController = ScrollController();
+  final ValueNotifier<_LibraryScrollDirection> _songsScrollDirection =
+      ValueNotifier(_LibraryScrollDirection.down);
+  final ValueNotifier<_LibraryScrollDirection> _albumsScrollDirection =
+      ValueNotifier(_LibraryScrollDirection.down);
+  final ValueNotifier<int> _cardVisibilityRequest = ValueNotifier<int>(0);
   bool _isRefreshing = false;
   _LibrarySongSort _songSort = _LibrarySongSort.fallback;
   List<Song>? _sortedSongsSource;
@@ -108,6 +115,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   _LibrarySongSort? _sortedSongsSort;
   List<Song> _sortedSongsCache = const [];
   int _visibleSongCount = _songPageSize;
+  int _lastSettledLibraryTab = 0;
 
   double _topBarExtent(BuildContext context) =>
       _headerHeight + MediaQuery.viewPaddingOf(context).top;
@@ -119,27 +127,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _lastSettledLibraryTab = _tabController.index;
+    _tabController.addListener(_handleLibraryTabStateChanged);
     _songsController.addListener(_handleSongsScroll);
+    _albumsController.addListener(_handleAlbumsScroll);
     widget.tabRequest?.addListener(_handleTabRequest);
+    widget.visibilityRequest?.addListener(_handlePageVisibilityRequest);
     unawaited(_loadSongSort());
   }
 
   @override
   void didUpdateWidget(covariant LibraryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.tabRequest == widget.tabRequest) return;
-    oldWidget.tabRequest?.removeListener(_handleTabRequest);
-    widget.tabRequest?.addListener(_handleTabRequest);
+    if (oldWidget.tabRequest != widget.tabRequest) {
+      oldWidget.tabRequest?.removeListener(_handleTabRequest);
+      widget.tabRequest?.addListener(_handleTabRequest);
+    }
+    if (oldWidget.visibilityRequest != widget.visibilityRequest) {
+      oldWidget.visibilityRequest?.removeListener(_handlePageVisibilityRequest);
+      widget.visibilityRequest?.addListener(_handlePageVisibilityRequest);
+    }
   }
 
   @override
   void dispose() {
     widget.tabRequest?.removeListener(_handleTabRequest);
+    widget.visibilityRequest?.removeListener(_handlePageVisibilityRequest);
+    _tabController.removeListener(_handleLibraryTabStateChanged);
     _tabController.dispose();
     _songsController.removeListener(_handleSongsScroll);
+    _albumsController.removeListener(_handleAlbumsScroll);
     _songsController.dispose();
     _albumsController.dispose();
+    _songsScrollDirection.dispose();
+    _albumsScrollDirection.dispose();
+    _cardVisibilityRequest.dispose();
     super.dispose();
+  }
+
+  void _handlePageVisibilityRequest() {
+    _cardVisibilityRequest.value++;
+  }
+
+  void _handleLibraryTabStateChanged() {
+    if (_tabController.indexIsChanging ||
+        _tabController.offset.abs() > .001 ||
+        _tabController.index == _lastSettledLibraryTab) {
+      return;
+    }
+    _lastSettledLibraryTab = _tabController.index;
+    _cardVisibilityRequest.value++;
   }
 
   void _handleTabRequest() {
@@ -151,6 +188,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _handleSongsScroll() {
     if (!_songsController.hasClients) return;
+    _updateScrollDirection(_songsController, _songsScrollDirection);
     if (_visibleSongCount >= _sortedSongsCache.length) return;
     final position = _songsController.position;
     if (position.extentAfter > _songExtent * 8) return;
@@ -160,6 +198,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         _sortedSongsCache.length,
       );
     });
+  }
+
+  void _handleAlbumsScroll() {
+    if (!_albumsController.hasClients) return;
+    _updateScrollDirection(_albumsController, _albumsScrollDirection);
+  }
+
+  void _updateScrollDirection(
+    ScrollController controller,
+    ValueNotifier<_LibraryScrollDirection> direction,
+  ) {
+    switch (controller.position.userScrollDirection) {
+      case ScrollDirection.reverse:
+        direction.value = _LibraryScrollDirection.down;
+      case ScrollDirection.forward:
+        direction.value = _LibraryScrollDirection.up;
+      case ScrollDirection.idle:
+        break;
+    }
   }
 
   Future<void> _loadSongSort() async {
@@ -410,11 +467,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   songs: visibleSongs,
                   playlist: sortedSongs,
                   controller: _songsController,
+                  scrollDirection: _songsScrollDirection,
+                  visibilityRequest: _cardVisibilityRequest,
                   topPadding: topBarExtent,
                 ),
                 _AlbumsView(
                   state: state,
                   controller: _albumsController,
+                  scrollDirection: _albumsScrollDirection,
+                  visibilityRequest: _cardVisibilityRequest,
                   topPadding: topBarExtent,
                 ),
               ],
@@ -615,6 +676,8 @@ class _SongsView extends ConsumerWidget {
   final List<Song> songs;
   final List<Song> playlist;
   final ScrollController controller;
+  final ValueListenable<_LibraryScrollDirection> scrollDirection;
+  final Listenable visibilityRequest;
   final double topPadding;
 
   const _SongsView({
@@ -622,6 +685,8 @@ class _SongsView extends ConsumerWidget {
     required this.songs,
     required this.playlist,
     required this.controller,
+    required this.scrollDirection,
+    required this.visibilityRequest,
     required this.topPadding,
   });
 
@@ -660,30 +725,38 @@ class _SongsView extends ConsumerWidget {
       itemBuilder: (context, index) {
         final song = songs[index];
         final isStarred = starredIds.contains(song.id);
-        return SongTile(
-          song: song,
-          index: index,
-          isPlaying: song.id == currentSongId,
-          isDownloaded: downloadedIds.contains(song.id),
-          onTap: () => ref
-              .read(playerProvider.notifier)
-              .playPlaylist(playlist, startIndex: index),
-          onMore: () => SongActionsSheet.show(
-            context,
-            songTitle: song.title,
-            songArtist: song.artist,
-            isStarred: isStarred,
-            onPlayNext: () {
-              ref.read(playerProvider.notifier).playNext(song);
-            },
-            onToggleFavorite: () {
-              ref
-                  .read(libraryProvider.notifier)
-                  .setSongStarred(song, starred: !isStarred);
-            },
-            downloadService: ref.read(downloadServiceProvider),
-            songId: song.id,
+        return _ViewportRevealCard(
+          key: ValueKey('library-song-reveal-${song.id}'),
+          controller: controller,
+          scrollDirection: scrollDirection,
+          visibilityRequest: visibilityRequest,
+          topInset: topPadding,
+          hiddenScale: .82,
+          child: SongTile(
             song: song,
+            index: index,
+            isPlaying: song.id == currentSongId,
+            isDownloaded: downloadedIds.contains(song.id),
+            onTap: () => ref
+                .read(playerProvider.notifier)
+                .playPlaylist(playlist, startIndex: index),
+            onMore: () => SongActionsSheet.show(
+              context,
+              songTitle: song.title,
+              songArtist: song.artist,
+              isStarred: isStarred,
+              onPlayNext: () {
+                ref.read(playerProvider.notifier).playNext(song);
+              },
+              onToggleFavorite: () {
+                ref
+                    .read(libraryProvider.notifier)
+                    .setSongStarred(song, starred: !isStarred);
+              },
+              downloadService: ref.read(downloadServiceProvider),
+              songId: song.id,
+              song: song,
+            ),
           ),
         );
       },
@@ -694,11 +767,15 @@ class _SongsView extends ConsumerWidget {
 class _AlbumsView extends ConsumerWidget {
   final LibraryState state;
   final ScrollController controller;
+  final ValueListenable<_LibraryScrollDirection> scrollDirection;
+  final Listenable visibilityRequest;
   final double topPadding;
 
   const _AlbumsView({
     required this.state,
     required this.controller,
+    required this.scrollDirection,
+    required this.visibilityRequest,
     required this.topPadding,
   });
 
@@ -730,39 +807,187 @@ class _AlbumsView extends ConsumerWidget {
         final cover = api == null || album.coverArt.isEmpty
             ? ''
             : api.getCoverArtUrl(album.coverArt);
-        return InkWell(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AlbumDetailScreen(album: album)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: AlbumCover(
-                  coverArtUrl: cover,
-                  cacheKey: album.coverArt,
-                  size: double.infinity,
-                  borderRadius: AppTheme.radiusMedium,
+        return _ViewportRevealCard(
+          key: ValueKey('library-album-reveal-${album.id}'),
+          controller: controller,
+          scrollDirection: scrollDirection,
+          visibilityRequest: visibilityRequest,
+          topInset: topPadding,
+          hiddenScale: .68,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AlbumDetailScreen(album: album),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: AlbumCover(
+                    coverArtUrl: cover,
+                    cacheKey: album.coverArt,
+                    size: double.infinity,
+                    borderRadius: AppTheme.radiusMedium,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                album.name,
-                style: context.textTitleMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                album.artist,
-                style: context.textBodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+                const SizedBox(height: 10),
+                Text(
+                  album.name,
+                  style: context.textTitleMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  album.artist,
+                  style: context.textBodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+enum _LibraryScrollDirection { up, down }
+
+class _ViewportRevealCard extends StatefulWidget {
+  static const double _visibilityThreshold = .15;
+  static const Duration _duration = Duration(milliseconds: 620);
+  static const Curve _scaleCurve = Cubic(.2, .8, .2, 1);
+
+  final ScrollController controller;
+  final ValueListenable<_LibraryScrollDirection> scrollDirection;
+  final Listenable visibilityRequest;
+  final double topInset;
+  final double hiddenScale;
+  final Widget child;
+
+  const _ViewportRevealCard({
+    super.key,
+    required this.controller,
+    required this.scrollDirection,
+    required this.visibilityRequest,
+    required this.topInset,
+    required this.hiddenScale,
+    required this.child,
+  });
+
+  @override
+  State<_ViewportRevealCard> createState() => _ViewportRevealCardState();
+}
+
+class _ViewportRevealCardState extends State<_ViewportRevealCard> {
+  bool _isVisible = false;
+  bool _visibilityCheckScheduled = false;
+  Alignment _scaleAlignment = Alignment.topCenter;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleScroll);
+    widget.visibilityRequest.addListener(_handleVisibilityRequest);
+    _scheduleVisibilityCheck();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ViewportRevealCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleScroll);
+      widget.controller.addListener(_handleScroll);
+    }
+    if (oldWidget.visibilityRequest != widget.visibilityRequest) {
+      oldWidget.visibilityRequest.removeListener(_handleVisibilityRequest);
+      widget.visibilityRequest.addListener(_handleVisibilityRequest);
+    }
+    _scheduleVisibilityCheck();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleScroll);
+    widget.visibilityRequest.removeListener(_handleVisibilityRequest);
+    super.dispose();
+  }
+
+  void _handleScroll() => _scheduleVisibilityCheck();
+
+  void _handleVisibilityRequest() => _scheduleVisibilityCheck();
+
+  void _scheduleVisibilityCheck() {
+    if (_visibilityCheckScheduled) return;
+    _visibilityCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visibilityCheckScheduled = false;
+      _updateVisibility();
+    });
+  }
+
+  void _updateVisibility() {
+    if (!mounted || !widget.controller.hasClients) return;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery == null) return;
+
+    final origin = renderObject.localToGlobal(Offset.zero);
+    final cardRect = origin & renderObject.size;
+    final viewportRect = Rect.fromLTRB(
+      0,
+      widget.topInset,
+      mediaQuery.size.width,
+      mediaQuery.size.height,
+    );
+    final intersection = cardRect.intersect(viewportRect);
+    final cardArea = cardRect.width * cardRect.height;
+    final visibleArea = intersection.width <= 0 || intersection.height <= 0
+        ? 0.0
+        : intersection.width * intersection.height;
+    final visibleFraction = cardArea <= 0 ? 0.0 : visibleArea / cardArea;
+
+    // Match IntersectionObserver semantics: reveal after 15% enters, then keep
+    // the card visible until it has completely left the usable viewport.
+    final shouldBeVisible = _isVisible
+        ? visibleFraction > 0
+        : visibleFraction >= _ViewportRevealCard._visibilityThreshold;
+    if (shouldBeVisible == _isVisible) return;
+
+    setState(() {
+      if (shouldBeVisible) {
+        _scaleAlignment =
+            widget.scrollDirection.value == _LibraryScrollDirection.down
+            ? Alignment.topCenter
+            : Alignment.bottomCenter;
+      }
+      _isVisible = shouldBeVisible;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return RepaintBoundary(child: widget.child);
+    }
+
+    return RepaintBoundary(
+      child: AnimatedOpacity(
+        opacity: _isVisible ? 1 : 0,
+        duration: _ViewportRevealCard._duration,
+        curve: Curves.easeOut,
+        child: AnimatedScale(
+          scale: _isVisible ? 1 : widget.hiddenScale,
+          alignment: _scaleAlignment,
+          duration: _ViewportRevealCard._duration,
+          curve: _ViewportRevealCard._scaleCurve,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }
