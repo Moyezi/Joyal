@@ -4,7 +4,7 @@
 
 - Pinch with two fingers on the lyrics page to open the in-place personalization drawer.
 - Persist preferences through `lyrics_personalization_provider.dart` in secure storage.
-- Persist color, renderer-specific font sizes, font family, and alignment. Keep default-scroll size, `flowingLightFontSize`, and `floatingNameFontSize` independent.
+- Persist color, renderer-specific font sizes, font family, and alignment. Color offers only `白色字体` and the dark-mode-oriented `动态浅色`; migrate removed system/black values to white. Keep default-scroll size, `flowingLightFontSize`, and `floatingNameFontSize` independent.
 - Apply text alignment only to the default renderer. Offer exactly left, center, and right; migrate legacy `justify` to right. Do not show or apply alignment in `流光`.
 - Persist `wordByWordEnabled`. It controls default timed highlighting and whether `流光` uses token motion or a complete-line fallback; lyrics download/cache continues while off.
 - Apply `GlassEffectTarget.lyricsPage` non-current lyric fogging only to the default renderer. Hide those blur/opacity controls for independent stages.

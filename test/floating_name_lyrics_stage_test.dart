@@ -443,7 +443,6 @@ void main() {
   test('floating name waiting stamp inherits the preceding keyword color', () {
     const keyword = Color(0xFFCC6633);
     const active = Color(0xFFFFFFFF);
-    const stamp = Color(0xFF778899);
     final glyphs = '月光。'.characters.toList(growable: false);
     const semanticColors = <Color?>[keyword, keyword, null];
     final precedingIndex = floatingNameLastStampableGraphemeIndex(glyphs);
@@ -454,7 +453,6 @@ void main() {
         glyphs: glyphs,
         semanticColors: semanticColors,
         activeColor: active,
-        aiStampColor: stamp,
       ),
       keyword,
     );
@@ -506,21 +504,13 @@ void main() {
 
   test('floating name keyword print stamp uses the keyword color', () {
     const active = Color(0xFFFFFFFF);
-    const stamp = Color(0xFF778899);
     const keyword = Color(0xFFCC6633);
 
     expect(
-      floatingNamePrintStampColor(
-        activeColor: active,
-        aiStampColor: stamp,
-        semanticColor: keyword,
-      ),
+      floatingNamePrintStampColor(activeColor: active, semanticColor: keyword),
       keyword,
     );
-    expect(
-      floatingNamePrintStampColor(activeColor: active, aiStampColor: stamp),
-      stamp,
-    );
+    expect(floatingNamePrintStampColor(activeColor: active), active);
   });
 
   test('floating name passed text fades smoothly from active to gray', () {

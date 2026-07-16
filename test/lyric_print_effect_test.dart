@@ -22,38 +22,41 @@ void main() {
     expect(lyricPrintStampPulse(1), 0);
   });
 
-  test('AI color fades to the default color after the next glyph starts', () {
-    const start = Duration(seconds: 1);
-    const nextStart = Duration(seconds: 2);
-    expect(
-      lyricAiColorIntensity(
-        position: const Duration(milliseconds: 1500),
-        start: start,
-        nextStart: nextStart,
-      ),
-      1,
-    );
-    expect(
-      lyricAiColorIntensity(
-        position: const Duration(milliseconds: 2140),
-        start: start,
-        nextStart: nextStart,
-      ),
-      closeTo(0.5, 0.005),
-    );
-    expect(
-      lyricAiColorIntensity(
-        position: const Duration(milliseconds: 2280),
-        start: start,
-        nextStart: nextStart,
-      ),
-      0,
-    );
-  });
+  test(
+    'effect color fades to the default color after the next glyph starts',
+    () {
+      const start = Duration(seconds: 1);
+      const nextStart = Duration(seconds: 2);
+      expect(
+        lyricEffectColorIntensity(
+          position: const Duration(milliseconds: 1500),
+          start: start,
+          nextStart: nextStart,
+        ),
+        1,
+      );
+      expect(
+        lyricEffectColorIntensity(
+          position: const Duration(milliseconds: 2140),
+          start: start,
+          nextStart: nextStart,
+        ),
+        closeTo(0.5, 0.005),
+      );
+      expect(
+        lyricEffectColorIntensity(
+          position: const Duration(milliseconds: 2280),
+          start: start,
+          nextStart: nextStart,
+        ),
+        0,
+      );
+    },
+  );
 
   test('semantic keyword color stays after the next glyph starts', () {
     expect(
-      lyricAiColorIntensity(
+      lyricEffectColorIntensity(
         position: const Duration(seconds: 4),
         start: const Duration(seconds: 1),
         nextStart: const Duration(seconds: 2),
@@ -96,7 +99,6 @@ void main() {
               title: '测试歌曲',
               artist: '测试歌手',
               dynamicColor: null,
-              aiPrimaryColor: null,
               stageVisible: true,
               positionUpdatesEnabled: true,
               onSeek: (_) {},

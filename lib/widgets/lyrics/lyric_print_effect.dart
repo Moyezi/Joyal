@@ -21,9 +21,9 @@ double lyricPrintStampPulse(double progress) {
   return 1 - Curves.easeOutCubic.transform(phase.clamp(0.0, 1.0));
 }
 
-/// Keeps the current glyph/token in its AI color, then optionally fades it
+/// Keeps the current glyph/token in its resolved effect color, then optionally fades it
 /// back to the renderer's default color after the next glyph/token starts.
-double lyricAiColorIntensity({
+double lyricEffectColorIntensity({
   required Duration position,
   required Duration start,
   Duration? nextStart,

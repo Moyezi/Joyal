@@ -46,12 +46,7 @@ void main() {
     ],
   );
   const visualContext = LyricsAiVisualContext(
-    light: LyricsAiVisualScheme(
-      backgroundTop: 0xFFE7D0B8,
-      backgroundBottom: 0xFFF1E5D8,
-      accent: 0xFF875A3C,
-    ),
-    dark: LyricsAiVisualScheme(
+    scheme: LyricsAiVisualScheme(
       backgroundTop: 0xFF26384A,
       backgroundBottom: 0xFF18232E,
       accent: 0xFFAFCBDF,
@@ -83,61 +78,47 @@ void main() {
       'broken heart learns to love again',
     ]);
     expect(payload['visual_context'], {
-      'light': {
-        'background_top': '#E7D0B8',
-        'background_bottom': '#F1E5D8',
-        'accent': '#875A3C',
-      },
-      'dark': {
-        'background_top': '#26384A',
-        'background_bottom': '#18232E',
-        'accent': '#AFCBDF',
-      },
+      'background_top': '#26384A',
+      'background_bottom': '#18232E',
+      'accent': '#AFCBDF',
     });
     expect(system['content'], isNot(contains('ornament')));
-    expect(system['content'], contains('高光光晕色'));
-    expect(system['content'], contains('圆形光环颜色'));
+    expect(system['content'], contains('AI 仅负责 keywords'));
+    expect(system['content'], contains('不区分浅色/深色界面'));
     expect(system['content'], contains('10～20'));
     expect(system['content'], contains('不要反复只用蓝、紫、青'));
     expect(system['content'], contains('visual_context'));
   });
 
   test('valid AI palette is parsed into opaque ARGB colors', () {
-    final palette = parseLyricsAiPaletteResponse(
+    final keywords = parseLyricsAiPaletteResponse(
       jsonEncode({
-        'light': {'primary': '#3F5F8A', 'stamp': '#4B6F9F'},
-        'dark': {'primary': '#AFCBFF', 'stamp': '#BED5FF'},
         'keywords': [
-          {'text': '月光', 'light': '#8B3A2B', 'dark': '#F2A38F'},
-          {'text': '不存在', 'light': '#355E3B', 'dark': '#A8D5AF'},
-          {'text': '月光', 'light': '#6B4A22', 'dark': '#E5C07B'},
-          {'text': '旧城', 'light': '#8B3A2B', 'dark': '#F2A38F'},
-          {'text': 'love', 'light': '#7B294D', 'dark': '#F3A0C2'},
+          {'text': '月光', 'color': '#F2A38F'},
+          {'text': '不存在', 'color': '#A8D5AF'},
+          {'text': '月光', 'color': '#E5C07B'},
+          {'text': '旧城', 'color': '#F2A38F'},
+          {'text': 'love', 'color': '#F3A0C2'},
         ],
       }),
       lyrics: lyrics,
     );
 
-    expect(palette.light.primary, 0xFF3F5F8A);
-    expect(palette.dark.stamp, 0xFFBED5FF);
-    expect(palette.keywords.map((item) => item.text), ['月光', 'love']);
-    expect(palette.keywords.first.light, 0xFF8B3A2B);
+    expect(keywords.map((item) => item.text), ['月光', 'love']);
+    expect(keywords.first.color, 0xFFF2A38F);
   });
 
-  test('invalid AI response uses the restrained fallback palette', () {
-    final palette = parseLyricsAiPaletteResponse('not-json');
+  test('invalid AI response returns no keyword colors', () {
+    final keywords = parseLyricsAiPaletteResponse('not-json');
 
-    expect(palette.light.primary, 0xFF3F5F8A);
-    expect(palette.dark.primary, 0xFFAFCBFF);
+    expect(keywords, isEmpty);
   });
 
-  test('AI colors are corrected against derived gradient backgrounds', () {
-    final palette = parseLyricsAiPaletteResponse(
+  test('AI keyword colors are corrected against dark gradient backgrounds', () {
+    final keywords = parseLyricsAiPaletteResponse(
       jsonEncode({
-        'light': {'primary': '#E7D0B8', 'stamp': '#F1E5D8'},
-        'dark': {'primary': '#26384A', 'stamp': '#18232E'},
         'keywords': [
-          {'text': '月光', 'light': '#E7D0B8', 'dark': '#26384A'},
+          {'text': '月光', 'color': '#26384A'},
         ],
       }),
       lyrics: lyrics,
@@ -146,22 +127,15 @@ void main() {
 
     expect(
       _contrastRatio(
-        Color(palette.light.primary),
-        Color(visualContext.light.backgroundTop),
+        Color(keywords.single.color),
+        Color(visualContext.scheme.backgroundTop),
       ),
       greaterThanOrEqualTo(4.5),
     );
     expect(
       _contrastRatio(
-        Color(palette.dark.primary),
-        Color(visualContext.dark.backgroundTop),
-      ),
-      greaterThanOrEqualTo(4.5),
-    );
-    expect(
-      _contrastRatio(
-        Color(palette.keywords.single.light),
-        Color(visualContext.light.backgroundBottom),
+        Color(keywords.single.color),
+        Color(visualContext.scheme.backgroundBottom),
       ),
       greaterThanOrEqualTo(4.5),
     );
@@ -175,11 +149,7 @@ void main() {
       visualContext: visualContext,
     );
     final palette = LyricsAiPalette(
-      light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
-      dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
-      keywords: const [
-        LyricsAiKeywordColors(text: '月光', light: 0xFF6F3025, dark: 0xFFF2A38F),
-      ],
+      keywords: const [LyricsAiKeywordColors(text: '月光', color: 0xFFF2A38F)],
       metadataHash: metadataHash,
       model: 'deepseek-chat',
       promptVersion: lyricsAiPalettePromptVersion,
@@ -187,9 +157,8 @@ void main() {
     );
     final restored = LyricsAiPalette.fromJson(palette.toJson());
 
-    expect((palette.toJson()['light'] as Map).keys, ['primary', 'stamp']);
+    expect(palette.toJson().keys, isNot(containsAll(['light', 'dark'])));
     expect(restored.keywords, palette.keywords);
-    expect(restored.colorsFor(darkMode: true), restored.dark);
     expect(visualMetadataHash, isNot(metadataHash));
     expect(
       restored.matches(
@@ -232,16 +201,14 @@ void main() {
       );
       final repository = LyricsAiPaletteRepository(AppCacheService.instance);
       final oldPalette = LyricsAiPalette(
-        light: const LyricsAiColors(primary: 0xFF111111, stamp: 0xFF222222),
-        dark: const LyricsAiColors(primary: 0xFFEEEEEE, stamp: 0xFFDDDDDD),
+        keywords: const [LyricsAiKeywordColors(text: '月光', color: 0xFFEEEEEE)],
         metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
         model: 'deepseek-chat',
         promptVersion: lyricsAiPalettePromptVersion,
         generatedAt: DateTime.utc(2026, 7, 13),
       );
       final newPalette = LyricsAiPalette(
-        light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
-        dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
+        keywords: const [LyricsAiKeywordColors(text: '月光', color: 0xFFF2A38F)],
         metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
         model: 'deepseek-chat',
         promptVersion: lyricsAiPalettePromptVersion,
@@ -306,8 +273,7 @@ void main() {
     const scope = 'server-scope';
     final cacheId = sha1.convert(utf8.encode('$scope|${song.id}'));
     final palette = LyricsAiPalette(
-      light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
-      dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
+      keywords: const [LyricsAiKeywordColors(text: '月光', color: 0xFFF2A38F)],
       metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
       model: 'deepseek-chat',
       promptVersion: lyricsAiPalettePromptVersion,
@@ -322,7 +288,7 @@ void main() {
       AppCacheService.instance,
     ).load(scope, song.id);
 
-    expect(restored?.dark, palette.dark);
+    expect(restored?.keywords, palette.keywords);
     expect(
       await File(
         '${directory.path}${Platform.pathSeparator}lyrics_ai_palette_$cacheId.json',
@@ -397,19 +363,29 @@ void main() {
     },
   );
 
-  testWidgets('light system lyrics use a softer charcoal default', (
+  testWidgets('light app theme still uses dark-mode-oriented lyric colors', (
     tester,
   ) async {
-    late Color resolved;
+    late Color whiteResolved;
+    late Color dynamicResolved;
+    const dynamicColor = Color(0xFFAFCBDF);
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData.light(),
         home: Builder(
           builder: (context) {
-            resolved = resolvedActiveLyricColor(
+            whiteResolved = resolvedActiveLyricColor(
               context,
               const LyricsPersonalizationState(isLoading: false),
               null,
+            );
+            dynamicResolved = resolvedActiveLyricColor(
+              context,
+              const LyricsPersonalizationState(
+                colorMode: LyricsColorMode.dynamicLight,
+                isLoading: false,
+              ),
+              dynamicColor,
             );
             return const SizedBox.shrink();
           },
@@ -417,8 +393,17 @@ void main() {
       ),
     );
 
-    expect(resolved, defaultLightLyricColor);
-    expect(resolved, const Color(0xFF3F434A));
+    expect(whiteResolved, Colors.white);
+    expect(dynamicResolved, dynamicColor);
+  });
+
+  test('removed lyric color modes migrate to white', () {
+    expect(LyricsColorMode.fromStorageValue('system'), LyricsColorMode.white);
+    expect(LyricsColorMode.fromStorageValue('black'), LyricsColorMode.white);
+    expect(LyricsColorMode.values, [
+      LyricsColorMode.white,
+      LyricsColorMode.dynamicLight,
+    ]);
   });
 }
 

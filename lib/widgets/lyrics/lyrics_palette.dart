@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../config/theme_context.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../album_visual_palette.dart';
-
-const defaultLightLyricColor = Color(0xFF3F434A);
 
 class LyricsPaletteRequest {
   final String coverArtId;
@@ -41,33 +38,17 @@ final lyricsPaletteProvider = FutureProvider.autoDispose
       );
     });
 
-Color dynamicLyricColorFromPalette(
-  AlbumVisualPalette palette,
-  Brightness brightness,
-) {
+Color dynamicLyricColorFromPalette(AlbumVisualPalette palette) {
   final source = Color.lerp(
-    palette.waveformAccentFor(brightness),
+    palette.waveformAccentFor(Brightness.dark),
     palette.top,
     0.18,
   )!;
-  final pastel = Color.lerp(
-    source,
-    Colors.white,
-    brightness == Brightness.dark ? 0.50 : 0.28,
-  )!;
-  final minLuminance = brightness == Brightness.dark ? 0.58 : 0.30;
-  final maxLuminance = brightness == Brightness.dark ? 0.86 : 0.58;
-  return _withMaximumLuminance(
-    _withMinimumLuminance(pastel, minLuminance),
-    maxLuminance,
-  );
+  final pastel = Color.lerp(source, Colors.white, 0.50)!;
+  return _withMaximumLuminance(_withMinimumLuminance(pastel, 0.58), 0.86);
 }
 
-Color _dynamicFallbackColor(Brightness brightness) {
-  return brightness == Brightness.dark
-      ? const Color(0xFFE8EEFF)
-      : const Color(0xFF6D7FA8);
-}
+const _dynamicFallbackColor = Color(0xFFE8EEFF);
 
 Color resolvedActiveLyricColor(
   BuildContext context,
@@ -75,14 +56,8 @@ Color resolvedActiveLyricColor(
   Color? dynamicColor,
 ) {
   return switch (preferences.colorMode) {
-    LyricsColorMode.system =>
-      Theme.of(context).brightness == Brightness.light
-          ? defaultLightLyricColor
-          : context.primaryColor,
-    LyricsColorMode.black => Colors.black,
     LyricsColorMode.white => Colors.white,
-    LyricsColorMode.dynamicLight =>
-      dynamicColor ?? _dynamicFallbackColor(Theme.of(context).brightness),
+    LyricsColorMode.dynamicLight => dynamicColor ?? _dynamicFallbackColor,
   };
 }
 

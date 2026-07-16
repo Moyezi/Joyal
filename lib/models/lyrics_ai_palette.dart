@@ -5,72 +5,32 @@ import 'package:crypto/crypto.dart';
 import 'song.dart';
 import 'lyrics.dart';
 
-class LyricsAiColors {
-  final int primary;
-  final int stamp;
-
-  const LyricsAiColors({required this.primary, required this.stamp});
-
-  factory LyricsAiColors.fromJson(Map<String, dynamic> json) {
-    return LyricsAiColors(
-      primary: _storedColor(json['primary']),
-      stamp: _storedColor(json['stamp']),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'primary': _hexColor(primary),
-    'stamp': _hexColor(stamp),
-  };
-
-  @override
-  bool operator ==(Object other) {
-    return other is LyricsAiColors &&
-        other.primary == primary &&
-        other.stamp == stamp;
-  }
-
-  @override
-  int get hashCode => Object.hash(primary, stamp);
-}
-
 class LyricsAiKeywordColors {
   final String text;
-  final int light;
-  final int dark;
+  final int color;
 
-  const LyricsAiKeywordColors({
-    required this.text,
-    required this.light,
-    required this.dark,
-  });
+  const LyricsAiKeywordColors({required this.text, required this.color});
 
   factory LyricsAiKeywordColors.fromJson(Map<String, dynamic> json) {
     return LyricsAiKeywordColors(
       text: json['text'] as String? ?? '',
-      light: _storedColor(json['light']),
-      dark: _storedColor(json['dark']),
+      // Read the former dark-mode value so old local records remain
+      // manageable until prompt-version invalidation regenerates them.
+      color: _storedColor(json['color'] ?? json['dark']),
     );
   }
 
-  int colorFor({required bool darkMode}) => darkMode ? dark : light;
-
-  Map<String, dynamic> toJson() => {
-    'text': text,
-    'light': _hexColor(light),
-    'dark': _hexColor(dark),
-  };
+  Map<String, dynamic> toJson() => {'text': text, 'color': _hexColor(color)};
 
   @override
   bool operator ==(Object other) {
     return other is LyricsAiKeywordColors &&
         other.text == text &&
-        other.light == light &&
-        other.dark == dark;
+        other.color == color;
   }
 
   @override
-  int get hashCode => Object.hash(text, light, dark);
+  int get hashCode => Object.hash(text, color);
 }
 
 class LyricsAiVisualScheme {
@@ -94,24 +54,14 @@ class LyricsAiVisualScheme {
 }
 
 class LyricsAiVisualContext {
-  final LyricsAiVisualScheme light;
-  final LyricsAiVisualScheme dark;
+  final LyricsAiVisualScheme scheme;
 
-  const LyricsAiVisualContext({required this.light, required this.dark});
+  const LyricsAiVisualContext({required this.scheme});
 
-  LyricsAiVisualScheme schemeFor({required bool darkMode}) {
-    return darkMode ? dark : light;
-  }
-
-  Map<String, dynamic> toJson() => {
-    'light': light.toJson(),
-    'dark': dark.toJson(),
-  };
+  Map<String, dynamic> toJson() => scheme.toJson();
 }
 
 class LyricsAiPalette {
-  final LyricsAiColors light;
-  final LyricsAiColors dark;
   final List<LyricsAiKeywordColors> keywords;
   final String metadataHash;
   final String model;
@@ -119,18 +69,12 @@ class LyricsAiPalette {
   final DateTime generatedAt;
 
   const LyricsAiPalette({
-    required this.light,
-    required this.dark,
     this.keywords = const [],
     required this.metadataHash,
     required this.model,
     required this.promptVersion,
     required this.generatedAt,
   });
-
-  LyricsAiColors colorsFor({required bool darkMode}) {
-    return darkMode ? dark : light;
-  }
 
   bool matches({
     required String currentMetadataHash,
@@ -143,14 +87,7 @@ class LyricsAiPalette {
   }
 
   factory LyricsAiPalette.fromJson(Map<String, dynamic> json) {
-    final light = json['light'];
-    final dark = json['dark'];
-    if (light is! Map || dark is! Map) {
-      throw const FormatException('AI 歌词配色缓存格式异常');
-    }
     return LyricsAiPalette(
-      light: LyricsAiColors.fromJson(Map<String, dynamic>.from(light)),
-      dark: LyricsAiColors.fromJson(Map<String, dynamic>.from(dark)),
       keywords: (json['keywords'] as List<dynamic>? ?? const [])
           .whereType<Map>()
           .map(
@@ -168,8 +105,6 @@ class LyricsAiPalette {
   }
 
   Map<String, dynamic> toJson() => {
-    'light': light.toJson(),
-    'dark': dark.toJson(),
     'keywords': keywords.map((keyword) => keyword.toJson()).toList(),
     'metadataHash': metadataHash,
     'model': model,

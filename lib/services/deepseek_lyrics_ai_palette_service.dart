@@ -39,15 +39,13 @@ class DeepSeekLyricsAiPaletteService {
                     as Map?)?['message']
                 as Map?)?['content']
             as String?;
-    final colors = parseLyricsAiPaletteResponse(
+    final keywords = parseLyricsAiPaletteResponse(
       content ?? '',
       lyrics: lyrics,
       visualContext: visualContext,
     );
     return LyricsAiPalette(
-      light: colors.light,
-      dark: colors.dark,
-      keywords: colors.keywords,
+      keywords: keywords,
       metadataHash: lyricsAiPaletteMetadataHash(
         song,
         lyrics,

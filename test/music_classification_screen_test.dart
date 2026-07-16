@@ -204,8 +204,7 @@ RecognizedLyricsAiPalette _palette(Song song) {
   return RecognizedLyricsAiPalette(
     song: song,
     palette: LyricsAiPalette(
-      light: const LyricsAiColors(primary: 0xFF445566, stamp: 0xFF778899),
-      dark: const LyricsAiColors(primary: 0xFFCCDDEE, stamp: 0xFFAABBCC),
+      keywords: const [LyricsAiKeywordColors(text: '月光', color: 0xFFCCDDEE)],
       metadataHash: 'hash',
       model: 'model',
       promptVersion: 1,

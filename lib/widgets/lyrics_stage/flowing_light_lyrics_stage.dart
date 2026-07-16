@@ -20,8 +20,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
-  final Color? aiPrimaryColor;
-  final Color? aiStampColor;
+  final Color? effectColor;
   final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool stageVisible;
@@ -38,8 +37,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
-    required this.aiPrimaryColor,
-    required this.aiStampColor,
+    required this.effectColor,
     this.aiKeywordColors = const {},
     required this.wordByWordEnabled,
     required this.stageVisible,
@@ -60,8 +58,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
           error: (_, _) => null,
           loading: () => null,
         );
-    final stampColor = aiStampColor ?? activeColor;
-
+    final resolvedEffectColor = effectColor ?? activeColor;
     return LyricsStageShell(
       title: title,
       artist: artist,
@@ -87,8 +84,8 @@ class FlowingLightLyricsStage extends ConsumerWidget {
           key: ValueKey(resolvedIndex),
           activeLine: activeLine,
           activeColor: activeColor,
-          aiPrimaryColor: aiPrimaryColor,
-          stampColor: stampColor,
+          effectColor: resolvedEffectColor,
+          stampColor: resolvedEffectColor,
           aiKeywordColors: aiKeywordColors,
           fontFamily: fontFamily,
           fontSize: fontSize,
@@ -104,7 +101,7 @@ class FlowingLightLyricsStage extends ConsumerWidget {
 class _FlowingLightComposition extends StatelessWidget {
   final LyricLine activeLine;
   final Color activeColor;
-  final Color? aiPrimaryColor;
+  final Color effectColor;
   final Color stampColor;
   final Map<String, Color> aiKeywordColors;
   final String? fontFamily;
@@ -117,7 +114,7 @@ class _FlowingLightComposition extends StatelessWidget {
     super.key,
     required this.activeLine,
     required this.activeColor,
-    required this.aiPrimaryColor,
+    required this.effectColor,
     required this.stampColor,
     required this.aiKeywordColors,
     required this.fontFamily,
@@ -135,7 +132,7 @@ class _FlowingLightComposition extends StatelessWidget {
         child: _FlowingLightActiveLine(
           line: activeLine,
           activeColor: activeColor,
-          aiPrimaryColor: aiPrimaryColor,
+          effectColor: effectColor,
           stampColor: stampColor,
           aiKeywordColors: aiKeywordColors,
           fontFamily: fontFamily,
@@ -331,7 +328,7 @@ bool _isLatinWordGlyph(String glyph) {
 class _FlowingLightActiveLine extends ConsumerWidget {
   final LyricLine line;
   final Color activeColor;
-  final Color? aiPrimaryColor;
+  final Color effectColor;
   final Color stampColor;
   final Map<String, Color> aiKeywordColors;
   final String? fontFamily;
@@ -343,7 +340,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
   const _FlowingLightActiveLine({
     required this.line,
     required this.activeColor,
-    required this.aiPrimaryColor,
+    required this.effectColor,
     required this.stampColor,
     required this.aiKeywordColors,
     required this.fontFamily,
@@ -430,7 +427,7 @@ class _FlowingLightActiveLine extends ConsumerWidget {
                 position: animatedPosition,
                 style: style,
                 defaultColor: activeColor,
-                aiPrimaryColor: aiPrimaryColor,
+                effectColor: effectColor,
                 semanticColor: semanticColors[index],
                 nextStart: index + 1 < tokens.length
                     ? tokens[index + 1].start
@@ -717,7 +714,7 @@ class _FlowingLightTokenView extends StatelessWidget {
   final Duration position;
   final TextStyle style;
   final Color defaultColor;
-  final Color? aiPrimaryColor;
+  final Color effectColor;
   final Color? semanticColor;
   final Duration? nextStart;
   final Color ringColor;
@@ -731,7 +728,7 @@ class _FlowingLightTokenView extends StatelessWidget {
     required this.position,
     required this.style,
     required this.defaultColor,
-    required this.aiPrimaryColor,
+    required this.effectColor,
     required this.semanticColor,
     required this.nextStart,
     required this.ringColor,
@@ -790,18 +787,18 @@ class _FlowingLightTokenView extends StatelessWidget {
       breathingGlowIntensity,
     );
     final lift = 7 * (1 - Curves.easeOutCubic.transform(reveal));
-    final resolvedAiColor = semanticColor ?? aiPrimaryColor;
-    final aiIntensity = resolvedAiColor == null
-        ? 0.0
-        : flowingLightTokenAiColorIntensity(
-            token,
-            position,
-            nextStart: nextStart,
-            persist: semanticColor != null,
-          );
-    final color = resolvedAiColor == null
-        ? defaultColor
-        : Color.lerp(defaultColor, resolvedAiColor, aiIntensity)!;
+    final resolvedEffectColor = semanticColor ?? effectColor;
+    final effectIntensity = flowingLightTokenEffectColorIntensity(
+      token,
+      position,
+      nextStart: nextStart,
+      persist: semanticColor != null,
+    );
+    final color = Color.lerp(
+      defaultColor,
+      resolvedEffectColor,
+      effectIntensity,
+    )!;
     final highlightColor = color;
     final highlightedText = Text(
       token.text,
@@ -872,13 +869,13 @@ double flowingLightTokenRevealProgress(
       .toDouble();
 }
 
-double flowingLightTokenAiColorIntensity(
+double flowingLightTokenEffectColorIntensity(
   FlowingLightToken token,
   Duration position, {
   Duration? nextStart,
   bool persist = false,
 }) {
-  return lyricAiColorIntensity(
+  return lyricEffectColorIntensity(
     position: position,
     start: token.start,
     nextStart: nextStart,

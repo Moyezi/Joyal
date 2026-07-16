@@ -564,25 +564,7 @@ class LyricsPaletteSongCard extends StatelessWidget {
                   style: context.textBodySmall,
                 ),
                 const SizedBox(height: AppTheme.spacingSM),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    _PaletteColorPair(
-                      label: '浅色',
-                      primary: Color(palette.light.primary),
-                      stamp: Color(palette.light.stamp),
-                    ),
-                    _PaletteColorPair(
-                      label: '深色',
-                      primary: Color(palette.dark.primary),
-                      stamp: Color(palette.dark.stamp),
-                    ),
-                  ],
-                ),
                 if (visibleKeywords.isNotEmpty) ...[
-                  const SizedBox(height: AppTheme.spacingSM),
                   Wrap(
                     spacing: 5,
                     runSpacing: 5,
@@ -590,11 +572,7 @@ class LyricsPaletteSongCard extends StatelessWidget {
                       for (final keyword in visibleKeywords)
                         _KeywordColorChip(
                           text: keyword.text,
-                          color: Color(
-                            Theme.of(context).brightness == Brightness.dark
-                                ? keyword.dark
-                                : keyword.light,
-                          ),
+                          color: Color(keyword.color),
                         ),
                       if (palette.keywords.length > visibleKeywords.length)
                         _KeywordColorChip(
@@ -622,54 +600,6 @@ class LyricsPaletteSongCard extends StatelessWidget {
             onPressed: onDelete,
             icon: const Icon(Icons.close_rounded),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PaletteColorPair extends StatelessWidget {
-  final String label;
-  final Color primary;
-  final Color stamp;
-
-  const _PaletteColorPair({
-    required this.label,
-    required this.primary,
-    required this.stamp,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label, style: context.textCaption),
-        const SizedBox(width: 5),
-        _PaletteDot(color: primary),
-        Transform.translate(
-          offset: const Offset(-3, 0),
-          child: _PaletteDot(color: stamp),
-        ),
-      ],
-    );
-  }
-}
-
-class _PaletteDot extends StatelessWidget {
-  final Color color;
-  const _PaletteDot({required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 16,
-      height: 16,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.32), blurRadius: 6),
         ],
       ),
     );

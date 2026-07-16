@@ -428,13 +428,7 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
                           ? '正在分析歌词语义、情绪走向与歌曲氛围'
                           : aiPaletteState?.asData?.value != null
                           ? '已为歌词关键词生成情绪分层配色；关闭后恢复默认'
-                          : switch (preferences.stageMode) {
-                              LyricsStageMode.flowingLight =>
-                                '当前字与光晕使用 primary，高潮圆环使用 stamp',
-                              LyricsStageMode.floatingName =>
-                                '当前字使用 primary，打印印章使用 stamp',
-                              _ => '当前高亮字使用歌曲专属 primary 配色',
-                            },
+                          : 'AI 仅为歌词关键词生成深色模式下的浅色配色',
                       value: preferences.aiColorEnabled,
                       isLoading: isAiPaletteBusy,
                       onChanged: (enabled) => unawaited(
@@ -798,8 +792,6 @@ class LyricsPersonalizationSheet extends ConsumerWidget {
 
   IconData _iconForColorMode(LyricsColorMode mode) {
     return switch (mode) {
-      LyricsColorMode.system => Icons.brightness_auto_rounded,
-      LyricsColorMode.black => Icons.circle_rounded,
       LyricsColorMode.white => Icons.circle_outlined,
       LyricsColorMode.dynamicLight => Icons.palette_outlined,
     };

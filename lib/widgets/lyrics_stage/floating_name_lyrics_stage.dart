@@ -30,8 +30,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
   final Color activeColor;
   final String? fontFamily;
   final double fontSize;
-  final Color? aiPrimaryColor;
-  final Color? aiStampColor;
+  final Color? effectColor;
   final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool stageVisible;
@@ -48,8 +47,7 @@ class FloatingNameLyricsStage extends ConsumerWidget {
     required this.activeColor,
     required this.fontFamily,
     required this.fontSize,
-    required this.aiPrimaryColor,
-    required this.aiStampColor,
+    required this.effectColor,
     this.aiKeywordColors = const {},
     required this.wordByWordEnabled,
     required this.stageVisible,
@@ -82,11 +80,10 @@ class FloatingNameLyricsStage extends ConsumerWidget {
               data: data,
               activeIndex: activeIndex.clamp(0, data.lines.length - 1),
               activeColor: activeColor,
+              effectColor: effectColor ?? activeColor,
               fontFamily: fontFamily,
               fontSize: fontSize,
               wordByWordEnabled: wordByWordEnabled,
-              aiPrimaryColor: aiPrimaryColor,
-              aiStampColor: aiStampColor,
               aiKeywordColors: aiKeywordColors,
               positionUpdatesEnabled: positionUpdatesEnabled,
               highlightSignature: highlightTimeline?.segments
@@ -109,11 +106,10 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
   final LyricsData data;
   final int activeIndex;
   final Color activeColor;
+  final Color effectColor;
   final String? fontFamily;
   final double fontSize;
   final bool wordByWordEnabled;
-  final Color? aiPrimaryColor;
-  final Color? aiStampColor;
   final Map<String, Color> aiKeywordColors;
   final bool positionUpdatesEnabled;
   final String? highlightSignature;
@@ -124,11 +120,10 @@ class _FloatingNameArticle extends ConsumerStatefulWidget {
     required this.data,
     required this.activeIndex,
     required this.activeColor,
+    required this.effectColor,
     required this.fontFamily,
     required this.fontSize,
     required this.wordByWordEnabled,
-    required this.aiPrimaryColor,
-    required this.aiStampColor,
     required this.aiKeywordColors,
     required this.positionUpdatesEnabled,
     required this.highlightSignature,
@@ -243,8 +238,7 @@ class _FloatingNameArticleState extends ConsumerState<_FloatingNameArticle>
         fallbackPosition: _fallbackPosition,
         isPlaying: isPlaying,
         activeColor: widget.activeColor,
-        aiPrimaryColor: widget.aiPrimaryColor,
-        aiStampColor: widget.aiStampColor,
+        effectColor: widget.effectColor,
         aiKeywordColors: widget.aiKeywordColors,
         wordByWordEnabled: widget.wordByWordEnabled,
         motionEnabled: _motionEnabled,
@@ -412,7 +406,6 @@ Color floatingNameWaitingStampColor({
   required List<String> glyphs,
   required List<Color?> semanticColors,
   required Color activeColor,
-  required Color? aiStampColor,
 }) {
   final precedingIndex = floatingNameLastStampableGraphemeIndex(glyphs);
   final precedingSemanticColor =
@@ -421,7 +414,6 @@ Color floatingNameWaitingStampColor({
       : null;
   return floatingNamePrintStampColor(
     activeColor: activeColor,
-    aiStampColor: aiStampColor,
     semanticColor: precedingSemanticColor,
   );
 }
@@ -802,10 +794,9 @@ bool floatingNameGraphemeGetsPrintStamp(String grapheme) {
 @visibleForTesting
 Color floatingNamePrintStampColor({
   required Color activeColor,
-  Color? aiStampColor,
   Color? semanticColor,
 }) {
-  return semanticColor ?? aiStampColor ?? activeColor;
+  return semanticColor ?? activeColor;
 }
 
 @visibleForTesting
@@ -828,8 +819,7 @@ class _FloatingNamePainter extends CustomPainter {
   final ValueListenable<Duration> fallbackPosition;
   final bool isPlaying;
   final Color activeColor;
-  final Color? aiPrimaryColor;
-  final Color? aiStampColor;
+  final Color effectColor;
   final Map<String, Color> aiKeywordColors;
   final bool wordByWordEnabled;
   final bool motionEnabled;
@@ -844,8 +834,7 @@ class _FloatingNamePainter extends CustomPainter {
     required this.fallbackPosition,
     required this.isPlaying,
     required this.activeColor,
-    required this.aiPrimaryColor,
-    required this.aiStampColor,
+    required this.effectColor,
     required this.aiKeywordColors,
     required this.wordByWordEnabled,
     required this.motionEnabled,
@@ -1037,12 +1026,11 @@ class _FloatingNamePainter extends CustomPainter {
       block.glyphs,
       aiKeywordColors,
     );
-    final aiPrimary =
+    final activeGlyphEffectColor =
         activeGlyphIndex >= 0 && activeGlyphIndex < semanticColors.length
-        ? semanticColors[activeGlyphIndex] ?? aiPrimaryColor
-        : aiPrimaryColor;
-    final hasAiActiveGlyph =
-        aiPrimary != null &&
+        ? semanticColors[activeGlyphIndex] ?? effectColor
+        : effectColor;
+    final hasActiveGlyphEffect =
         wordByWordEnabled &&
         activeGlyphIndex >= 0 &&
         activeGlyphIndex < block.glyphBoxes.length;
@@ -1055,18 +1043,20 @@ class _FloatingNamePainter extends CustomPainter {
           revealedColor: activeColor,
           pendingColor: activeColor.withValues(alpha: 0.11),
           semanticColors: semanticColors,
-          liftedGlyphIndex: shouldBounce || hasAiActiveGlyph
+          liftedGlyphIndex: shouldBounce || hasActiveGlyphEffect
               ? activeGlyphIndex
               : null,
         )
         .paint(canvas, block.origin);
 
     final fontSize = block.style.fontSize ?? 28;
-    if (shouldBounce || hasAiActiveGlyph) {
+    if (shouldBounce || hasActiveGlyphEffect) {
       final bounceOffset = shouldBounce
           ? floatingNameGlyphBounceOffset(progress, fontSize)
           : 0.0;
-      final glyphColor = hasAiActiveGlyph ? aiPrimary : activeColor;
+      final glyphColor = hasActiveGlyphEffect
+          ? activeGlyphEffectColor
+          : activeColor;
       block
           .painterForActiveGlyph(
             glyphIndex: activeGlyphIndex,
@@ -1091,8 +1081,7 @@ class _FloatingNamePainter extends CustomPainter {
             ? semanticColors[activeGlyphIndex]
             : null;
         final stampColor = floatingNamePrintStampColor(
-          activeColor: activeColor,
-          aiStampColor: aiStampColor,
+          activeColor: effectColor,
           semanticColor: semanticColor,
         );
         _paintPrintStamp(canvas, stampRect, stampColor, pulse, fontSize);
@@ -1128,8 +1117,7 @@ class _FloatingNamePainter extends CustomPainter {
       floatingNameWaitingStampColor(
         glyphs: block.glyphs,
         semanticColors: semanticColors,
-        activeColor: activeColor,
-        aiStampColor: aiStampColor,
+        activeColor: effectColor,
       ),
       waitingPulse,
       fontSize,
@@ -1163,8 +1151,7 @@ class _FloatingNamePainter extends CustomPainter {
         oldDelegate.audioService != audioService ||
         oldDelegate.isPlaying != isPlaying ||
         oldDelegate.activeColor != activeColor ||
-        oldDelegate.aiPrimaryColor != aiPrimaryColor ||
-        oldDelegate.aiStampColor != aiStampColor ||
+        oldDelegate.effectColor != effectColor ||
         !mapEquals(oldDelegate.aiKeywordColors, aiKeywordColors) ||
         oldDelegate.wordByWordEnabled != wordByWordEnabled ||
         oldDelegate.motionEnabled != motionEnabled;

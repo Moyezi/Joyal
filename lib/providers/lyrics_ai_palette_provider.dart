@@ -130,29 +130,14 @@ Future<LyricsAiVisualContext?> _resolveLyricsAiVisualContext(
   if (song.coverArt.isEmpty) return null;
   final coverUrl = api.getCoverArtUrl(song.coverArt);
   try {
-    final palettes = await Future.wait([
-      AlbumVisualPalette.resolve(
-        coverArtId: song.coverArt,
-        coverUrl: coverUrl,
-        brightness: Brightness.light,
-        fallbackOnError: false,
-      ),
-      AlbumVisualPalette.resolve(
-        coverArtId: song.coverArt,
-        coverUrl: coverUrl,
-        brightness: Brightness.dark,
-        fallbackOnError: false,
-      ),
-    ]);
-    final light = palettes[0];
-    final dark = palettes[1];
+    final dark = await AlbumVisualPalette.resolve(
+      coverArtId: song.coverArt,
+      coverUrl: coverUrl,
+      brightness: Brightness.dark,
+      fallbackOnError: false,
+    );
     return LyricsAiVisualContext(
-      light: LyricsAiVisualScheme(
-        backgroundTop: light.top.toARGB32(),
-        backgroundBottom: light.bottom.toARGB32(),
-        accent: light.waveformAccentFor(Brightness.light).toARGB32(),
-      ),
-      dark: LyricsAiVisualScheme(
+      scheme: LyricsAiVisualScheme(
         backgroundTop: dark.top.toARGB32(),
         backgroundBottom: dark.bottom.toARGB32(),
         accent: dark.waveformAccentFor(Brightness.dark).toARGB32(),
@@ -160,7 +145,7 @@ Future<LyricsAiVisualContext?> _resolveLyricsAiVisualContext(
     );
   } catch (_) {
     // Keep AI coloring available when the cover is not cached and cannot be
-    // fetched. The protocol's canonical light/dark backgrounds remain safe.
+    // fetched. The protocol's canonical dark background remains safe.
     return null;
   }
 }

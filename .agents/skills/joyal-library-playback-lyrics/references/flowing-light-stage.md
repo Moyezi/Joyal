@@ -5,6 +5,7 @@
 - Use the same scattered layout for untimed lyrics and when word-by-word is disabled, but reveal it statically.
 - With timing, reserve future token positions invisibly. Enter at about 116% scale and settle to 100% over 520 ms. Keep the outward ring short; hold the soft halo at full brightness until the next Chinese grapheme or Latin word starts, including timing gaps, then overlap a smooth 520 ms fade-out. Do not render a dim pending-token mask.
 - For the final timed token, let the entrance ring finish once and keep the soft halo breathing until the next line activates. Derive this from already-scoped active position updates; use a static highlight when covered or motion is disabled.
+- Resolve ordinary current text, halo, and non-keyword climax rings from the client-derived dark-mode dynamic-light effect color. AI supplies keyword colors only.
 - Keep the settled composition vertically fixed without whole-composition floating or translation.
 - Use one 7.2-second controller to rock revealed tokens 1.8°–2.4° around stable base angles. Alternate initial direction between neighbors, reverse every half-cycle, ramp in with reveal, leave future tokens still, and clamp combined rotation to ±20°.
 - Keep that controller and painting inside the active composition `RepaintBoundary`. Start only when `positionUpdatesEnabled`; stop/reset when hidden, covered, disabled, or `MediaQuery.disableAnimationsOf(context)` is true. Do not add another persistent controller.

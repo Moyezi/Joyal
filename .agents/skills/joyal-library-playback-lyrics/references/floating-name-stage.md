@@ -13,10 +13,10 @@
 ## Print Stamp And Wait Cursor
 
 - Share timing helpers from `lyrics/lyric_print_effect.dart`. Both default and `浮名` use a baseline-to-at-most-10%-up-to-baseline bounce. Default may keep its blurred stamp; `浮名` uses a crisp hard-edged stamp with no `MaskFilter.blur`.
-- In `浮名`, keyword stamps use the semantic keyword color; other stamps use configured `stamp`. Peak alpha is 0.8 times the resolved color alpha and fades with the stamp pulse.
+- In `浮名`, keyword stamps use the semantic keyword color; other current glyphs and stamps use the client-derived dark-mode dynamic-light effect color. Peak alpha is 0.8 times the resolved color alpha and fades with the stamp pulse.
 - Draw no stamp for whitespace or Unicode punctuation.
 - Show the small input-wait stamp only when the full gap from print end to the next non-empty line is at least 3.6 seconds. Start cadence immediately at print completion, not after 3.6 seconds, and stop before the next line. The final lyric bypasses the threshold and continues until playback stops.
-- If the last stampable grapheme is a semantic keyword, inherit that keyword color through trailing punctuation; otherwise use configured `stamp`.
+- If the last stampable grapheme is a semantic keyword, inherit that keyword color through trailing punctuation; otherwise use the client-derived dynamic-light effect color.
 - Disable the wait stamp while paused, hidden/covered, word-by-word-off, or reduced-motion. Reuse the existing frame controller.
 - Reveal typed text with per-grapheme `TextSpan` colors, not a glyph-selection rectangle clipping one fully bright `TextPainter`; tight metrics can otherwise reveal the next visual row. During current-to-passed transition, ease non-keyword glyphs to passed gray while keyword colors remain stable.
 

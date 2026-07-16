@@ -24,7 +24,6 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
   final String title;
   final String artist;
   final Color? dynamicColor;
-  final Color? aiPrimaryColor;
   final Map<String, Color> aiKeywordColors;
   final bool stageVisible;
   final bool positionUpdatesEnabled;
@@ -38,7 +37,6 @@ class DefaultLyricsView extends ConsumerStatefulWidget {
     required this.title,
     required this.artist,
     required this.dynamicColor,
-    required this.aiPrimaryColor,
     this.aiKeywordColors = const {},
     required this.stageVisible,
     required this.positionUpdatesEnabled,
@@ -364,7 +362,7 @@ class DefaultLyricsViewState extends ConsumerState<DefaultLyricsView> {
                             enabled: preferences.wordByWordEnabled,
                             isActive: isActive,
                             highlightColor: isActive
-                                ? widget.aiPrimaryColor
+                                ? widget.dynamicColor
                                 : null,
                             keywordColors: active >= 0 && lineIndex <= active
                                 ? widget.aiKeywordColors
@@ -544,7 +542,7 @@ class _TimedLyricText extends ConsumerWidget {
                   position: animatedPosition,
                   style: style,
                   pendingColor: pendingColor,
-                  aiPrimaryColor: highlightColor,
+                  baseEffectColor: highlightColor,
                   semanticColor: semanticColors[index],
                   motionEnabled: motionEnabled,
                 ),
@@ -562,7 +560,7 @@ class _TimedLyricText extends ConsumerWidget {
     required Duration position,
     required TextStyle style,
     required Color pendingColor,
-    required Color? aiPrimaryColor,
+    required Color? baseEffectColor,
     required Color? semanticColor,
     required bool motionEnabled,
   }) {
@@ -573,31 +571,31 @@ class _TimedLyricText extends ConsumerWidget {
       glyphCount: glyph.count,
     );
     final progress = Curves.easeOutCubic.transform(rawProgress);
-    final resolvedAiColor = semanticColor ?? aiPrimaryColor;
-    final aiIntensity =
-        resolvedAiColor == null ||
+    final resolvedEffectColor = semanticColor ?? baseEffectColor;
+    final effectIntensity =
+        resolvedEffectColor == null ||
             glyph.start == null ||
             glyph.text.trim().isEmpty
         ? 0.0
-        : lyricAiColorIntensity(
+        : lyricEffectColorIntensity(
             position: position,
             start: glyph.start!,
             nextStart: nextStart,
             persist: semanticColor != null,
           );
     final defaultColor = Color.lerp(pendingColor, style.color!, progress)!;
-    final glyphColor = resolvedAiColor == null
+    final glyphColor = resolvedEffectColor == null
         ? defaultColor
-        : Color.lerp(defaultColor, resolvedAiColor, aiIntensity)!;
-    final effectColor = resolvedAiColor == null
+        : Color.lerp(defaultColor, resolvedEffectColor, effectIntensity)!;
+    final frontierColor = resolvedEffectColor == null
         ? style.color!
-        : Color.lerp(style.color!, resolvedAiColor, aiIntensity)!;
+        : Color.lerp(style.color!, resolvedEffectColor, effectIntensity)!;
     final frontier = (1 - (rawProgress * 2 - 1).abs()).clamp(0.0, 1.0);
     final shadows = <Shadow>[
       ...?style.shadows,
       if (frontier > 0.02)
         Shadow(
-          color: effectColor.withValues(alpha: 0.42 * frontier),
+          color: frontierColor.withValues(alpha: 0.42 * frontier),
           blurRadius: 12 * frontier,
         ),
     ];
@@ -616,7 +614,7 @@ class _TimedLyricText extends ConsumerWidget {
         transformHitTests: false,
         child: CustomPaint(
           painter: _DefaultLyricPrintStampPainter(
-            color: effectColor,
+            color: frontierColor,
             fontSize: fontSize,
             pulse: stampPulse,
           ),

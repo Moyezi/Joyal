@@ -221,7 +221,7 @@ void main() {
     expect(flowingLightBreathingGlowIntensity(1), closeTo(0.36, 0.0001));
   });
 
-  test('flowing light AI token fades after the next token starts', () {
+  test('flowing light effect color fades after the next token starts', () {
     const token = FlowingLightToken(
       text: '光',
       start: Duration(seconds: 1),
@@ -229,7 +229,7 @@ void main() {
       isLatinWord: false,
     );
     expect(
-      flowingLightTokenAiColorIntensity(
+      flowingLightTokenEffectColorIntensity(
         token,
         const Duration(milliseconds: 1900),
         nextStart: const Duration(seconds: 2),
@@ -237,7 +237,7 @@ void main() {
       1,
     );
     expect(
-      flowingLightTokenAiColorIntensity(
+      flowingLightTokenEffectColorIntensity(
         token,
         const Duration(milliseconds: 2140),
         nextStart: const Duration(seconds: 2),
@@ -245,7 +245,7 @@ void main() {
       closeTo(0.5, 0.005),
     );
     expect(
-      flowingLightTokenAiColorIntensity(
+      flowingLightTokenEffectColorIntensity(
         token,
         const Duration(milliseconds: 2280),
         nextStart: const Duration(seconds: 2),
@@ -262,7 +262,7 @@ void main() {
       isLatinWord: false,
     );
     expect(
-      flowingLightTokenAiColorIntensity(
+      flowingLightTokenEffectColorIntensity(
         token,
         const Duration(seconds: 4),
         nextStart: const Duration(seconds: 2),

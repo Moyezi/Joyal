@@ -24,10 +24,8 @@ const _customFontFamilyKey = 'lyrics_custom_font_family';
 final Set<String> _loadedFontFamilies = <String>{};
 
 enum LyricsColorMode {
-  system('system', '跟随系统', '浅色使用柔和炭灰，深色使用白色歌词'),
-  black('black', '黑色字体', '始终使用黑色歌词'),
   white('white', '白色字体', '始终使用白色歌词'),
-  dynamicLight('dynamic_light', '动态浅色', '从当前封面提取柔和浅色调');
+  dynamicLight('dynamic_light', '动态浅色', '按深色模式从当前封面提取柔和浅色调');
 
   const LyricsColorMode(this.storageValue, this.label, this.description);
 
@@ -36,9 +34,12 @@ enum LyricsColorMode {
   final String description;
 
   static LyricsColorMode fromStorageValue(String? value) {
+    // The lyrics surface now always uses dark-mode-oriented light text.
+    // Migrate the removed system/black choices to the safe white option.
+    if (value == 'system' || value == 'black') return LyricsColorMode.white;
     return LyricsColorMode.values.firstWhere(
       (mode) => mode.storageValue == value,
-      orElse: () => LyricsColorMode.system,
+      orElse: () => LyricsColorMode.white,
     );
   }
 }
@@ -132,7 +133,7 @@ class LyricsPersonalizationState {
   final bool isLoading;
 
   const LyricsPersonalizationState({
-    this.colorMode = LyricsColorMode.system,
+    this.colorMode = LyricsColorMode.white,
     this.alignment = LyricsAlignmentMode.left,
     this.fontFamily = LyricsFontFamily.system,
     this.fontSize = defaultFontSize,
