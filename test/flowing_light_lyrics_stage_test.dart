@@ -221,6 +221,49 @@ void main() {
     expect(flowingLightBreathingGlowIntensity(1), closeTo(0.36, 0.0001));
   });
 
+  test('non-Latin halo radius follows the word-timing duration', () {
+    const shortToken = FlowingLightToken(
+      text: '光',
+      start: Duration(seconds: 1),
+      end: Duration(milliseconds: 1130),
+      isLatinWord: false,
+    );
+    const referenceToken = FlowingLightToken(
+      text: '流',
+      start: Duration(seconds: 1),
+      end: Duration(milliseconds: 1520),
+      isLatinWord: false,
+    );
+    const longToken = FlowingLightToken(
+      text: '影',
+      start: Duration(seconds: 1),
+      end: Duration(milliseconds: 3080),
+      isLatinWord: false,
+    );
+
+    expect(flowingLightTimelineHaloScale(shortToken), 0.82);
+    expect(flowingLightTimelineHaloScale(referenceToken), closeTo(1, 0.0001));
+    expect(flowingLightTimelineHaloScale(longToken), 1.42);
+  });
+
+  test('Latin halo keeps its existing text-width sizing', () {
+    const shortWord = FlowingLightToken(
+      text: 'a',
+      start: Duration(seconds: 1),
+      end: Duration(milliseconds: 1100),
+      isLatinWord: true,
+    );
+    const heldWord = FlowingLightToken(
+      text: 'extraordinary',
+      start: Duration(seconds: 1),
+      end: Duration(seconds: 5),
+      isLatinWord: true,
+    );
+
+    expect(flowingLightTimelineHaloScale(shortWord), 1);
+    expect(flowingLightTimelineHaloScale(heldWord), 1);
+  });
+
   test('flowing light effect color fades after the next token starts', () {
     const token = FlowingLightToken(
       text: '光',

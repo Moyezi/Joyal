@@ -774,6 +774,8 @@ class _FlowingLightTokenView extends StatelessWidget {
       isClimax: isClimax,
       isKeyword: semanticColor != null,
     );
+    final timelineHaloScale = flowingLightTimelineHaloScale(token);
+    final resolvedHaloScale = climaxKeywordHaloScale * timelineHaloScale;
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
     final breathingGlowIntensity = keepBreathing
@@ -809,12 +811,12 @@ class _FlowingLightTokenView extends StatelessWidget {
           if (glowIntensity > 0)
             Shadow(
               color: highlightColor.withValues(alpha: 0.82 * glowIntensity),
-              blurRadius: (12 + 16 * glowIntensity) * climaxKeywordHaloScale,
+              blurRadius: (12 + 16 * glowIntensity) * resolvedHaloScale,
             ),
           if (glowIntensity > 0)
             Shadow(
               color: color.withValues(alpha: 0.58 * glowIntensity),
-              blurRadius: (28 + 18 * glowIntensity) * climaxKeywordHaloScale,
+              blurRadius: (28 + 18 * glowIntensity) * resolvedHaloScale,
             ),
         ],
       ),
@@ -840,7 +842,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                         progress: reveal,
                         intensity: glowIntensity,
                         ringIntensity: entranceRingIntensity,
-                        emphasisScale: climaxKeywordHaloScale,
+                        haloScale: resolvedHaloScale,
                       ),
                     ),
                   ),
@@ -883,6 +885,21 @@ double flowingLightTokenEffectColorIntensity(
   );
 }
 
+/// Scales non-Latin token halos by their word-timing duration.
+///
+/// Latin words already get wider halos from their measured text width, so they
+/// deliberately keep a neutral scale here. The square-root curve makes longer
+/// held glyphs visibly broader without letting unusually long timestamps
+/// dominate the scattered composition.
+@visibleForTesting
+double flowingLightTimelineHaloScale(FlowingLightToken token) {
+  if (token.isLatinWord) return 1.0;
+  final durationMicros = math.max(0, (token.end - token.start).inMicroseconds);
+  final durationRatio =
+      durationMicros / flowingLightTokenEntranceDuration.inMicroseconds;
+  return math.sqrt(durationRatio).clamp(0.82, 1.42).toDouble();
+}
+
 @visibleForTesting
 double flowingLightClimaxKeywordTextScale({
   required bool isClimax,
@@ -922,7 +939,7 @@ class _TokenGlowPainter extends CustomPainter {
   final double progress;
   final double intensity;
   final double ringIntensity;
-  final double emphasisScale;
+  final double haloScale;
 
   const _TokenGlowPainter({
     required this.color,
@@ -931,7 +948,7 @@ class _TokenGlowPainter extends CustomPainter {
     required this.progress,
     required this.intensity,
     required this.ringIntensity,
-    required this.emphasisScale,
+    required this.haloScale,
   });
 
   @override
@@ -939,21 +956,19 @@ class _TokenGlowPainter extends CustomPainter {
     if (size.isEmpty) return;
     final eased = Curves.easeOutCubic.transform(progress);
     final radius =
-        math.max(size.width, size.height) *
-        (0.42 + eased * 1.05) *
-        emphasisScale;
+        math.max(size.width, size.height) * (0.42 + eased * 1.05) * haloScale;
     final center = Offset(size.width / 2, size.height / 2);
     final haloPaint = Paint()
       ..color = highlightColor.withValues(alpha: 0.3 * intensity)
       ..maskFilter = MaskFilter.blur(
         BlurStyle.normal,
-        (8 + math.max(size.width, size.height) * 0.16) * emphasisScale,
+        (8 + math.max(size.width, size.height) * 0.16) * haloScale,
       );
     canvas.drawOval(
       Rect.fromCenter(
         center: center,
-        width: size.width * (1.12 + intensity * 0.34) * emphasisScale,
-        height: size.height * (1.08 + intensity * 0.28) * emphasisScale,
+        width: size.width * (1.12 + intensity * 0.34) * haloScale,
+        height: size.height * (1.08 + intensity * 0.28) * haloScale,
       ),
       haloPaint,
     );
@@ -971,7 +986,7 @@ class _TokenGlowPainter extends CustomPainter {
     return oldDelegate.progress != progress ||
         oldDelegate.intensity != intensity ||
         oldDelegate.ringIntensity != ringIntensity ||
-        oldDelegate.emphasisScale != emphasisScale ||
+        oldDelegate.haloScale != haloScale ||
         oldDelegate.color != color ||
         oldDelegate.highlightColor != highlightColor ||
         oldDelegate.ringColor != ringColor;
