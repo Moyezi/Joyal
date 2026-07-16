@@ -221,7 +221,7 @@ void main() {
     expect(flowingLightBreathingGlowIntensity(1), closeTo(0.36, 0.0001));
   });
 
-  test('non-Latin halo radius follows the word-timing duration', () {
+  test('non-Latin token size follows the word-timing duration', () {
     const shortToken = FlowingLightToken(
       text: '光',
       start: Duration(seconds: 1),
@@ -241,9 +241,9 @@ void main() {
       isLatinWord: false,
     );
 
-    expect(flowingLightTimelineHaloScale(shortToken), 0.82);
-    expect(flowingLightTimelineHaloScale(referenceToken), closeTo(1, 0.0001));
-    expect(flowingLightTimelineHaloScale(longToken), 1.42);
+    expect(flowingLightTimelineTokenScale(shortToken), 0.82);
+    expect(flowingLightTimelineTokenScale(referenceToken), closeTo(1, 0.0001));
+    expect(flowingLightTimelineTokenScale(longToken), 1.42);
   });
 
   test('Latin halo keeps its existing text-width sizing', () {
@@ -260,8 +260,8 @@ void main() {
       isLatinWord: true,
     );
 
-    expect(flowingLightTimelineHaloScale(shortWord), 1);
-    expect(flowingLightTimelineHaloScale(heldWord), 1);
+    expect(flowingLightTimelineTokenScale(shortWord), 1);
+    expect(flowingLightTimelineTokenScale(heldWord), 1);
   });
 
   test('flowing light effect color fades after the next token starts', () {

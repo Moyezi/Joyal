@@ -774,8 +774,7 @@ class _FlowingLightTokenView extends StatelessWidget {
       isClimax: isClimax,
       isKeyword: semanticColor != null,
     );
-    final timelineHaloScale = flowingLightTimelineHaloScale(token);
-    final resolvedHaloScale = climaxKeywordHaloScale * timelineHaloScale;
+    final timelineTokenScale = flowingLightTimelineTokenScale(token);
     final breathingRamp = ((reveal - 0.68) / 0.32).clamp(0.0, 1.0).toDouble();
     final breathingPhase = elapsedMicros / _breathingDuration.inMicroseconds;
     final breathingGlowIntensity = keepBreathing
@@ -811,12 +810,12 @@ class _FlowingLightTokenView extends StatelessWidget {
           if (glowIntensity > 0)
             Shadow(
               color: highlightColor.withValues(alpha: 0.82 * glowIntensity),
-              blurRadius: (12 + 16 * glowIntensity) * resolvedHaloScale,
+              blurRadius: (12 + 16 * glowIntensity) * climaxKeywordHaloScale,
             ),
           if (glowIntensity > 0)
             Shadow(
               color: color.withValues(alpha: 0.58 * glowIntensity),
-              blurRadius: (28 + 18 * glowIntensity) * resolvedHaloScale,
+              blurRadius: (28 + 18 * glowIntensity) * climaxKeywordHaloScale,
             ),
         ],
       ),
@@ -826,7 +825,7 @@ class _FlowingLightTokenView extends StatelessWidget {
       child: Transform.translate(
         offset: Offset(0, lift),
         child: Transform.scale(
-          scale: scale * climaxKeywordTextScale,
+          scale: scale * climaxKeywordTextScale * timelineTokenScale,
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
@@ -842,7 +841,7 @@ class _FlowingLightTokenView extends StatelessWidget {
                         progress: reveal,
                         intensity: glowIntensity,
                         ringIntensity: entranceRingIntensity,
-                        haloScale: resolvedHaloScale,
+                        haloScale: climaxKeywordHaloScale,
                       ),
                     ),
                   ),
@@ -885,14 +884,14 @@ double flowingLightTokenEffectColorIntensity(
   );
 }
 
-/// Scales non-Latin token halos by their word-timing duration.
+/// Scales non-Latin token text and halos by their word-timing duration.
 ///
 /// Latin words already get wider halos from their measured text width, so they
 /// deliberately keep a neutral scale here. The square-root curve makes longer
 /// held glyphs visibly broader without letting unusually long timestamps
 /// dominate the scattered composition.
 @visibleForTesting
-double flowingLightTimelineHaloScale(FlowingLightToken token) {
+double flowingLightTimelineTokenScale(FlowingLightToken token) {
   if (token.isLatinWord) return 1.0;
   final durationMicros = math.max(0, (token.end - token.start).inMicroseconds);
   final durationRatio =
