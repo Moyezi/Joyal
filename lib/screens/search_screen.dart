@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,15 +9,21 @@ import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/glass_effect_provider.dart';
 import '../services/cache_repository.dart';
 import '../screens/artist_detail_screen.dart';
 import '../widgets/album_cover.dart';
 import '../widgets/cached_disk_image.dart';
+import '../widgets/frosted_glass.dart';
 import 'album_detail_screen.dart';
 import 'now_playing_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  final Animation<double>? transitionAnimation;
+  final Rect? sourceRect;
+
+  const SearchScreen({super.key, this.transitionAnimation, this.sourceRect})
+    : assert(transitionAnimation == null || sourceRect != null);
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -130,67 +137,170 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     setState(() => _history = []);
   }
 
+  void _closeSearch() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).maybePop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final animation =
+        widget.transitionAnimation ?? const AlwaysStoppedAnimation<double>(1);
+    final blurSigma = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.blurFor(GlassEffectTarget.searchBar),
+      ),
+    );
+    final tintOpacity = ref.watch(
+      glassEffectProvider.select(
+        (state) => state.opacityFor(GlassEffectTarget.searchBar),
+      ),
+    );
     return Scaffold(
-      backgroundColor: context.backgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 10, 16, 14),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: '返回',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      autofocus: false,
-                      textInputAction: TextInputAction.search,
-                      onChanged: _onChanged,
-                      onSubmitted: (_) => _search(),
-                      style: context.textBodyLarge.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '搜索歌曲、专辑或艺人',
-                        hintStyle: context.textBodyMedium,
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          color: context.secondaryColor,
-                        ),
-                        suffixIcon: _controller.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: '清空',
-                                onPressed: () {
-                                  _controller.clear();
-                                  _onChanged('');
-                                },
-                                icon: const Icon(Icons.close_rounded, size: 20),
-                              ),
-                        filled: true,
-                        fillColor: context.surfaceColor,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                        ),
-                      ),
+      backgroundColor: Colors.transparent,
+      body: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final rawProgress = animation.value.clamp(0.0, 1.0);
+          final size = MediaQuery.sizeOf(context);
+          final finalRect = Rect.fromLTWH(
+            24,
+            MediaQuery.viewPaddingOf(context).top + 10,
+            math.max(0, size.width - 48),
+            54,
+          );
+          final sourceRect = widget.sourceRect ?? finalRect;
+          final fieldProgress = Curves.easeOutCubic.transform(
+            (rawProgress / .74).clamp(0.0, 1.0),
+          );
+          final backgroundProgress = Curves.easeOutCubic.transform(
+            ((rawProgress - .04) / .36).clamp(0.0, 1.0),
+          );
+          final chromeProgress = Curves.easeOut.transform(
+            (rawProgress / .14).clamp(0.0, 1.0),
+          );
+          final contentProgress = Curves.easeOutCubic.transform(
+            ((rawProgress - .56) / .44).clamp(0.0, 1.0),
+          );
+          final fieldRect = Rect.lerp(sourceRect, finalRect, fieldProgress)!;
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(
+                color: context.backgroundColor.withValues(
+                  alpha: backgroundProgress,
+                ),
+              ),
+              Positioned(
+                top: finalRect.bottom + 12,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  ignoring: contentProgress < .99,
+                  child: Opacity(
+                    opacity: contentProgress,
+                    child: Transform.translate(
+                      offset: Offset(0, 16 * (1 - contentProgress)),
+                      child: _buildResults(),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-            Expanded(child: _buildResults()),
-          ],
+              Positioned.fromRect(
+                rect: fieldRect,
+                child: Opacity(
+                  opacity: chromeProgress,
+                  child: _buildSearchField(
+                    rawProgress,
+                    blurSigma: blurSigma,
+                    tintOpacity: tintOpacity,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSearchField(
+    double transitionProgress, {
+    required double blurSigma,
+    required double tintOpacity,
+  }) {
+    final surfaceProgress = Curves.easeOut.transform(
+      (transitionProgress / .24).clamp(0.0, 1.0),
+    );
+
+    return FrostedGlass(
+      blurSigma: blurSigma * surfaceProgress,
+      borderRadius: BorderRadius.circular(18),
+      tintColor: context.surfaceColor,
+      tintOpacity: tintOpacity * surfaceProgress,
+      borderColor: context.primaryColor,
+      borderOpacity: 0,
+      liquidGlassIntensityScale: surfaceProgress,
+      child: Material(
+        color: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 16, right: 4),
+          child: Row(
+            children: [
+              Icon(Icons.search_rounded, color: context.primaryColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  autofocus: false,
+                  textInputAction: TextInputAction.search,
+                  textAlignVertical: TextAlignVertical.center,
+                  onChanged: _onChanged,
+                  onSubmitted: (_) => _search(),
+                  style: context.textBodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration.collapsed(
+                    hintText: '搜索歌曲、专辑或艺人',
+                    hintStyle: context.textBodyMedium,
+                  ),
+                ),
+              ),
+              if (_controller.text.isNotEmpty)
+                SizedBox(
+                  width: 40,
+                  height: 54,
+                  child: IconButton(
+                    tooltip: '清空',
+                    padding: EdgeInsets.zero,
+                    onPressed: () {
+                      _controller.clear();
+                      _onChanged('');
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                ),
+              SizedBox(
+                width: 44,
+                height: 54,
+                child: IconButton(
+                  tooltip: '返回',
+                  padding: EdgeInsets.zero,
+                  onPressed: _closeSearch,
+                  icon: Transform.rotate(
+                    angle: math.pi * transitionProgress,
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 20,
+                      color: context.secondaryColor,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

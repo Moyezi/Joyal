@@ -63,4 +63,66 @@ void main() {
     expect(field.autofocus, isFalse);
     expect(tester.testTextInput.hasAnyClients, isFalse);
   });
+
+  testWidgets('home search curtain grows vertically from the source capsule', (
+    tester,
+  ) async {
+    const sourceRect = Rect.fromLTWH(24, 150, 352, 54);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  buildSearchCurtainRoute<void>(
+                    sourceRect: sourceRect,
+                    builder: (_, animation) => SearchScreen(
+                      transitionAnimation: animation,
+                      sourceRect: sourceRect,
+                    ),
+                  ),
+                ),
+                child: const Text('展开'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('展开'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1));
+
+    final initialClip = tester.widget<ClipPath>(find.byType(ClipPath).last);
+    final initialPath = initialClip.clipper!.getClip(
+      tester.getSize(find.byType(ClipPath).last),
+    );
+    expect(initialPath.contains(sourceRect.center), isTrue);
+    expect(initialPath.contains(const Offset(24, 20)), isFalse);
+    expect(initialPath.contains(const Offset(24, 700)), isFalse);
+
+    await tester.pump(const Duration(milliseconds: 310));
+    final middleClip = tester.widget<ClipPath>(find.byType(ClipPath).last);
+    final middlePath = middleClip.clipper!.getClip(
+      tester.getSize(find.byType(ClipPath).last),
+    );
+    expect(middlePath.contains(const Offset(200, 20)), isTrue);
+    expect(middlePath.contains(const Offset(200, 700)), isFalse);
+
+    await tester.pumpAndSettle();
+    final settledClip = tester.widget<ClipPath>(find.byType(ClipPath).last);
+    final settledSize = tester.getSize(find.byType(ClipPath).last);
+    final settledPath = settledClip.clipper!.getClip(settledSize);
+    expect(settledPath.contains(const Offset(1, 1)), isTrue);
+    expect(
+      settledPath.contains(
+        Offset(settledSize.width - 1, settledSize.height - 1),
+      ),
+      isTrue,
+    );
+    expect(find.byTooltip('返回'), findsOneWidget);
+  });
 }

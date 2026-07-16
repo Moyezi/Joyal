@@ -63,6 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ValueNotifier(DirectionalAnchorScrollDirection.down);
   final ValueNotifier<int> _cardVisibilityRequest = ValueNotifier<int>(0);
   final GlobalKey _recentListKey = GlobalKey();
+  final GlobalKey _homeSearchKey = GlobalKey();
   bool _exclusionRectPending = false;
   bool _searchRouteOpen = false;
   int? _dailySongsCacheKey;
@@ -181,6 +182,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
+  Future<void> _openSearchFromHomeBar() async {
+    if (_searchRouteOpen) return;
+    final renderObject = _homeSearchKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+    final sourceRect = Rect.fromPoints(
+      renderObject.localToGlobal(Offset.zero),
+      renderObject.localToGlobal(renderObject.size.bottomRight(Offset.zero)),
+    );
+
+    _searchRouteOpen = true;
+    try {
+      await Navigator.of(context).push(
+        buildSearchCurtainRoute<void>(
+          sourceRect: sourceRect,
+          builder: (_, animation) => SearchScreen(
+            transitionAnimation: animation,
+            sourceRect: sourceRect,
+          ),
+        ),
+      );
+    } finally {
+      _searchRouteOpen = false;
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -259,9 +285,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Transform.scale(
                   scale: 1.0 - 0.15 * p,
                   child: _HomeSearchBar(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchScreen()),
-                    ),
+                    key: _homeSearchKey,
+                    onTap: _openSearchFromHomeBar,
                   ),
                 ),
               ),
@@ -657,7 +682,7 @@ class _DailyRecommendationsPreview extends ConsumerWidget {
 class _HomeSearchBar extends ConsumerWidget {
   final VoidCallback onTap;
 
-  const _HomeSearchBar({required this.onTap});
+  const _HomeSearchBar({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

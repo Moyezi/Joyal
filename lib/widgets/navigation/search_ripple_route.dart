@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+typedef SearchCurtainPageBuilder =
+    Widget Function(BuildContext context, Animation<double> animation);
+
 /// A standard top-bar search action that opens [pageBuilder] with a ripple.
 class SearchRippleIconButton extends StatefulWidget {
   final WidgetBuilder pageBuilder;
@@ -96,6 +99,90 @@ Route<T> buildSearchRippleRoute<T>({
       );
     },
   );
+}
+
+/// Builds the large home-search transition.
+///
+/// The search capsule becomes a quiet "curtain rail": its top and bottom
+/// edges travel to the screen edges while the destination search field keeps
+/// the capsule's geometry. The destination owns the field's internal motion;
+/// this route only clips the expanding page.
+Route<T> buildSearchCurtainRoute<T>({
+  required Rect sourceRect,
+  required SearchCurtainPageBuilder builder,
+}) {
+  return PageRouteBuilder<T>(
+    pageBuilder: (context, animation, secondaryAnimation) => builder(
+      context,
+      MediaQuery.disableAnimationsOf(context)
+          ? const AlwaysStoppedAnimation<double>(1)
+          : animation,
+    ),
+    transitionDuration: const Duration(milliseconds: 620),
+    reverseTransitionDuration: const Duration(milliseconds: 480),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      if (MediaQuery.disableAnimationsOf(context)) return child;
+
+      final reveal = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeInOutCubicEmphasized,
+        reverseCurve: Curves.easeInOutCubic,
+      );
+      return AnimatedBuilder(
+        animation: reveal,
+        child: RepaintBoundary(child: child),
+        builder: (context, child) => ClipPath(
+          clipBehavior: Clip.antiAlias,
+          clipper: _SearchCurtainClipper(
+            sourceRect: sourceRect,
+            progress: reveal.value,
+          ),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+class _SearchCurtainClipper extends CustomClipper<Path> {
+  final Rect sourceRect;
+  final double progress;
+
+  const _SearchCurtainClipper({
+    required this.sourceRect,
+    required this.progress,
+  });
+
+  @override
+  Path getClip(Size size) {
+    final topProgress = Curves.easeOutCubic.transform(
+      ((progress - .02) / .78).clamp(0.0, 1.0),
+    );
+    final bottomProgress = Curves.easeInOutCubic.transform(
+      ((progress - .04) / .96).clamp(0.0, 1.0),
+    );
+    final sideProgress = Curves.easeInOutCubic.transform(
+      ((progress - .18) / .72).clamp(0.0, 1.0),
+    );
+    final radiusProgress = Curves.easeInCubic.transform(
+      ((progress - .42) / .58).clamp(0.0, 1.0),
+    );
+
+    final rect = Rect.fromLTRB(
+      sourceRect.left * (1 - sideProgress),
+      sourceRect.top * (1 - topProgress),
+      sourceRect.right + (size.width - sourceRect.right) * sideProgress,
+      sourceRect.bottom + (size.height - sourceRect.bottom) * bottomProgress,
+    );
+    final radius = Radius.circular(18 * (1 - radiusProgress));
+    return Path()..addRRect(RRect.fromRectAndRadius(rect, radius));
+  }
+
+  @override
+  bool shouldReclip(covariant _SearchCurtainClipper oldClipper) {
+    return oldClipper.sourceRect != sourceRect ||
+        oldClipper.progress != progress;
+  }
 }
 
 double _maximumRevealRadius(Size size, Offset origin) {
