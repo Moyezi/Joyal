@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart' show StateProvider;
 
@@ -9,6 +10,8 @@ import '../services/app_cache_service.dart';
 import '../services/deepseek_lyrics_ai_palette_service.dart';
 import '../services/lyrics_ai_palette_protocol.dart';
 import '../services/lyrics_ai_palette_repository.dart';
+import '../services/subsonic_api.dart';
+import '../widgets/album_visual_palette.dart';
 import 'lyrics_personalization_provider.dart';
 import 'lyrics_provider.dart';
 import 'library_provider.dart';
@@ -120,6 +123,55 @@ final deepSeekLyricsAiPaletteServiceProvider =
       );
     });
 
+Future<LyricsAiVisualContext?> _resolveLyricsAiVisualContext(
+  SubsonicApi api,
+  Song song,
+) async {
+  if (song.coverArt.isEmpty) return null;
+  final coverUrl = api.getCoverArtUrl(song.coverArt);
+  try {
+    final palettes = await Future.wait([
+      AlbumVisualPalette.resolve(
+        coverArtId: song.coverArt,
+        coverUrl: coverUrl,
+        brightness: Brightness.light,
+        fallbackOnError: false,
+      ),
+      AlbumVisualPalette.resolve(
+        coverArtId: song.coverArt,
+        coverUrl: coverUrl,
+        brightness: Brightness.dark,
+        fallbackOnError: false,
+      ),
+    ]);
+    final light = palettes[0];
+    final dark = palettes[1];
+    return LyricsAiVisualContext(
+      light: LyricsAiVisualScheme(
+        backgroundTop: light.top.toARGB32(),
+        backgroundBottom: light.bottom.toARGB32(),
+        accent: light.waveformAccentFor(Brightness.light).toARGB32(),
+      ),
+      dark: LyricsAiVisualScheme(
+        backgroundTop: dark.top.toARGB32(),
+        backgroundBottom: dark.bottom.toARGB32(),
+        accent: dark.waveformAccentFor(Brightness.dark).toARGB32(),
+      ),
+    );
+  } catch (_) {
+    // Keep AI coloring available when the cover is not cached and cannot be
+    // fetched. The protocol's canonical light/dark backgrounds remain safe.
+    return null;
+  }
+}
+
+final lyricsAiVisualContextProvider = FutureProvider.autoDispose
+    .family<LyricsAiVisualContext?, Song>((ref, song) async {
+      final api = ref.watch(subsonicApiProvider);
+      if (api == null) return null;
+      return _resolveLyricsAiVisualContext(api, song);
+    });
+
 final lyricsAiPaletteProvider = FutureProvider.autoDispose
     .family<LyricsAiPalette?, LyricsAiPaletteRequest>((ref, request) async {
       final keepAliveLink = ref.keepAlive();
@@ -142,9 +194,17 @@ final lyricsAiPaletteProvider = FutureProvider.autoDispose
         );
         final repository = ref.read(lyricsAiPaletteRepositoryProvider);
         final cached = await repository.load(scope, request.song.id);
+        final visualContext = await ref.watch(
+          lyricsAiVisualContextProvider(request.song).future,
+        );
+        final currentMetadataHash = lyricsAiPaletteMetadataHash(
+          request.song,
+          request.lyrics,
+          visualContext: visualContext,
+        );
         if (cached != null &&
             cached.matches(
-              currentMetadataHash: request.metadataHash,
+              currentMetadataHash: currentMetadataHash,
               currentModel: classification.settings.model,
               currentPromptVersion: lyricsAiPalettePromptVersion,
             )) {
@@ -164,6 +224,7 @@ final lyricsAiPaletteProvider = FutureProvider.autoDispose
               settings: classification.settings,
               song: request.song,
               lyrics: request.lyrics,
+              visualContext: visualContext,
             );
         await repository.save(scope, request.song.id, palette);
         return palette;

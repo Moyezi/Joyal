@@ -19,8 +19,11 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Top-bar search actions reveal `SearchScreen` as a circular ripple centered on the tapped button and collapse back to the same point on pop.
 - Reuse `SearchRippleIconButton` for ordinary title-row actions on 曲库 and 发现. The animated 首页 top-bar icon reports its center through `GlassTopBar.onSearchTapAt` and calls `buildSearchRippleRoute` directly.
 - Keep the ripple implementation in `lib/widgets/navigation/search_ripple_route.dart`; it owns the circular clip, subtle edge rings, transition timing, duplicate-route guard for its standard button, and the reduced-motion bypass.
-- Keep the large 首页 search box on its existing ordinary route unless the task explicitly asks to change it.
-- `SearchScreen` must not autofocus its text field on entry. Open the keyboard only after the user taps the field so it does not compete with the ripple transition.
+- The large 首页 search box uses `buildSearchCurtainRoute`: capture its transformed global rectangle from the `RenderBox` corner points, then expand the capsule upward and downward into `SearchScreen`. Keep the top-bar entries on their separate circular-ripple route.
+- `SearchScreen.transitionAnimation` and `sourceRect` coordinate the curtain entry. Preserve the home capsule's 24px horizontal inset, 54px height, 18px radius, glass settings, search-icon/text alignment, and trailing-arrow center; the arrow rotates into the search page's back action.
+- Stage the search-page background before revealing history/results. Do not autofocus the field on entry; open the keyboard only after the user taps it so it does not compete with the transition.
+- Treat reverse motion separately from entry: never simply reverse the forward `easeOut` field curve. While `AnimationStatus.reverse`, use a curve that decelerates into the home source, fade the field's icon/text/arrow before the capsule travels, and let only the glass capsule return. Otherwise duplicate chrome appears above the home bar and accelerates into it near the end.
+- Keep the reduced-motion bypass. Cover forward/reverse curtain geometry in `test/search_ripple_route_test.dart` and the real home entry wiring in `test/home_search_animation_test.dart`.
 
 ## Root Shell
 

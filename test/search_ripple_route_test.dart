@@ -124,5 +124,28 @@ void main() {
       isTrue,
     );
     expect(find.byTooltip('返回'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    final fieldOpacity = tester
+        .widgetList<Opacity>(
+          find.ancestor(
+            of: find.byType(TextField),
+            matching: find.byType(Opacity),
+          ),
+        )
+        .map((widget) => widget.opacity);
+    expect(fieldOpacity.any((opacity) => opacity < .05), isTrue);
+
+    await tester.pump(const Duration(milliseconds: 240));
+    expect(
+      tester.getTopLeft(find.byType(TextField)).dy,
+      greaterThan(sourceRect.top),
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.byType(SearchScreen), findsNothing);
   });
 }

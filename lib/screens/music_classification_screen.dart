@@ -794,7 +794,7 @@ class _MusicClassificationScreenState
           sliver: SliverToBoxAdapter(
             child: PrivacyNote(
               icon: Icons.palette_outlined,
-              text: '这里只读取和清除本机缓存，不会触发新的 AI 请求；生成时仅发送歌曲文字信息和纯歌词文本。',
+              text: '这里只读取和清除本机缓存，不会触发新的 AI 请求；生成时仅发送歌曲文字信息、纯歌词文本和本地提取的背景色值。',
             ),
           ),
         ),

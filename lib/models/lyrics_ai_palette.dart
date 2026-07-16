@@ -73,6 +73,42 @@ class LyricsAiKeywordColors {
   int get hashCode => Object.hash(text, light, dark);
 }
 
+class LyricsAiVisualScheme {
+  final int backgroundTop;
+  final int backgroundBottom;
+  final int accent;
+
+  const LyricsAiVisualScheme({
+    required this.backgroundTop,
+    required this.backgroundBottom,
+    required this.accent,
+  });
+
+  List<int> get backgroundColors => [backgroundTop, backgroundBottom];
+
+  Map<String, dynamic> toJson() => {
+    'background_top': _hexColor(backgroundTop),
+    'background_bottom': _hexColor(backgroundBottom),
+    'accent': _hexColor(accent),
+  };
+}
+
+class LyricsAiVisualContext {
+  final LyricsAiVisualScheme light;
+  final LyricsAiVisualScheme dark;
+
+  const LyricsAiVisualContext({required this.light, required this.dark});
+
+  LyricsAiVisualScheme schemeFor({required bool darkMode}) {
+    return darkMode ? dark : light;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'light': light.toJson(),
+    'dark': dark.toJson(),
+  };
+}
+
 class LyricsAiPalette {
   final LyricsAiColors light;
   final LyricsAiColors dark;
@@ -142,7 +178,11 @@ class LyricsAiPalette {
   };
 }
 
-String lyricsAiPaletteMetadataHash(Song song, LyricsData lyrics) {
+String lyricsAiPaletteMetadataHash(
+  Song song,
+  LyricsData lyrics, {
+  LyricsAiVisualContext? visualContext,
+}) {
   return sha256
       .convert(
         utf8.encode(
@@ -154,6 +194,7 @@ String lyricsAiPaletteMetadataHash(Song song, LyricsData lyrics) {
                 .map((line) => line.text.trim())
                 .where((line) => line.isNotEmpty)
                 .toList(growable: false),
+            if (visualContext != null) 'visualContext': visualContext.toJson(),
           }),
         ),
       )

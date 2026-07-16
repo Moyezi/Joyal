@@ -12,6 +12,7 @@ import 'package:joyal_music/models/lyrics_ai_palette.dart';
 import 'package:joyal_music/models/music_classification.dart';
 import 'package:joyal_music/models/song.dart';
 import 'package:joyal_music/providers/lyrics_ai_palette_provider.dart';
+import 'package:joyal_music/providers/lyrics_personalization_provider.dart';
 import 'package:joyal_music/providers/lyrics_provider.dart';
 import 'package:joyal_music/providers/music_classification_provider.dart';
 import 'package:joyal_music/providers/player_provider.dart';
@@ -23,6 +24,7 @@ import 'package:joyal_music/services/lyrics_ai_palette_repository.dart';
 import 'package:joyal_music/services/music_classification_repository.dart';
 import 'package:joyal_music/services/subsonic_api.dart';
 import 'package:joyal_music/widgets/lyrics/lyric_semantic_colors.dart';
+import 'package:joyal_music/widgets/lyrics/lyrics_palette.dart';
 
 void main() {
   const song = Song(
@@ -43,6 +45,18 @@ void main() {
       LyricLine(text: 'broken heart learns to love again'),
     ],
   );
+  const visualContext = LyricsAiVisualContext(
+    light: LyricsAiVisualScheme(
+      backgroundTop: 0xFFE7D0B8,
+      backgroundBottom: 0xFFF1E5D8,
+      accent: 0xFF875A3C,
+    ),
+    dark: LyricsAiVisualScheme(
+      backgroundTop: 0xFF26384A,
+      backgroundBottom: 0xFF18232E,
+      accent: 0xFFAFCBDF,
+    ),
+  );
 
   test('DeepSeek palette payload sends textual metadata and lyric content', () {
     final body = buildLyricsAiPaletteRequestBody(
@@ -51,13 +65,14 @@ void main() {
       ),
       song: song,
       lyrics: lyrics,
+      visualContext: visualContext,
     );
     final messages = body['messages'] as List<dynamic>;
     final system = messages.first as Map<String, dynamic>;
     final user = messages.last as Map<String, dynamic>;
     final payload = jsonDecode(user['content'] as String) as Map;
 
-    expect(payload.keys, ['song', 'lyrics']);
+    expect(payload.keys, ['song', 'lyrics', 'visual_context']);
     expect(payload['song'], {'title': '浮名', 'album': '远方', 'artist': '小 Jo'});
     expect(user['content'], isNot(contains('private.example.test')));
     expect(user['content'], isNot(contains('song-1')));
@@ -67,11 +82,24 @@ void main() {
       '月光落在旧城，晚风带我回家',
       'broken heart learns to love again',
     ]);
+    expect(payload['visual_context'], {
+      'light': {
+        'background_top': '#E7D0B8',
+        'background_bottom': '#F1E5D8',
+        'accent': '#875A3C',
+      },
+      'dark': {
+        'background_top': '#26384A',
+        'background_bottom': '#18232E',
+        'accent': '#AFCBDF',
+      },
+    });
     expect(system['content'], isNot(contains('ornament')));
     expect(system['content'], contains('高光光晕色'));
     expect(system['content'], contains('圆形光环颜色'));
     expect(system['content'], contains('10～20'));
     expect(system['content'], contains('不要反复只用蓝、紫、青'));
+    expect(system['content'], contains('visual_context'));
   });
 
   test('valid AI palette is parsed into opaque ARGB colors', () {
@@ -103,8 +131,49 @@ void main() {
     expect(palette.dark.primary, 0xFFAFCBFF);
   });
 
+  test('AI colors are corrected against derived gradient backgrounds', () {
+    final palette = parseLyricsAiPaletteResponse(
+      jsonEncode({
+        'light': {'primary': '#E7D0B8', 'stamp': '#F1E5D8'},
+        'dark': {'primary': '#26384A', 'stamp': '#18232E'},
+        'keywords': [
+          {'text': '月光', 'light': '#E7D0B8', 'dark': '#26384A'},
+        ],
+      }),
+      lyrics: lyrics,
+      visualContext: visualContext,
+    );
+
+    expect(
+      _contrastRatio(
+        Color(palette.light.primary),
+        Color(visualContext.light.backgroundTop),
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      _contrastRatio(
+        Color(palette.dark.primary),
+        Color(visualContext.dark.backgroundTop),
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      _contrastRatio(
+        Color(palette.keywords.single.light),
+        Color(visualContext.light.backgroundBottom),
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+  });
+
   test('cached palette matches metadata, model, and protocol version', () {
     final metadataHash = lyricsAiPaletteMetadataHash(song, lyrics);
+    final visualMetadataHash = lyricsAiPaletteMetadataHash(
+      song,
+      lyrics,
+      visualContext: visualContext,
+    );
     final palette = LyricsAiPalette(
       light: const LyricsAiColors(primary: 0xFF3F5F8A, stamp: 0xFF4B6F9F),
       dark: const LyricsAiColors(primary: 0xFFAFCBFF, stamp: 0xFFBED5FF),
@@ -121,6 +190,7 @@ void main() {
     expect((palette.toJson()['light'] as Map).keys, ['primary', 'stamp']);
     expect(restored.keywords, palette.keywords);
     expect(restored.colorsFor(darkMode: true), restored.dark);
+    expect(visualMetadataHash, isNot(metadataHash));
     expect(
       restored.matches(
         currentMetadataHash: metadataHash,
@@ -193,6 +263,9 @@ void main() {
         overrides: [
           subsonicApiProvider.overrideWithValue(api),
           lyricsProvider.overrideWith((ref, requestedSong) async => lyrics),
+          lyricsAiVisualContextProvider.overrideWith(
+            (ref, requestedSong) async => null,
+          ),
           lyricsAiPaletteRepositoryProvider.overrideWithValue(repository),
           musicClassificationRepositoryProvider.overrideWithValue(
             apiKeyRepository,
@@ -323,6 +396,30 @@ void main() {
       expect(unmatchedFlowingUnit, [null, null, love]);
     },
   );
+
+  testWidgets('light system lyrics use a softer charcoal default', (
+    tester,
+  ) async {
+    late Color resolved;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.light(),
+        home: Builder(
+          builder: (context) {
+            resolved = resolvedActiveLyricColor(
+              context,
+              const LyricsPersonalizationState(isLoading: false),
+              null,
+            );
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(resolved, defaultLightLyricColor);
+    expect(resolved, const Color(0xFF3F434A));
+  });
 }
 
 class _ApiKeyRepository extends MusicClassificationRepository {
@@ -357,8 +454,21 @@ class _InspectingPaletteService extends DeepSeekLyricsAiPaletteService {
     required AiClassificationSettings settings,
     required Song song,
     required LyricsData lyrics,
+    LyricsAiVisualContext? visualContext,
   }) async {
     await beforeGenerate();
     return result;
   }
+}
+
+double _contrastRatio(Color first, Color second) {
+  final firstLuminance = first.computeLuminance();
+  final secondLuminance = second.computeLuminance();
+  final lighter = firstLuminance > secondLuminance
+      ? firstLuminance
+      : secondLuminance;
+  final darker = firstLuminance > secondLuminance
+      ? secondLuminance
+      : firstLuminance;
+  return (lighter + 0.05) / (darker + 0.05);
 }

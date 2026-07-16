@@ -16,6 +16,7 @@ class DeepSeekLyricsAiPaletteService {
     required AiClassificationSettings settings,
     required Song song,
     required LyricsData lyrics,
+    LyricsAiVisualContext? visualContext,
   }) async {
     final uri = Uri.parse(settings.apiBaseUrl).resolve('/chat/completions');
     final response = await _dio.postUri<Map<String, dynamic>>(
@@ -30,6 +31,7 @@ class DeepSeekLyricsAiPaletteService {
         settings: settings,
         song: song,
         lyrics: lyrics,
+        visualContext: visualContext,
       ),
     );
     final content =
@@ -37,12 +39,20 @@ class DeepSeekLyricsAiPaletteService {
                     as Map?)?['message']
                 as Map?)?['content']
             as String?;
-    final colors = parseLyricsAiPaletteResponse(content ?? '', lyrics: lyrics);
+    final colors = parseLyricsAiPaletteResponse(
+      content ?? '',
+      lyrics: lyrics,
+      visualContext: visualContext,
+    );
     return LyricsAiPalette(
       light: colors.light,
       dark: colors.dark,
       keywords: colors.keywords,
-      metadataHash: lyricsAiPaletteMetadataHash(song, lyrics),
+      metadataHash: lyricsAiPaletteMetadataHash(
+        song,
+        lyrics,
+        visualContext: visualContext,
+      ),
       model: settings.model,
       promptVersion: lyricsAiPalettePromptVersion,
       generatedAt: DateTime.now(),

@@ -11,7 +11,8 @@
 ## Shared AI Lyric Palette
 
 - Show “AI 文字配色” under personalization “文字” for default, `流光`, and `浮名`.
-- Send only title, album, artist, and plain lyric lines. Never send song/server IDs, credentials, service addresses, media URLs, or cover URLs.
+- Send only title, album, artist, plain lyric lines, and optional client-derived light/dark background/accent hex values. Never send song/server IDs, credentials, service addresses, media URLs, cover URLs, or cover images.
+- Treat the optional visual context as a harmony constraint rather than a replacement for lyric semantics. Include its stable color signature in the palette metadata hash, bump the prompt protocol when the input contract changes, and validate returned colors against both canonical and derived top/bottom backgrounds on device.
 - Request theme-aware base `primary`/`stamp` colors and 10–20 lyric keywords (maximum 20). Reject missing, duplicate, or malformed keywords and correct text/background contrast.
 - Ordinary current graphemes/tokens use AI `primary`, then return to renderer defaults about 280 ms after the next unit begins. Keywords gain semantic color only when sung and retain it afterward; unsung keywords stay at renderer defaults. Without word timing, default and `流光` may show current-line keyword colors statically.
 - Default frontier glow and blurred stamp follow the current resolved color. `流光` text/halo follow it and match keyword ranges against original lyric text so omitted layout whitespace is preserved. Keyword rings use keyword color regardless of climax; non-keyword rings use `stamp` only during climax. `浮名` current grapheme and crisp keyword stamps use resolved semantic colors.

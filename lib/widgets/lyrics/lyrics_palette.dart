@@ -5,6 +5,8 @@ import '../../config/theme_context.dart';
 import '../../providers/lyrics_personalization_provider.dart';
 import '../album_visual_palette.dart';
 
+const defaultLightLyricColor = Color(0xFF3F434A);
+
 class LyricsPaletteRequest {
   final String coverArtId;
   final String coverSourceId;
@@ -73,7 +75,10 @@ Color resolvedActiveLyricColor(
   Color? dynamicColor,
 ) {
   return switch (preferences.colorMode) {
-    LyricsColorMode.system => context.primaryColor,
+    LyricsColorMode.system =>
+      Theme.of(context).brightness == Brightness.light
+          ? defaultLightLyricColor
+          : context.primaryColor,
     LyricsColorMode.black => Colors.black,
     LyricsColorMode.white => Colors.white,
     LyricsColorMode.dynamicLight =>
