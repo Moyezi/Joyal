@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/page_background_provider.dart';
+import 'cached_blurred_background.dart';
 
 class PageCustomBackground extends ConsumerWidget {
   // Strongly blurred full-screen images contain little useful high-frequency
@@ -68,7 +69,7 @@ class PageCustomBackground extends ConsumerWidget {
                   cacheWidth: cacheWidth,
                 );
 
-                return Center(
+                final liveBackground = Center(
                   child: Transform.scale(
                     scale: shouldBlur ? 1.04 / rasterScale : 1,
                     child: SizedBox.fromSize(
@@ -83,6 +84,19 @@ class PageCustomBackground extends ConsumerWidget {
                       ),
                     ),
                   ),
+                );
+                if (!useReducedRaster) return liveBackground;
+                return CachedBlurredBackground(
+                  cacheIdentity: 'shared-page-background:$path',
+                  loadSourceFile: () async {
+                    final file = File(path);
+                    return await file.exists() ? file : null;
+                  },
+                  blurSigma: blurSigma,
+                  rasterScale: _reducedRasterScale,
+                  contentScale: 1.04,
+                  cacheWritesEnabled: !pageBackground.isAdjustingBlur,
+                  liveFallback: liveBackground,
                 );
               },
             ),

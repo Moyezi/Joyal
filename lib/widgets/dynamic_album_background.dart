@@ -1,17 +1,21 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import '../providers/visual_effect_provider.dart';
 import 'album_visual_palette.dart';
+import 'cached_blurred_background.dart';
 import 'cached_disk_image.dart';
 
 /// A softly animated background derived from cached album artwork.
 class DynamicAlbumBackground extends ConsumerStatefulWidget {
   final String coverArtId;
   final String coverUrl;
+  final String? coverCacheIdentity;
   final String? motionSeed;
   final bool motionEnabled;
   final Widget child;
@@ -20,6 +24,7 @@ class DynamicAlbumBackground extends ConsumerStatefulWidget {
     super.key,
     required this.coverArtId,
     required this.coverUrl,
+    this.coverCacheIdentity,
     this.motionSeed,
     this.motionEnabled = true,
     required this.child,
@@ -160,8 +165,10 @@ class _DynamicAlbumBackgroundState extends ConsumerState<DynamicAlbumBackground>
               child: _CoverGlassBackground(
                 coverArtId: widget.coverArtId,
                 coverUrl: widget.coverUrl,
+                cacheIdentity: widget.coverCacheIdentity ?? widget.coverArtId,
                 blurSigma: coverGlassSettings.blurSigma,
                 overlayOpacity: coverGlassSettings.overlayOpacity,
+                cacheWritesEnabled: !coverGlassSettings.isAdjustingBlur,
               ),
             ),
           widget.child,
@@ -180,14 +187,18 @@ class _CoverGlassBackground extends StatelessWidget {
 
   final String coverArtId;
   final String coverUrl;
+  final String cacheIdentity;
   final double blurSigma;
   final double overlayOpacity;
+  final bool cacheWritesEnabled;
 
   const _CoverGlassBackground({
     required this.coverArtId,
     required this.coverUrl,
+    required this.cacheIdentity,
     required this.blurSigma,
     required this.overlayOpacity,
+    required this.cacheWritesEnabled,
   });
 
   @override
@@ -240,7 +251,7 @@ class _CoverGlassBackground extends StatelessWidget {
                         child: cover,
                       )
                     : cover;
-                return Center(
+                final liveBackground = Center(
                   child: Transform.scale(
                     scale: 1 / rasterScale,
                     child: SizedBox.fromSize(
@@ -248,6 +259,20 @@ class _CoverGlassBackground extends StatelessWidget {
                       child: filteredCover,
                     ),
                   ),
+                );
+                if (!useReducedRaster ||
+                    coverArtId.isEmpty ||
+                    coverUrl.isEmpty ||
+                    cacheIdentity.isEmpty) {
+                  return liveBackground;
+                }
+                return CachedBlurredBackground(
+                  cacheIdentity: 'cover-glass:$cacheIdentity',
+                  loadSourceFile: _loadCoverSource,
+                  blurSigma: effectiveBlur,
+                  rasterScale: _rasterScale,
+                  cacheWritesEnabled: cacheWritesEnabled,
+                  liveFallback: liveBackground,
                 );
               },
             ),
@@ -267,6 +292,16 @@ class _CoverGlassBackground extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<File?> _loadCoverSource() async {
+    final cacheManager = DefaultCacheManager();
+    final cached = await cacheManager.getFileFromCache(coverArtId);
+    if (cached?.file case final file? when await file.exists()) {
+      return file;
+    }
+    if (coverUrl.isEmpty) return null;
+    return cacheManager.getSingleFile(coverUrl, key: coverArtId);
   }
 }
 

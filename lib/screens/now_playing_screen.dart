@@ -8,6 +8,7 @@ import '../config/theme.dart';
 import '../config/theme_context.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
+import '../services/app_cache_service.dart';
 import '../utils/app_toast.dart';
 import '../widgets/album_visual_palette.dart';
 import '../widgets/album_cover.dart';
@@ -387,6 +388,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final currentIndex = ref.watch(
       playerProvider.select((state) => state.currentIndex),
     );
+    final api = ref.watch(subsonicApiProvider);
     final hasSong = currentSong != null;
     final visualSong = _nowPlayingVisualSongFromParts(
       currentSong: currentSong,
@@ -395,6 +397,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       isSelecting: _isSelecting,
       candidateIndex: _candidateIndex,
     );
+    final backgroundCacheIdentity =
+        visualSong == null || visualSong.coverArt.isEmpty
+        ? ''
+        : '${api == null ? 'offline' : AppCacheService.instance.serverScope(api.baseUrl, api.username)}'
+              '|${visualSong.coverArt}';
     _syncVisualPalette(visualSong);
     final playerPage = RepaintBoundary(child: _buildPlayerPage(context));
     final lyricsPage = _lyricsInitialized
@@ -425,6 +432,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           child: DynamicAlbumBackground(
             coverArtId: visualSong?.coverArt ?? '',
             coverUrl: _coverUrl(ref, visualSong),
+            coverCacheIdentity: backgroundCacheIdentity,
             motionSeed: visualSong?.id,
             motionEnabled:
                 _visualEffectsActive &&

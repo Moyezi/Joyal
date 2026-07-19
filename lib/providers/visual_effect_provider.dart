@@ -108,22 +108,26 @@ class CoverGlassBackgroundState {
 
   final double blurSigma;
   final double overlayOpacity;
+  final bool isAdjustingBlur;
   final bool isLoading;
 
   const CoverGlassBackgroundState({
     this.blurSigma = defaultBlurSigma,
     this.overlayOpacity = defaultOverlayOpacity,
+    this.isAdjustingBlur = false,
     this.isLoading = true,
   });
 
   CoverGlassBackgroundState copyWith({
     double? blurSigma,
     double? overlayOpacity,
+    bool? isAdjustingBlur,
     bool? isLoading,
   }) {
     return CoverGlassBackgroundState(
       blurSigma: blurSigma ?? this.blurSigma,
       overlayOpacity: overlayOpacity ?? this.overlayOpacity,
+      isAdjustingBlur: isAdjustingBlur ?? this.isAdjustingBlur,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -175,7 +179,11 @@ class CoverGlassBackgroundNotifier
           CoverGlassBackgroundState.maxBlurSigma,
         )
         .toDouble();
-    state = state.copyWith(blurSigma: next, isLoading: false);
+    state = state.copyWith(
+      blurSigma: next,
+      isAdjustingBlur: !persist,
+      isLoading: false,
+    );
     if (persist) {
       await _storage.write(key: _blurKey, value: next.toStringAsFixed(1));
     }

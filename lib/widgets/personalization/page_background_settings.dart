@@ -17,6 +17,7 @@ class PageBackgroundTile extends StatelessWidget {
   final VoidCallback onPick;
   final VoidCallback onClear;
   final ValueChanged<double> onBlurChanged;
+  final ValueChanged<double> onBlurChangeEnd;
 
   const PageBackgroundTile({
     super.key,
@@ -25,6 +26,7 @@ class PageBackgroundTile extends StatelessWidget {
     required this.onPick,
     required this.onClear,
     required this.onBlurChanged,
+    required this.onBlurChangeEnd,
   });
 
   @override
@@ -119,6 +121,7 @@ class PageBackgroundTile extends StatelessWidget {
                     divisions: 12,
                     label: blurSigma.toStringAsFixed(0),
                     onChanged: onBlurChanged,
+                    onChangeEnd: onBlurChangeEnd,
                   ),
                 ),
                 SizedBox(

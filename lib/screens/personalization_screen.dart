@@ -43,7 +43,10 @@ class PersonalizationScreen extends ConsumerWidget {
             blurSigma: pageBackgrounds.blurSigma,
             onPick: () => _pickPageBackground(context, ref),
             onClear: () => _clearPageBackground(context, ref),
-            onBlurChanged: (value) =>
+            onBlurChanged: (value) => ref
+                .read(pageBackgroundProvider.notifier)
+                .setBlurSigma(value, persist: false),
+            onBlurChangeEnd: (value) =>
                 ref.read(pageBackgroundProvider.notifier).setBlurSigma(value),
           ),
           const SizedBox(height: AppTheme.spacingLG),

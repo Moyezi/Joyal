@@ -19,11 +19,13 @@ enum PageBackgroundTarget {
 class PageBackgroundState {
   final String? imagePath;
   final double blurSigma;
+  final bool isAdjustingBlur;
   final bool isLoading;
 
   const PageBackgroundState({
     this.imagePath,
     this.blurSigma = 0,
+    this.isAdjustingBlur = false,
     this.isLoading = true,
   });
 
@@ -32,12 +34,14 @@ class PageBackgroundState {
   PageBackgroundState copyWith({
     String? imagePath,
     double? blurSigma,
+    bool? isAdjustingBlur,
     bool? isLoading,
     bool clearImagePath = false,
   }) {
     return PageBackgroundState(
       imagePath: clearImagePath ? null : imagePath ?? this.imagePath,
       blurSigma: blurSigma ?? this.blurSigma,
+      isAdjustingBlur: isAdjustingBlur ?? this.isAdjustingBlur,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -107,10 +111,16 @@ class PageBackgroundNotifier extends StateNotifier<PageBackgroundState> {
     state = state.copyWith(clearImagePath: true, isLoading: false);
   }
 
-  Future<void> setBlurSigma(double value) async {
+  Future<void> setBlurSigma(double value, {bool persist = true}) async {
     final next = value.clamp(0.0, 24.0).toDouble();
-    await _storage.write(key: _keyBlurSigma, value: next.toStringAsFixed(1));
-    state = state.copyWith(blurSigma: next, isLoading: false);
+    state = state.copyWith(
+      blurSigma: next,
+      isAdjustingBlur: !persist,
+      isLoading: false,
+    );
+    if (persist) {
+      await _storage.write(key: _keyBlurSigma, value: next.toStringAsFixed(1));
+    }
   }
 
   Future<String> _copyToAppStorage(XFile image) async {

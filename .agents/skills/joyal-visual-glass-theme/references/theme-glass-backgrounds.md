@@ -16,6 +16,8 @@
 - Let `PageBackgroundProvider` and the single shell-level `PageCustomBackground` own the shared main-page background. Home, library, and discovery scaffolds stay transparent.
 - Always paint `ThemeData.scaffoldBackgroundColor` as `PageCustomBackground`'s base: return it when no image is set and keep it beneath a custom image. Without this opaque base, the transparent tabs expose `HomeSidebar` while the shell moves; beneath an image it also catches blur/scale edge gaps.
 - Home, library, and discovery share local images. Internal `PageBackgroundTarget.favorites` displays as `发现`.
+- Cache strongly blurred shared page images through `BlurredBackgroundCache` / `CachedBlurredBackground`: keep the live reduced-raster `ImageFiltered` path as the initial/error fallback, then swap to the derived low-resolution PNG. Keep theme veils outside the cached bitmap so brightness changes do not regenerate the blur.
+- A derived blur cache key must cover stable image identity, source-file size/mtime, blur sigma, physical viewport size, fit, alignment, and the live layer's content scale. The cached PNG must use the exact same crop/scale as the live fallback so the swap never reframes the image. Slider drags stay live in memory; generate the new PNG only after the drag ends.
 
 ## Frosted And Liquid Glass
 
@@ -33,4 +35,5 @@
 - Implement moving light with `CustomPainter` plus `sin/cos`; stop controllers for static gradients.
 - `BackgroundVisualStyle.albumCoverGlass` uses the current cover through `CachedDiskImage` + `ImageFiltered` for both now-playing and lyrics.
 - Keep its full-screen blur a static reduced-raster composition, not a full-resolution filtered texture. Isolate `_CoverGlassBackground` from high-frequency lyric foregrounds so lyric ticks do not reraster the cover.
+- Cache the settled reduced-raster cover blur through `BlurredBackgroundCache`, scoped by `serverScope(baseUrl, username)` plus `coverArtId`; never use the authenticated cover URL as derived-cache identity. Now playing and lyrics continue to consume the same cached layer.
 - Persist blur and adaptive light/dark overlay through `coverGlassBackgroundProvider`. Slider changes are live and persist on drag end. Never replace this with a full-screen `BackdropFilter`.

@@ -29,6 +29,7 @@ Read only the references needed for the task:
 - Theme/visual providers: `lib/providers/glass_effect_provider.dart`, `lib/providers/visual_effect_provider.dart`, `lib/providers/page_background_provider.dart`, `lib/providers/mini_player_color_provider.dart`.
 - Glass widgets: `lib/widgets/frosted_glass.dart`, `lib/widgets/liquid_glass_overlay.dart`.
 - Backgrounds/palettes: `lib/widgets/page_custom_background.dart`, `lib/widgets/dynamic_album_background.dart`, `lib/widgets/album_visual_palette.dart`.
+- Derived static blur cache: `lib/services/blurred_background_cache.dart`, `lib/widgets/cached_blurred_background.dart`.
 - Infinite canvas: `lib/screens/library_canvas_screen.dart`.
 - MiniPlayer chrome: `lib/widgets/mini_player_chrome.dart`.
 - Personalization: `lib/widgets/personalization/page_background_settings.dart`, `glass_effect_tile.dart`, `liquid_glass_toggle_tile.dart`, `mini_player_color_tile.dart`, `flowing_halo_background_tile.dart`, `personalization_choice_tile.dart`.

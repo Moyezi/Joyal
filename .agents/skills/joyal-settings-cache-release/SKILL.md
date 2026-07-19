@@ -29,6 +29,7 @@ description: "Settings, cache, download, and build memory for Joyal Music. Use w
 - Offline downloads should navigate to download management and must not accidentally delete downloads.
 - Image display should prefer `CachedDiskImage`: check disk by stable `cacheKey` before network.
 - Album and song cover keys use stable `coverArtId`.
+- Derived full-screen blur PNGs live below `libCachedImageData/derived_blurred_backgrounds`, so image-cache statistics, manual clearing, and global LRU include them. Their own safety cap is 24 entries / 32 MB.
 - Artist avatars must not use `String.hashCode` as a persistent cache key.
 - `AppCacheService` manages small JSON caches.
 - Do not call `Isolate.run(() => jsonEncode(value))` inside an instance method when that closure captures instance fields.
