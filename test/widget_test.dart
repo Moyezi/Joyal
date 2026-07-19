@@ -25,6 +25,7 @@ import 'package:joyal_music/services/buckets/search_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/stream_cache_bucket.dart';
 import 'package:joyal_music/widgets/directional_anchor_reveal.dart';
 import 'package:joyal_music/widgets/glass_top_bar.dart';
+import 'package:joyal_music/widgets/navigation/main_shell_helpers.dart';
 
 void main() {
   testWidgets('App smoke test – main shell renders', (
@@ -440,6 +441,36 @@ void main() {
       tester.getSize(backgroundFinder),
       tester.getSize(find.byType(MainShell)),
     );
+  });
+
+  testWidgets('Home sidebar preview uses a rounded anti-aliased scrim', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    await tester.flingFrom(const Offset(48, 320), const Offset(520, 0), 1800);
+    await tester.pumpAndSettle();
+
+    final scrimFinder = find.byType(DrawerPreviewScrim);
+    final scrim = tester.widget<DrawerPreviewScrim>(scrimFinder);
+    const expectedRadius = BorderRadius.all(Radius.circular(28));
+    expect(scrim.borderRadius, expectedRadius);
+
+    final decoration = tester.widget<DecoratedBox>(
+      find.descendant(of: scrimFinder, matching: find.byType(DecoratedBox)),
+    );
+    expect(
+      (decoration.decoration as BoxDecoration).borderRadius,
+      expectedRadius,
+    );
+
+    final previewClip = tester
+        .widgetList<ClipRRect>(
+          find.ancestor(of: scrimFinder, matching: find.byType(ClipRRect)),
+        )
+        .singleWhere((clip) => clip.borderRadius == expectedRadius);
+    expect(previewClip.clipBehavior, Clip.antiAlias);
   });
 
   testWidgets('Home content does not scroll vertically while opening sidebar', (

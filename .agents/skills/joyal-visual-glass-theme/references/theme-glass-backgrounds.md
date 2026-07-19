@@ -14,6 +14,7 @@
 - Keep album color extraction in `AlbumVisualPalette`; include brightness in palette cache keys.
 - Identify dynamic backgrounds/providers with stable `coverArtId/baseUrl/username`, not random-token-bearing `coverUrl` equality or hashes.
 - Let `PageBackgroundProvider` and the single shell-level `PageCustomBackground` own the shared main-page background. Home, library, and discovery scaffolds stay transparent.
+- Always paint `ThemeData.scaffoldBackgroundColor` as `PageCustomBackground`'s base: return it when no image is set and keep it beneath a custom image. Without this opaque base, the transparent tabs expose `HomeSidebar` while the shell moves; beneath an image it also catches blur/scale edge gaps.
 - Home, library, and discovery share local images. Internal `PageBackgroundTarget.favorites` displays as `发现`.
 
 ## Frosted And Liquid Glass

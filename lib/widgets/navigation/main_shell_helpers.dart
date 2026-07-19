@@ -111,12 +111,14 @@ class DrawerPane extends StatelessWidget {
 class DrawerPreviewScrim extends StatelessWidget {
   final double progress;
   final double maxAlpha;
+  final BorderRadius borderRadius;
   final VoidCallback onTap;
 
   const DrawerPreviewScrim({
     super.key,
     required this.progress,
     required this.maxAlpha,
+    required this.borderRadius,
     required this.onTap,
   });
 
@@ -125,8 +127,11 @@ class DrawerPreviewScrim extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: ColoredBox(
-        color: Colors.black.withValues(alpha: maxAlpha * progress),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: maxAlpha * progress),
+          borderRadius: borderRadius,
+        ),
       ),
     );
   }

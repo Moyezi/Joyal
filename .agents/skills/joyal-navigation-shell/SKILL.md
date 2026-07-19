@@ -50,6 +50,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Home right-swipe opens `HomeSidebar`.
 - Sidebar width is about 70% of the screen.
 - Home content, MiniPlayer, and dock move right, scale down, and dim with sidebar progress.
+- Give `DrawerPreviewScrim` the same progress-driven `BorderRadius` as the transformed shell and keep the outer `ClipRRect` on `Clip.antiAlias`; a rectangular scrim that relies only on its ancestor clip can expose a sharp mask over custom wallpapers during compositing.
 - The recently-added horizontal list is an exclusion zone for the sidebar gesture.
 - Keep the sidebar animation smooth: use a stable child/RepaintBoundary for the home preview.
 - Do not insert/remove temporary parent nodes when dragging starts.

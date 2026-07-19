@@ -688,6 +688,7 @@ class _MainShellState extends ConsumerState<MainShell>
                 child: DrawerPreviewScrim(
                   progress: progress,
                   maxAlpha: _drawerScrimMaxAlpha,
+                  borderRadius: previewBorderRadius,
                   onTap: _handleDrawerPreviewTap,
                 ),
               ),
@@ -701,7 +702,7 @@ class _MainShellState extends ConsumerState<MainShell>
             alignment: Alignment.centerLeft,
             child: ClipRRect(
               borderRadius: previewBorderRadius,
-              clipBehavior: progress > 0.001 ? Clip.hardEdge : Clip.none,
+              clipBehavior: progress > 0.001 ? Clip.antiAlias : Clip.none,
               child: preview,
             ),
           ),
