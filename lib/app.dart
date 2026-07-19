@@ -83,7 +83,7 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   int _currentTab = 0;
   int? _previousTab;
   int _tabDirection = 0;
@@ -121,6 +121,8 @@ class _MainShellState extends ConsumerState<MainShell>
   final TwoFingerPinchTracker _homePinchTracker = TwoFingerPinchTracker();
   bool _isLibraryCanvasRouteOpen = false;
   bool _isNowPlayingRouteOpen = false;
+  bool _visualEffectsActive = true;
+  Timer? _resumeVisualsTimer;
 
   void _registerDrawerExclusion(Rect rect) {
     _drawerExclusionRects.clear();
@@ -132,6 +134,10 @@ class _MainShellState extends ConsumerState<MainShell>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _visualEffectsActive =
+        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
     _drawerController = AnimationController(
       vsync: this,
       lowerBound: 0.0,
@@ -194,6 +200,25 @@ class _MainShellState extends ConsumerState<MainShell>
       ),
       const HotlistScreen(),
     ];
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _resumeVisualsTimer?.cancel();
+    if (state != AppLifecycleState.resumed) {
+      if (_visualEffectsActive && mounted) {
+        setState(() => _visualEffectsActive = false);
+      }
+      return;
+    }
+    if (_visualEffectsActive) return;
+    // Keep the rotating cover, position-driven lyrics and live glass out of
+    // Android's task-open animation. Restart them after the system transition
+    // has had a short head start, matching the full-screen player lifecycle.
+    _resumeVisualsTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      setState(() => _visualEffectsActive = true);
+    });
   }
 
   void _onTabChanged(int index) {
@@ -644,7 +669,7 @@ class _MainShellState extends ConsumerState<MainShell>
                     }),
               },
               child: TickerMode(
-                enabled: !_isNowPlayingRouteOpen,
+                enabled: _visualEffectsActive && !_isNowPlayingRouteOpen,
                 child: Stack(
                   children: [
                     DrawerPane(
@@ -735,6 +760,7 @@ class _MainShellState extends ConsumerState<MainShell>
               children: [
                 MiniPlayer(
                   isCollapsed: _isMiniPlayerCollapsed,
+                  visualEffectsEnabled: _visualEffectsActive,
                   onTap: _openNowPlaying,
                   onCollapseRequested: _collapseMiniPlayer,
                   onExpandRequested: _expandMiniPlayer,
@@ -822,6 +848,8 @@ class _MainShellState extends ConsumerState<MainShell>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _resumeVisualsTimer?.cancel();
     _androidMediaBridge?.dispose();
     _drawerController.dispose();
     _tabTransitionController.dispose();

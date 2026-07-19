@@ -14,32 +14,55 @@ const Curve _miniLyricsRollPositionCurve = Cubic(0.16, 1.0, 0.3, 1.0);
 const Curve _miniLyricsRollFadeOutCurve = Cubic(0.55, 0.0, 1.0, 0.45);
 const Curve _miniLyricsRollFadeInCurve = Cubic(0.0, 0.55, 0.45, 1.0);
 
-class MiniLyricsForSong extends ConsumerWidget {
+class MiniLyricsForSong extends ConsumerStatefulWidget {
   final Song song;
+  final bool positionUpdatesEnabled;
 
-  const MiniLyricsForSong({super.key, required this.song});
+  const MiniLyricsForSong({
+    super.key,
+    required this.song,
+    this.positionUpdatesEnabled = true,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final lyrics = ref.watch(lyricsProvider(song));
-    final pair = ref.watch(
-      playerProvider.select(
-        (state) => lyrics.when(
-          loading: () => const _MiniLyricPair(
-            current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d',
-            next: '',
-            index: -2,
-          ),
-          error: (error, stackTrace) => const _MiniLyricPair(
-            current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
-            next: '',
-            index: -3,
-          ),
-          data: (data) => _MiniLyricPair.fromLyrics(data, state.position),
-        ),
-      ),
+  ConsumerState<MiniLyricsForSong> createState() => _MiniLyricsForSongState();
+}
+
+class _MiniLyricsForSongState extends ConsumerState<MiniLyricsForSong> {
+  _MiniLyricPair? _lastPair;
+
+  @override
+  void didUpdateWidget(covariant MiniLyricsForSong oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.song.id != oldWidget.song.id) _lastPair = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lyrics = ref.watch(lyricsProvider(widget.song));
+    final position = ref.watch(
+      playerProvider.select((state) {
+        return widget.positionUpdatesEnabled ? state.position : null;
+      }),
     );
-    return _MiniLyrics(songId: song.id, pair: pair);
+    final pair = position == null && _lastPair != null
+        ? _lastPair!
+        : lyrics.when(
+            loading: () => const _MiniLyricPair(
+              current: '\u6b4c\u8bcd\u52a0\u8f7d\u4e2d',
+              next: '',
+              index: -2,
+            ),
+            error: (error, stackTrace) => const _MiniLyricPair(
+              current: '\u6b4c\u8bcd\u52a0\u8f7d\u5931\u8d25',
+              next: '',
+              index: -3,
+            ),
+            data: (data) =>
+                _MiniLyricPair.fromLyrics(data, position ?? Duration.zero),
+          );
+    _lastPair = pair;
+    return _MiniLyrics(songId: widget.song.id, pair: pair);
   }
 }
 

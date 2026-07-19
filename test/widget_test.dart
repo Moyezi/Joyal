@@ -24,7 +24,10 @@ import 'package:joyal_music/services/buckets/meta_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/search_cache_bucket.dart';
 import 'package:joyal_music/services/buckets/stream_cache_bucket.dart';
 import 'package:joyal_music/widgets/directional_anchor_reveal.dart';
+import 'package:joyal_music/widgets/frosted_glass.dart';
 import 'package:joyal_music/widgets/glass_top_bar.dart';
+import 'package:joyal_music/widgets/mini_player.dart';
+import 'package:joyal_music/widgets/mini_player/mini_player_lyrics.dart';
 import 'package:joyal_music/widgets/navigation/main_shell_helpers.dart';
 
 void main() {
@@ -39,6 +42,54 @@ void main() {
     expect(find.text('发现'), findsWidgets);
     expect(find.text('搜索歌曲、专辑或艺人'), findsOneWidget);
   });
+
+  testWidgets(
+    'Main shell pauses MiniPlayer work while collapsed and during app transitions',
+    (tester) async {
+      final player = _TestPlayerNotifier(
+        PlaybackState(
+          currentSong: _playingSong,
+          isPlaying: true,
+          playlist: const [_playingSong],
+          currentIndex: 0,
+        ),
+      );
+      await tester.pumpWidget(_testApp(player: player));
+      await tester.pump();
+
+      MiniPlayer miniPlayer() =>
+          tester.widget<MiniPlayer>(find.byType(MiniPlayer));
+      MiniLyricsForSong miniLyrics() =>
+          tester.widget<MiniLyricsForSong>(find.byType(MiniLyricsForSong));
+      FrostedGlass miniGlass() => tester.widget<FrostedGlass>(
+        find.descendant(
+          of: find.byType(MiniPlayer),
+          matching: find.byType(FrostedGlass),
+        ),
+      );
+
+      expect(miniPlayer().visualEffectsEnabled, isTrue);
+      expect(miniLyrics().positionUpdatesEnabled, isTrue);
+      expect(miniGlass().blurSigma, greaterThan(0));
+
+      await tester.drag(find.byType(MiniPlayer), const Offset(80, 0));
+      await tester.pump();
+      expect(miniPlayer().isCollapsed, isTrue);
+      expect(miniLyrics().positionUpdatesEnabled, isFalse);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      expect(miniPlayer().visualEffectsEnabled, isFalse);
+      expect(miniGlass().blurSigma, 0);
+      expect(miniGlass().liquidGlassEnabled, isFalse);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(milliseconds: 179));
+      expect(miniPlayer().visualEffectsEnabled, isFalse);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(miniPlayer().visualEffectsEnabled, isTrue);
+    },
+  );
 
   testWidgets('Home spread opens canvas and canvas pinch returns home', (
     tester,
@@ -549,11 +600,11 @@ void main() {
   });
 }
 
-Widget _testApp({List<dynamic> overrides = const []}) {
+Widget _testApp({List<dynamic> overrides = const [], PlayerNotifier? player}) {
   return ProviderScope(
     overrides: [
       authProvider.overrideWith((ref) => _TestAuthNotifier()),
-      playerProvider.overrideWith((ref) => _TestPlayerNotifier()),
+      playerProvider.overrideWith((ref) => player ?? _TestPlayerNotifier()),
       ...overrides,
     ],
     child: const JoyalMusicApp(),
@@ -606,8 +657,23 @@ class _TestAuthNotifier extends AuthNotifier {
 }
 
 class _TestPlayerNotifier extends PlayerNotifier {
-  _TestPlayerNotifier() : super(null, const FlutterSecureStorage());
+  _TestPlayerNotifier([PlaybackState initialState = const PlaybackState()])
+    : super(null, const FlutterSecureStorage()) {
+    state = initialState;
+  }
 }
+
+const _playingSong = Song(
+  id: 'playing-song',
+  parent: 'playing-album',
+  title: 'Playing Song',
+  album: 'Playing Album',
+  artist: 'Playing Artist',
+  duration: 180,
+  coverArt: '',
+  contentType: 'audio/mpeg',
+  suffix: 'mp3',
+);
 
 class _TestLibraryNotifier extends LibraryNotifier {
   _TestLibraryNotifier(LibraryState initial)

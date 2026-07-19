@@ -28,6 +28,7 @@ class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onCollapseRequested;
   final VoidCallback? onExpandRequested;
   final bool isCollapsed;
+  final bool visualEffectsEnabled;
 
   const MiniPlayer({
     super.key,
@@ -35,6 +36,7 @@ class MiniPlayer extends ConsumerWidget {
     this.onCollapseRequested,
     this.onExpandRequested,
     this.isCollapsed = false,
+    this.visualEffectsEnabled = true,
   });
 
   @override
@@ -81,7 +83,10 @@ class MiniPlayer extends ConsumerWidget {
     ).copyWith(tintOpacity: tintOpacity);
 
     final cover = _buildMiniCover(coverUrl, song.coverArt);
-    final lyrics = MiniLyricsForSong(song: song);
+    final lyrics = MiniLyricsForSong(
+      song: song,
+      positionUpdatesEnabled: visualEffectsEnabled && !isCollapsed,
+    );
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: isCollapsed ? 1 : 0),
@@ -98,6 +103,7 @@ class MiniPlayer extends ConsumerWidget {
                 availableWidth: width,
                 progress: progress,
                 isCollapsed: isCollapsed,
+                visualEffectsEnabled: visualEffectsEnabled,
                 trackId: song.id,
                 isPlaying: isPlaying,
                 cover: cover,
@@ -143,6 +149,7 @@ class _MorphingMiniPlayer extends ConsumerStatefulWidget {
   final double availableWidth;
   final double progress;
   final bool isCollapsed;
+  final bool visualEffectsEnabled;
   final String trackId;
   final bool isPlaying;
   final Widget cover;
@@ -156,6 +163,7 @@ class _MorphingMiniPlayer extends ConsumerStatefulWidget {
     required this.availableWidth,
     required this.progress,
     required this.isCollapsed,
+    required this.visualEffectsEnabled,
     required this.trackId,
     required this.isPlaying,
     required this.cover,
@@ -198,11 +206,13 @@ class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
 
   @override
   Widget build(BuildContext context) {
-    final blurSigma = ref.watch(
-      glassEffectProvider.select(
-        (state) => state.blurFor(GlassEffectTarget.miniPlayer),
-      ),
-    );
+    final blurSigma = widget.visualEffectsEnabled
+        ? ref.watch(
+            glassEffectProvider.select(
+              (state) => state.blurFor(GlassEffectTarget.miniPlayer),
+            ),
+          )
+        : 0.0;
     final progress = widget.progress.clamp(0.0, 1.0);
     final expandedLeft = _miniPlayerHorizontalInset;
     const expandedTop = 8.0;
@@ -272,6 +282,7 @@ class _MorphingMiniPlayerState extends ConsumerState<_MorphingMiniPlayer> {
                 progress,
               )!,
               tintOpacity: widget.chrome.tintOpacity,
+              liquidGlassEnabled: widget.visualEffectsEnabled ? null : false,
               borderColor: widget.chrome.borderColor,
               borderOpacity: widget.chrome.borderOpacity,
               boxShadow: [
