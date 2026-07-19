@@ -80,13 +80,17 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 }
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   AlbumVisualPalette _visualPalette = AlbumVisualPalette.fallback;
   String? _paletteCoverArtId;
   bool _lyricsInitialized = false;
   bool _lyricsForeground = false;
   bool _lyricsTransitionActive = false;
   bool _lyricsSettingsOpen = false;
+  bool _visualEffectsActive = true;
+  Timer? _resumeVisualsTimer;
+  Timer? _lyricsWarmupTimer;
+  Animation<double>? _routeAnimation;
   bool _allowRoutePop = false;
   bool _isSelecting = false;
   int _candidateIndex = 0;
@@ -134,6 +138,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _lyricsProgress.addStatusListener(_handleLyricsStatus);
     _selSnapCtrl.addListener(() {
       if (mounted && _selSnapCtrl.isAnimating) setState(() {});
@@ -149,7 +154,55 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (identical(animation, _routeAnimation)) return;
+    _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
+    _routeAnimation = animation;
+    animation?.addStatusListener(_handleRouteAnimationStatus);
+    if (animation?.status == AnimationStatus.completed) {
+      _scheduleLyricsWarmup();
+    }
+  }
+
+  void _handleRouteAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) _scheduleLyricsWarmup();
+  }
+
+  void _scheduleLyricsWarmup() {
+    if (_lyricsInitialized || _lyricsWarmupTimer?.isActive == true) return;
+    _lyricsWarmupTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted || !_visualEffectsActive || _lyricsInitialized) return;
+      setState(() => _lyricsInitialized = true);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _resumeVisualsTimer?.cancel();
+    if (state != AppLifecycleState.resumed) {
+      if (_visualEffectsActive && mounted) {
+        setState(() => _visualEffectsActive = false);
+      }
+      return;
+    }
+    if (_visualEffectsActive) return;
+    // Let Android finish its task-open animation before restarting the full
+    // screen background, waveform and lyric clocks in the same frame.
+    _resumeVisualsTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      setState(() => _visualEffectsActive = true);
+      _scheduleLyricsWarmup();
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
+    _resumeVisualsTimer?.cancel();
+    _lyricsWarmupTimer?.cancel();
     _lyricsProgress.removeStatusListener(_handleLyricsStatus);
     _lyricsProgress.dispose();
     _selEnterCtrl.dispose();
@@ -348,8 +401,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         ? RepaintBoundary(
             child: LyricsScreen(
               onBack: _hideLyrics,
-              stageVisible: _lyricsForeground,
-              positionUpdatesEnabled: _lyricsForeground && !_lyricsSettingsOpen,
+              stageVisible:
+                  _visualEffectsActive &&
+                  _lyricsForeground &&
+                  !_lyricsTransitionActive,
+              positionUpdatesEnabled:
+                  _visualEffectsActive &&
+                  _lyricsForeground &&
+                  !_lyricsTransitionActive &&
+                  !_lyricsSettingsOpen,
               onSettingsSheetVisibilityChanged: _handleLyricsSettingsVisibility,
             ),
           )
@@ -359,104 +419,110 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _closePage();
       },
-      child: NowPlayingEntrance(
-        child: DynamicAlbumBackground(
-          coverArtId: visualSong?.coverArt ?? '',
-          coverUrl: _coverUrl(ref, visualSong),
-          motionSeed: visualSong?.id,
-          motionEnabled: !_lyricsSettingsOpen && !_lyricsTransitionActive,
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: _onDismissPointerDown,
-            onPointerMove: _onDismissPointerMove,
-            onPointerUp: _onDismissPointerUp,
-            onPointerCancel: _onDismissPointerCancel,
-            child: LayoutBuilder(
-              builder: (context, constraints) => GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragStart: (!hasSong || _isSelecting)
-                    ? null
-                    : (_) => _beginLyricsTransition(initializeLyrics: true),
-                onHorizontalDragUpdate: (!hasSong || _isSelecting)
-                    ? null
-                    : (details) {
-                        _lyricsProgress.value =
-                            (_lyricsProgress.value -
-                                    details.delta.dx / constraints.maxWidth)
-                                .clamp(0.0, 1.0);
-                      },
-                onHorizontalDragEnd: (!hasSong || _isSelecting)
-                    ? null
-                    : (details) {
-                        final velocity = details.primaryVelocity ?? 0;
-                        _settleLyricsAfterDrag(
+      child: TickerMode(
+        enabled: _visualEffectsActive,
+        child: NowPlayingEntrance(
+          child: DynamicAlbumBackground(
+            coverArtId: visualSong?.coverArt ?? '',
+            coverUrl: _coverUrl(ref, visualSong),
+            motionSeed: visualSong?.id,
+            motionEnabled:
+                _visualEffectsActive &&
+                !_lyricsSettingsOpen &&
+                !_lyricsTransitionActive,
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: _onDismissPointerDown,
+              onPointerMove: _onDismissPointerMove,
+              onPointerUp: _onDismissPointerUp,
+              onPointerCancel: _onDismissPointerCancel,
+              child: LayoutBuilder(
+                builder: (context, constraints) => GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragStart: (!hasSong || _isSelecting)
+                      ? null
+                      : (_) => _beginLyricsTransition(initializeLyrics: true),
+                  onHorizontalDragUpdate: (!hasSong || _isSelecting)
+                      ? null
+                      : (details) {
+                          _lyricsProgress.value =
+                              (_lyricsProgress.value -
+                                      details.delta.dx / constraints.maxWidth)
+                                  .clamp(0.0, 1.0);
+                        },
+                  onHorizontalDragEnd: (!hasSong || _isSelecting)
+                      ? null
+                      : (details) {
+                          final velocity = details.primaryVelocity ?? 0;
+                          _settleLyricsAfterDrag(
+                            show: shouldShowLyricsAfterHorizontalDrag(
+                              progress: _lyricsProgress.value,
+                              primaryVelocity: velocity,
+                            ),
+                            primaryVelocity: velocity,
+                            width: constraints.maxWidth,
+                          );
+                        },
+                  onHorizontalDragCancel: (!hasSong || _isSelecting)
+                      ? null
+                      : () => _settleLyricsAfterDrag(
                           show: shouldShowLyricsAfterHorizontalDrag(
                             progress: _lyricsProgress.value,
-                            primaryVelocity: velocity,
+                            primaryVelocity: 0,
                           ),
-                          primaryVelocity: velocity,
-                          width: constraints.maxWidth,
-                        );
-                      },
-                onHorizontalDragCancel: (!hasSong || _isSelecting)
-                    ? null
-                    : () => _settleLyricsAfterDrag(
-                        show: shouldShowLyricsAfterHorizontalDrag(
-                          progress: _lyricsProgress.value,
                           primaryVelocity: 0,
+                          width: constraints.maxWidth,
                         ),
-                        primaryVelocity: 0,
-                        width: constraints.maxWidth,
-                      ),
-                child: AnimatedBuilder(
-                  animation: _lyricsProgress,
-                  builder: (context, _) {
-                    final progress = Curves.easeOut.transform(
-                      _lyricsProgress.value,
-                    );
-                    final width = constraints.maxWidth;
-                    return Stack(
-                      children: [
-                        // Backdrop and liquid filters cannot sit under the
-                        // page-wide animated opacity without resampling at
-                        // gesture boundaries. Plain content fades locally;
-                        // the control rail interpolates its own glass values.
-                        TickerMode(
-                          enabled: _lyricsProgress.value < 0.99,
-                          child: Transform.translate(
-                            offset: Offset(-width * 0.1 * progress, 0),
-                            child: Transform.scale(
-                              scale: 1 - 0.055 * progress,
+                  child: AnimatedBuilder(
+                    animation: _lyricsProgress,
+                    builder: (context, _) {
+                      final progress = Curves.easeOut.transform(
+                        _lyricsProgress.value,
+                      );
+                      final width = constraints.maxWidth;
+                      return Stack(
+                        children: [
+                          // Backdrop and liquid filters cannot sit under the
+                          // page-wide animated opacity without resampling at
+                          // gesture boundaries. Plain content fades locally;
+                          // the control rail interpolates its own glass values.
+                          TickerMode(
+                            enabled: _lyricsProgress.value < 0.99,
+                            child: Transform.translate(
+                              offset: Offset(-width * 0.1 * progress, 0),
+                              child: Transform.scale(
+                                scale: 1 - 0.055 * progress,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(
+                                    28 * progress,
+                                  ),
+                                  child: IgnorePointer(
+                                    ignoring: _lyricsProgress.value > 0.01,
+                                    child: playerPage,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          TickerMode(
+                            enabled: _lyricsProgress.value > 0.01,
+                            child: Transform.translate(
+                              offset: Offset(width * (1 - progress), 0),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(
-                                  28 * progress,
+                                  28 * (1 - progress),
                                 ),
                                 child: IgnorePointer(
-                                  ignoring: _lyricsProgress.value > 0.01,
-                                  child: playerPage,
+                                  ignoring: _lyricsProgress.value < 0.99,
+                                  child: lyricsPage,
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        TickerMode(
-                          enabled: _lyricsProgress.value > 0.01,
-                          child: Transform.translate(
-                            offset: Offset(width * (1 - progress), 0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                28 * (1 - progress),
-                              ),
-                              child: IgnorePointer(
-                                ignoring: _lyricsProgress.value < 0.99,
-                                child: lyricsPage,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -534,7 +600,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                 playbackMode: playbackMode,
                 lyricsProgress: _lyricsProgress,
                 positionUpdatesEnabled:
-                    !_lyricsForeground && !_lyricsSettingsOpen,
+                    _visualEffectsActive &&
+                    !_lyricsForeground &&
+                    !_lyricsSettingsOpen,
                 visualPalette: _visualPalette,
                 selectionCovers: _buildSelectionCovers(
                   ref,

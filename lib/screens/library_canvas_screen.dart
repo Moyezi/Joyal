@@ -671,6 +671,13 @@ class _CanvasHeader extends StatelessWidget {
                       height: 44,
                       fit: BoxFit.cover,
                       alignment: alignment,
+                      cacheWidth: physicalImageCacheWidth(
+                        context,
+                        heroTag == libraryCanvasHeroTag
+                            ? MediaQuery.sizeOf(context).width * 0.7
+                            : 96,
+                        maxWidth: 2048,
+                      ),
                     ),
                   ),
                 ),

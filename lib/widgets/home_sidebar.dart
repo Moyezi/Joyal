@@ -10,6 +10,7 @@ import '../providers/library_provider.dart';
 import '../providers/listening_stats_provider.dart';
 import '../providers/sidebar_image_provider.dart';
 import '../providers/theme_provider.dart';
+import 'cached_disk_image.dart';
 
 class HomeSidebar extends ConsumerWidget {
   final VoidCallback onSettingsTap;
@@ -326,6 +327,11 @@ class _SidebarImagePanel extends ConsumerWidget {
                 File(state.imagePath!),
                 fit: BoxFit.cover,
                 alignment: Alignment(state.alignmentX, state.alignmentY),
+                cacheWidth: physicalImageCacheWidth(
+                  context,
+                  MediaQuery.sizeOf(context).width * 0.7,
+                  maxWidth: 2048,
+                ),
                 errorBuilder: (context, error, stackTrace) {
                   return _SidebarImagePlaceholder(
                     label: '图片读取失败',

@@ -20,7 +20,6 @@ import '../widgets/directional_anchor_reveal.dart';
 import '../widgets/frosted_glass.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/home/recent_card_flow.dart';
-import '../widgets/page_custom_background.dart';
 import '../widgets/play_queue_sheet.dart';
 import '../widgets/navigation/search_ripple_route.dart';
 import 'album_detail_screen.dart';
@@ -234,11 +233,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _scheduleExclusionRectReport();
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: PageCustomBackground(target: PageBackgroundTarget.home),
-          ),
           Positioned.fill(child: _buildBody(libraryState)),
           GlassTopBar(
             height: _headerHeight,

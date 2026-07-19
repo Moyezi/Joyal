@@ -25,9 +25,11 @@ import 'services/android_media_bridge.dart';
 import 'services/lyrics_service.dart';
 import 'utils/two_finger_pinch_tracker.dart';
 import 'widgets/bottom_nav.dart';
+import 'widgets/cached_disk_image.dart';
 import 'widgets/home_sidebar.dart';
 import 'widgets/mini_player.dart';
 import 'widgets/navigation/main_shell_helpers.dart';
+import 'widgets/page_custom_background.dart';
 
 /// The root widget of the application.
 class JoyalMusicApp extends ConsumerWidget {
@@ -118,6 +120,7 @@ class _MainShellState extends ConsumerState<MainShell>
   final List<Rect> _drawerExclusionRects = [];
   final TwoFingerPinchTracker _homePinchTracker = TwoFingerPinchTracker();
   bool _isLibraryCanvasRouteOpen = false;
+  bool _isNowPlayingRouteOpen = false;
 
   void _registerDrawerExclusion(Rect rect) {
     _drawerExclusionRects.clear();
@@ -513,16 +516,22 @@ class _MainShellState extends ConsumerState<MainShell>
   }
 
   void _openNowPlaying() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.transparent,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const NowPlayingScreen(),
-        transitionDuration: const Duration(milliseconds: 640),
-        reverseTransitionDuration: const Duration(milliseconds: 480),
-      ),
-    );
+    if (_isNowPlayingRouteOpen) return;
+    setState(() => _isNowPlayingRouteOpen = true);
+    Navigator.of(context)
+        .push(
+          PageRouteBuilder(
+            opaque: false,
+            barrierColor: Colors.transparent,
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                const NowPlayingScreen(),
+            transitionDuration: const Duration(milliseconds: 640),
+            reverseTransitionDuration: const Duration(milliseconds: 480),
+          ),
+        )
+        .whenComplete(() {
+          if (mounted) setState(() => _isNowPlayingRouteOpen = false);
+        });
   }
 
   void _prefetchLyrics(PlaybackState state) {
@@ -563,7 +572,19 @@ class _MainShellState extends ConsumerState<MainShell>
       if (!mounted) return;
       final file = File(imagePath);
       if (!file.existsSync()) return;
-      unawaited(precacheImage(FileImage(file), context).catchError((_) {}));
+      final logicalWidth =
+          MediaQuery.sizeOf(context).width * _drawerWidthFactor;
+      final cacheWidth = physicalImageCacheWidth(
+        context,
+        logicalWidth,
+        maxWidth: 2048,
+      );
+      final provider = ResizeImage.resizeIfNeeded(
+        cacheWidth,
+        null,
+        FileImage(file),
+      );
+      unawaited(precacheImage(provider, context).catchError((_) {}));
     });
   }
 
@@ -622,22 +643,25 @@ class _MainShellState extends ConsumerState<MainShell>
                       recognizer.onCancel = _handleDrawerDragCancel;
                     }),
               },
-              child: Stack(
-                children: [
-                  DrawerPane(
-                    animation: _drawerController,
-                    drawerWidth: drawerWidth,
-                    child: RepaintBoundary(
-                      child: HomeSidebar(
-                        onSettingsTap: _openSettingsHub,
-                        onPersonalizationTap: _openPersonalization,
-                        onLibraryCanvasTap: () => _openLibraryCanvas(),
+              child: TickerMode(
+                enabled: !_isNowPlayingRouteOpen,
+                child: Stack(
+                  children: [
+                    DrawerPane(
+                      animation: _drawerController,
+                      drawerWidth: drawerWidth,
+                      child: RepaintBoundary(
+                        child: HomeSidebar(
+                          onSettingsTap: _openSettingsHub,
+                          onPersonalizationTap: _openPersonalization,
+                          onLibraryCanvasTap: () => _openLibraryCanvas(),
+                        ),
                       ),
                     ),
-                  ),
-                  _buildTransformedShell(drawerWidth: drawerWidth),
-                  StartupMask(isVisible: isStartingUp),
-                ],
+                    _buildTransformedShell(drawerWidth: drawerWidth),
+                    StartupMask(isVisible: isStartingUp),
+                  ],
+                ),
               ),
             ),
           ),
@@ -690,6 +714,7 @@ class _MainShellState extends ConsumerState<MainShell>
     final sidebarImage = ref.watch(sidebarImageProvider);
     return Stack(
       children: [
+        const Positioned.fill(child: PageCustomBackground()),
         Positioned.fill(child: _buildSlidingTabs()),
         if (sidebarImage.imagePath case final imagePath?
             when imagePath.isNotEmpty)
@@ -760,7 +785,12 @@ class _MainShellState extends ConsumerState<MainShell>
                               ignoring:
                                   index != _currentTab ||
                                   _tabTransitionController.isAnimating,
-                              child: RepaintBoundary(child: _screens[index]),
+                              child: ImageLoadingScope(
+                                enabled:
+                                    index == _currentTab &&
+                                    !_tabTransitionController.isAnimating,
+                                child: RepaintBoundary(child: _screens[index]),
+                              ),
                             ),
                           ),
                         ),

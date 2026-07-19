@@ -18,6 +18,40 @@ String _normalizedImageIdentity(String url) {
   return uri.removeFragment().replace(queryParameters: const {}).toString();
 }
 
+int physicalImageCacheWidth(
+  BuildContext context,
+  double logicalWidth, {
+  int maxWidth = 4096,
+}) {
+  final physicalWidth = (logicalWidth * MediaQuery.devicePixelRatioOf(context))
+      .ceil();
+  return physicalWidth.clamp(1, maxWidth).toInt();
+}
+
+/// Prevents newly mounted images from starting decode work while a large UI
+/// transition is in progress. Images that were already presented stay alive.
+class ImageLoadingScope extends InheritedWidget {
+  final bool enabled;
+
+  const ImageLoadingScope({
+    super.key,
+    required this.enabled,
+    required super.child,
+  });
+
+  static bool enabledOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<ImageLoadingScope>()
+            ?.enabled ??
+        true;
+  }
+
+  @override
+  bool updateShouldNotify(ImageLoadingScope oldWidget) {
+    return enabled != oldWidget.enabled;
+  }
+}
+
 class CachedDiskImage extends StatefulWidget {
   final String imageUrl;
   final String cacheKey;
@@ -55,6 +89,9 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
   late String _cacheKey;
   String? _cacheLookupKey;
   bool _checkedDiskCache = false;
+  bool _hasPresentedImage = false;
+  bool _routeIsReady = true;
+  Animation<double>? _routeAnimation;
 
   @override
   void initState() {
@@ -69,6 +106,26 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextAnimation = ModalRoute.of(context)?.animation;
+    if (identical(nextAnimation, _routeAnimation)) return;
+    _routeAnimation?.removeStatusListener(_handleRouteStatus);
+    _routeAnimation = nextAnimation;
+    _routeIsReady =
+        nextAnimation == null ||
+        nextAnimation.status == AnimationStatus.completed;
+    nextAnimation?.addStatusListener(_handleRouteStatus);
+  }
+
+  void _handleRouteStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || _routeIsReady || !mounted) {
+      return;
+    }
+    setState(() => _routeIsReady = true);
+  }
+
+  @override
   void didUpdateWidget(covariant CachedDiskImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.cacheKey == widget.cacheKey &&
@@ -78,9 +135,16 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
     _cacheKey = widget.cacheKey;
     _file = _rememberedFile(_cacheKey);
     _checkedDiskCache = _file != null;
+    _hasPresentedImage = false;
     if (_file == null) {
       _loadCachedFile();
     }
+  }
+
+  @override
+  void dispose() {
+    _routeAnimation?.removeStatusListener(_handleRouteStatus);
+    super.dispose();
   }
 
   Future<void> _loadCachedFile() async {
@@ -111,17 +175,35 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final decodeWidth = _effectiveDecodeWidth(constraints);
+        return _buildImage(context, decodeWidth);
+      },
+    );
+  }
+
+  Widget _buildImage(BuildContext context, double? decodeWidth) {
+    final canPresentImage =
+        _hasPresentedImage ||
+        (_routeIsReady && ImageLoadingScope.enabledOf(context));
+    if (!canPresentImage) {
+      return widget.placeholderBuilder(context);
+    }
+
     final file = _file;
     if (file != null) {
+      _hasPresentedImage = true;
       return Image.file(
         file,
         fit: widget.fit,
-        cacheWidth: _decodeWidthFor(context, widget.decodeWidth),
+        cacheWidth: _decodeWidthFor(context, decodeWidth),
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) {
           _memoryFiles.remove(widget.cacheKey);
           return _NetworkImage(
             widget: widget,
+            decodeWidth: decodeWidth,
             showPlaceholder: true,
             onImageLoaded: _markImageLoaded,
           );
@@ -137,11 +219,29 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
       return const SizedBox.expand();
     }
 
+    _hasPresentedImage = true;
     return _NetworkImage(
       widget: widget,
+      decodeWidth: decodeWidth,
       showPlaceholder: !_loadedKeys.contains(widget.cacheKey),
       onImageLoaded: _markImageLoaded,
     );
+  }
+
+  double? _effectiveDecodeWidth(BoxConstraints constraints) {
+    final requestedWidth = widget.decodeWidth;
+    if (requestedWidth != null &&
+        requestedWidth.isFinite &&
+        requestedWidth > 0) {
+      return requestedWidth;
+    }
+    if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+      return constraints.maxWidth;
+    }
+    if (constraints.maxHeight.isFinite && constraints.maxHeight > 0) {
+      return constraints.maxHeight;
+    }
+    return null;
   }
 
   void _markImageLoaded() {
@@ -192,11 +292,13 @@ class _CachedDiskImageState extends State<CachedDiskImage> {
 
 class _NetworkImage extends StatelessWidget {
   final CachedDiskImage widget;
+  final double? decodeWidth;
   final bool showPlaceholder;
   final VoidCallback onImageLoaded;
 
   const _NetworkImage({
     required this.widget,
+    required this.decodeWidth,
     required this.showPlaceholder,
     required this.onImageLoaded,
   });
@@ -210,7 +312,7 @@ class _NetworkImage extends StatelessWidget {
       imageUrl: widget.imageUrl,
       cacheKey: widget.cacheKey,
       fit: widget.fit,
-      memCacheWidth: _decodeWidthFor(context, widget.decodeWidth),
+      memCacheWidth: _decodeWidthFor(context, decodeWidth),
       imageBuilder: (context, imageProvider) {
         onImageLoaded();
         return Image(
@@ -235,7 +337,5 @@ int? _decodeWidthFor(BuildContext context, double? logicalWidth) {
   if (logicalWidth == null || !logicalWidth.isFinite || logicalWidth <= 0) {
     return null;
   }
-  final physicalWidth = (logicalWidth * MediaQuery.devicePixelRatioOf(context))
-      .ceil();
-  return physicalWidth.clamp(1, 4096).toInt();
+  return physicalImageCacheWidth(context, logicalWidth);
 }

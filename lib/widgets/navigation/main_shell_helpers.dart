@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../cached_disk_image.dart';
 import '../home_sidebar.dart';
 
 class LibraryCanvasEdgeHero extends StatelessWidget {
@@ -31,6 +32,7 @@ class LibraryCanvasEdgeHero extends StatelessWidget {
             File(imagePath),
             fit: BoxFit.cover,
             alignment: alignment,
+            cacheWidth: physicalImageCacheWidth(context, width),
             errorBuilder: (_, _, _) =>
                 const ColoredBox(color: Color(0xFF282B2E)),
           ),

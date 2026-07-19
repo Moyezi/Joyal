@@ -238,13 +238,19 @@ class NowPlayingPlayerContent extends ConsumerWidget {
                         final visibility = lyricsSurfaceVisibilityForProgress(
                           lyricsProgress.value,
                         );
+                        final playerSettled = lyricsProgress.value <= 0.001;
                         return FrostedGlass(
-                          blurSigma: controlsBlur * visibility,
+                          // A changing blur/refraction shader is especially
+                          // expensive while both full-screen surfaces move.
+                          // Keep the transition treatment tinted but unblurred,
+                          // then restore the configured glass at the endpoint.
+                          blurSigma: playerSettled ? controlsBlur : 0,
                           borderRadius: BorderRadius.circular(34),
                           tintColor: theme.scaffoldBackgroundColor,
                           tintOpacity: controlsTintOpacity * visibility,
                           borderOpacity: 0,
                           liquidGlassIntensityScale: visibility,
+                          liquidGlassEnabled: playerSettled ? null : false,
                           boxShadow: [
                             BoxShadow(
                               color: theme.colorScheme.shadow.withValues(

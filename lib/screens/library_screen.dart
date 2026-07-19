@@ -22,7 +22,6 @@ import '../widgets/album_cover.dart';
 import '../widgets/directional_anchor_reveal.dart';
 import '../widgets/glass_top_bar.dart';
 import '../widgets/navigation/search_ripple_route.dart';
-import '../widgets/page_custom_background.dart';
 import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
@@ -466,11 +465,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final topBarExtent = _topBarExtent(context);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: PageCustomBackground(target: PageBackgroundTarget.library),
-          ),
           Positioned.fill(
             child: TabBarView(
               controller: _tabController,

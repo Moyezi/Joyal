@@ -8,6 +8,7 @@ import '../../config/theme.dart';
 import '../../config/theme_context.dart';
 import '../../providers/page_background_provider.dart';
 import '../../providers/sidebar_image_provider.dart';
+import '../cached_disk_image.dart';
 import '../dynamic_album_background.dart';
 
 class PageBackgroundTile extends StatelessWidget {
@@ -49,7 +50,11 @@ class PageBackgroundTile extends StatelessWidget {
                       width: 58,
                       height: 58,
                       child: hasImage
-                          ? Image.file(File(path), fit: BoxFit.cover)
+                          ? Image.file(
+                              File(path),
+                              fit: BoxFit.cover,
+                              cacheWidth: physicalImageCacheWidth(context, 58),
+                            )
                           : DecoratedBox(
                               decoration: BoxDecoration(
                                 color: context.backgroundColor,
@@ -175,6 +180,7 @@ class SidebarImageTile extends StatelessWidget {
                             File(path),
                             fit: BoxFit.cover,
                             alignment: alignment,
+                            cacheWidth: physicalImageCacheWidth(context, 86),
                           )
                         : DecoratedBox(
                             decoration: BoxDecoration(
@@ -315,6 +321,11 @@ class SidebarImageCropSheet extends ConsumerWidget {
                             alignment: Alignment(
                               state.alignmentX,
                               state.alignmentY,
+                            ),
+                            cacheWidth: physicalImageCacheWidth(
+                              context,
+                              constraints.maxWidth,
+                              maxWidth: 2048,
                             ),
                           )
                         else

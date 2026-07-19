@@ -11,6 +11,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - Search enters from the home search box or the top-bar actions on 首页, 曲库, and 发现.
 - Old tests may still assert the copy `主页`.
 - Main pages use a full-screen `Stack` background.
+- The shell renders the shared `PageCustomBackground` once behind all three transparent main pages; page transitions must not composite duplicate full-screen image backgrounds.
 - `GlassTopBar` is fixed over the status bar; content must avoid the top bar.
 - The library `TabBar` is an extra area below the top bar and must not shift the title or buttons.
 
@@ -30,6 +31,7 @@ description: "Navigation and shell memory for Joyal Music. Use when changing lib
 - `lib/app.dart` pre-mounts the home, library, and discovery pages in a sliding stack.
 - Off-screen pages keep state.
 - Use `TickerMode`, `IgnorePointer`, and `ExcludeSemantics` to prevent background animation, interaction, and semantics.
+- Wrap pre-mounted pages in `ImageLoadingScope`: the destination may start new image decode work only after the tab slide settles, while images already presented on the outgoing page stay visible.
 - After the main-tab slide settles on the library, increment `LibraryScreen.visibilityRequest`; the pre-mounted [`双向锚点显现`](../joyal-library-playback-lyrics/references/library-playback.md) cards otherwise remain in their off-screen hidden state.
 - Bottom navigation supports horizontal drag paging, cross-item selection vibration, and pages sliding in from the edge.
 - Keep shell state and route coordination in `lib/app.dart`; edge-Hero, startup mask, drawer presentation, and gesture recognizer helpers live in `lib/widgets/navigation/main_shell_helpers.dart`.

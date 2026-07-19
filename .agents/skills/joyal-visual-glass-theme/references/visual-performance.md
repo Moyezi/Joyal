@@ -5,7 +5,11 @@
 - Treat battery use, thermals, and frame pacing as part of visual quality. Reject effects that continuously repaint or recompute without a meaningful visible change.
 - Default to static or cached compositions. Give continuous animation one visible purpose, one owner, and a lifecycle that stops while hidden, fully covered, or non-interactive.
 - Never stack duplicate full-screen backgrounds during transitions. Now playing and lyrics share one `DynamicAlbumBackground`; child pages render foreground only.
+- The main shell likewise owns one shared `PageCustomBackground` behind the transparent home, library, and discovery scaffolds. Do not restore a full-screen background inside each pre-mounted tab.
+- `CachedDiskImage` derives a bounded decode width from finite layout constraints when callers omit one. Its first image presentation waits for the enclosing route animation and the shell's `ImageLoadingScope`; already-presented images remain visible during later transitions.
 - Disable tickers, high-frequency position subscriptions, and painting on hidden playback/lyrics pages. System back, buttons, and swipe exits must restore the newly visible page's updates.
+- While the non-opaque now-playing route is open, keep the underlying main shell in a disabled `TickerMode`. Now playing observes app lifecycle immediately and delays restarting its visual tickers briefly after resume so Android's task-open animation does not compete with full-screen effects.
+- Warm the lyrics foreground only after the now-playing entrance settles. During the horizontal now-playing/lyrics transition, replace the control rail's changing blur/refraction with a tinted no-blur treatment and restore configured glass only at the player endpoint.
 - While moving a large glass drawer, freeze the dynamic background and full-area refraction below it. Use a tinted no-blur transition treatment and restore glass after the route settles.
 - Limit playback-position updates to the active word, progress control, or changed MiniPlayer lyric pair. Never rebuild whole pages, lyric lists, palettes, backgrounds, or glass surfaces per tick.
 - For tunable continuous effects, update in memory during drag and persist on release. `flowingHaloBackgroundProvider` defaults to 20 FPS and offers 5–60 FPS through `FlowingHaloBackgroundTile`.
