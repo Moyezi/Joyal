@@ -21,8 +21,12 @@ class PageCustomBackground extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pageBackground = ref.watch(pageBackgroundProvider);
     final path = pageBackground.imagePath;
+    final fallbackColor = Theme.of(context).scaffoldBackgroundColor;
     if (path == null || path.isEmpty) {
-      return const SizedBox.shrink();
+      return ColoredBox(
+        key: const ValueKey('main-shell-background'),
+        color: fallbackColor,
+      );
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -34,6 +38,10 @@ class PageCustomBackground extends ConsumerWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
+            ColoredBox(
+              key: const ValueKey('main-shell-background'),
+              color: fallbackColor,
+            ),
             LayoutBuilder(
               builder: (context, constraints) {
                 final fullSize = constraints.biggest;

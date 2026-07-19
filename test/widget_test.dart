@@ -419,6 +419,29 @@ void main() {
     expect(find.text('关于 Joyal'), findsOneWidget);
   });
 
+  testWidgets('Main shell keeps an opaque theme background behind tabs', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    final backgroundFinder = find.byKey(
+      const ValueKey('main-shell-background'),
+    );
+    expect(backgroundFinder, findsOneWidget);
+
+    final background = tester.widget<ColoredBox>(backgroundFinder);
+    final backgroundContext = tester.element(backgroundFinder);
+    expect(
+      background.color,
+      Theme.of(backgroundContext).scaffoldBackgroundColor,
+    );
+    expect(
+      tester.getSize(backgroundFinder),
+      tester.getSize(find.byType(MainShell)),
+    );
+  });
+
   testWidgets('Home content does not scroll vertically while opening sidebar', (
     tester,
   ) async {
